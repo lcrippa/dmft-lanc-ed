@@ -212,14 +212,15 @@ contains
                       iud(2)   = HI(2)%map(idw)
                       nud(2,:) = bdecomp(iud(2),Ns)
                       !
+                      i = iup + (idw-1)*idimUP
+                      !                      
                       if((nud(ispin,jorb)==1).and.(nud(ispin,iorb)==0))then
                          call c(jorb,iud(ispin),r,sgn1)
                          call cdg(iorb,r,k,sgn2)
                          !
                          jud = [iup,idw]
-                         jud(ispin) = binary_search(HI(ispin)%map,r)
+                         jud(ispin) = binary_search(HI(ispin)%map,k)
                          !
-                         i = iud(1) + (iud(2)-1)*idimUP
                          j = jud(1) + (jud(2)-1)*jdimUP
                          !
                          imp_density_matrix(ispin,ispin,iorb,jorb) = imp_density_matrix(ispin,ispin,iorb,jorb) + &
@@ -360,7 +361,7 @@ contains
                       call cdg(iorb,k1,k2,sg2)
                       !
                       jud        = [iup,idw]
-                      jud(ispin) = binary_search(H(ispin)%map,r)
+                      jud(ispin) = binary_search(H(ispin)%map,k2)
                       !                      
                       j = jud(1) + (jud(2)-1)*jdimUP
                       ed_Eknot = ed_Eknot + impHloc(ispin,ispin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
@@ -372,7 +373,7 @@ contains
                       call cdg(iorb,k1,k2,sg2)
                       !
                       jud        = [iup,idw]
-                      jud(ispin) = binary_search(H(ispin)%map,r)
+                      jud(ispin) = binary_search(H(ispin)%map,k2)
                       !                      
                       j = jud(1) + (jud(2)-1)*jdimUP
                       ed_Eknot = ed_Eknot + impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))

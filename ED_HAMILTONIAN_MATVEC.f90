@@ -345,11 +345,19 @@ contains
     integer,allocatable,dimension(:)    :: SendCounts,Displs
     type(sparse_element),pointer        :: c
     integer                             :: iup,idw,j
-    integer                             :: Dim,DimUp,DimDw
+    integer                             :: Dim,DimUp,DimDw,DimUp_,DimDw_
     N=0
     !
-    if(MpiComm==MPI_UNDEFINED)stop "ud_spHtimesV_cc ERRROR: MpiComm = MPI_UNDEFINED"
+    if(MpiComm==MPI_UNDEFINED)stop "ud_spHtimesV_cc ERRROR: MpiComm = MPI_UNDEFINED"    
     call MPI_AllReduce(Nloc,N,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+
+    DimUp_ = spH0up%Nrow
+    DimUp  = 0
+    call MPI_AllReduce(DimUp_,DimUp,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+
+    DimDw_ = spH0dw%Nrow
+    DimDw  = 0
+    call MPI_AllReduce(DimDw_,DimDw,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
     !
     MpiSize = get_Size_MPI(MpiComm)
     mpiQ = get_Q_MPI(MpiComm,N)
@@ -364,7 +372,8 @@ contains
     call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,vin,SendCounts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
     !
     Hv=zero
-    !
+    !    
+    ! print*,DimUp,DimDw,getDimUp(Hsector),getDimDw(Hsector)
     do idw=1,DimDw
        do iup=1,DimUp
           i = iup + (idw-1)*DimUp
