@@ -225,7 +225,7 @@ contains
     allocate(Hkr(Nlso,Nlso,Nk))
     !
     call TB_set_bk([pi2,0d0,0d0],[0d0,pi2,0d0],[0d0,0d0,pi2])
-    call TB_build_model(Hkr,bhz_edge_model,Ly,Nso,[Nk,1,1],pbc=.false.)
+    call TB_build_model(Hkr,bhz_edge_model,Ly,Nso,[Nk,1,1],pbc=.false.,wdos=.false.)
     !
     allocate(Wtk(Nk))
     Wtk = 1d0/Nk
@@ -233,6 +233,7 @@ contains
     !SETUP THE LOCAL PART Hloc(Ry)
     allocate(bhzHloc(Nlso,Nlso))
     bhzHloc = sum(Hkr,dim=3)/Nk
+    where(abs(bhzHloc)<1d-6)bhzHloc=zero
   end subroutine build_hkr
 
 
