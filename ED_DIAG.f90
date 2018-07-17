@@ -111,6 +111,9 @@ contains
     lanc_verbose=.false.
     if(ed_verbose>2)lanc_verbose=.true.
     !
+
+    ! call check_first_last(2,2)
+    
     iter=0
     sector: do isector=1,Nsectors
        if(.not.twin_mask(isector))cycle sector !cycle loop if this sector should not be investigated

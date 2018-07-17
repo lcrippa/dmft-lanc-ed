@@ -1,9 +1,8 @@
   ! IMP UP <--> BATH UP
-  do iup=first_state_up,last_state_up
+  do iup=1,DimUp!first_state_up,last_state_up
      mup  = Hs(1)%map(iup)
      nup  = bdecomp(mup,Ns)
-     impi_up = iup - ishift_dw
-
+     !
      do iorb=1,Norb
         do kp=1,Nbath
            alfa=getBathStride(iorb,kp)
@@ -14,7 +13,7 @@
               jup = binary_search(Hs(1)%map,k2)
               htmp = diag_hybr(1,iorb,kp)*sg1*sg2
               !
-              call sp_insert_element(spH0up,htmp,impi_up,jup)
+              call sp_insert_element(spH0up,htmp,iup,jup)
               !
            endif
            !
@@ -24,7 +23,7 @@
               jup=binary_search(Hs(1)%map,k2)
               htmp = diag_hybr(1,iorb,kp)*sg1*sg2
               !
-              call sp_insert_element(spH0up,htmp,impi_up,jup)
+              call sp_insert_element(spH0up,htmp,iup,jup)
               !
            endif
         enddo
@@ -36,8 +35,7 @@
   do idw=first_state_dw,last_state_dw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
-     impi_dw = idw - ishift_dw
-
+     !
      do iorb=1,Norb
         do kp=1,Nbath
            alfa=getBathStride(iorb,kp)
@@ -48,7 +46,7 @@
               jdw=binary_search(Hs(2)%map,k2)
               htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
-              call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
+              call sp_insert_element(spH0dw,htmp,idw,jdw)
               !
            endif
            if( (diag_hybr(Nspin,iorb,kp)/=0d0) .AND. (ndw(iorb)==0) .AND. (ndw(alfa)==1) )then
@@ -57,7 +55,7 @@
               jdw=binary_search(Hs(2)%map,k2)
               htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
-              call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
+              call sp_insert_element(spH0dw,htmp,idw,jdw)
               !
            endif
         enddo

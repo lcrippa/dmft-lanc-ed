@@ -1,19 +1,15 @@
   do idw=first_state_dw,last_state_dw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
-     impi_dw = idw - ishift_dw
-
-     do iup=first_state_up,last_state_up
+     !
+     do iup=first_state_up(idw),last_state_up(idw)
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
-        impi_up = iup - ishift_dw
-
+        !
         !MPI Shifts
         i    = iup + (idw-1)*dimUp
         impi = i - ishift
-
-
-
+        !
         !density-density interaction: same orbital, opposite spins:
         ! = \sum_\a U_\a*(n_{\a,up}*n_{\a,dw})
         htmp = zero
@@ -56,8 +52,8 @@
         !
         call sp_insert_element(spH0,htmp,impi,i)
         !
-
-
+        !
+        !
         ! SPIN-EXCHANGE (S-E) and PAIR-HOPPING TERMS
         !    S-E: J c^+_iorb_up c^+_jorb_dw c_iorb_dw c_jorb_up  (i.ne.j) 
         !    S-E: J c^+_{iorb} c^+_{jorb+Ns} c_{iorb+Ns} c_{jorb}

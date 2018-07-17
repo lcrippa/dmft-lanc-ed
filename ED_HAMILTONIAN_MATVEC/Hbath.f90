@@ -1,17 +1,14 @@
   do idw=first_state_dw,last_state_dw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
-     impi_dw = idw - ishift_dw
-
-     do iup=first_state_up,last_state_up
+     !
+     do iup=first_state_up(idw),last_state_up(idw)
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
-        impi_up = iup - ishift_dw
-
+        !
         !MPI Shifts
         i    = iup + (idw-1)*dimUp
         impi = i - ishift
-
 
         if(bath_type/="replica") then
            !
@@ -47,7 +44,6 @@
   enddo
 
 
-
   !off-diagonal elements
   !
   !this loop considers only the orbital off-diagonal terms
@@ -56,10 +52,9 @@
   if(bath_type=="replica") then
      !
      !UP:
-     do iup=first_state_up,last_state_up
+     do iup=1,DimUp             !first_state_up,last_state_up
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
-        impi_up = iup - ishift_dw
         !
         do kp=1,Nbath
            do iorb=1,Norb
@@ -76,7 +71,7 @@
                     jup = binary_search(Hs(1)%map,k2)
                     htmp = dmft_bath%h(1,1,iorb,jorb,kp)*sg1*sg2
                     !
-                    call sp_insert_element(spH0up,htmp,impi_up,jup)
+                    call sp_insert_element(spH0up,htmp,iup,jup)
                     !
                  endif
               enddo
@@ -90,7 +85,6 @@
      do idw=first_state_dw,last_state_dw
         mdw  = Hs(2)%map(idw)
         ndw  = bdecomp(mdw,Ns)
-        impi_dw = idw - ishift_dw
         !
         do kp=1,Nbath
            do iorb=1,Norb
@@ -107,7 +101,7 @@
                     jdw = binary_search(Hs(2)%map,k2)
                     htmp = dmft_bath%h(Nspin,Nspin,iorb,jorb,kp)*sg1*sg2
                     !
-                    call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
+                    call sp_insert_element(spH0dw,htmp,idw,jdw)
                     !
                  endif
               enddo

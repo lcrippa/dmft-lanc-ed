@@ -35,6 +35,8 @@ MODULE ED_SETUP
   public :: delete_sector
   public :: bdecomp
   public :: bjoin
+  public :: iup_index
+  public :: idw_index
   public :: flip_state
   public :: print_state_vector
   public :: c,cdg
@@ -437,7 +439,6 @@ contains
     call map_deallocate(H)
   end subroutine delete_sector_full
 
-
   subroutine build_sector_sresolved(isector,H)
     integer                       :: isector
     type(sector_map),dimension(2) :: H
@@ -511,6 +512,46 @@ contains
   end subroutine cdg
 
 
+  function iup_index(i,DimUp) result(iup)
+    integer :: i
+    integer :: DimUp
+    integer :: iup
+    iup = mod(i,DimUp);if(iup==0)iup=DimUp
+  end function iup_index
+
+  function idw_index(i,DimUp) result(idw)
+    integer :: i
+    integer :: DimUp
+    integer :: idw
+    idw = (i-1)/DimUp+1
+  end function idw_index
+  
+  ! subroutine get_ud_from_i(nup,ndw)
+  !   integer :: nup,ndw
+  !   integer :: DimUp,DimDw,Dim
+  !   integer :: isector
+  !   integer :: i,iup,idw,iup_,idw_
+  !   ! nup=2
+  !   ! ndw=3
+  !   isector = getSector(nup,ndw)
+  !   print*,isector
+  !   DimUp=getDimUp(isector)
+  !   DimDw=getDimDw(isector)
+  !   print*,DimUp,DimDw
+  !   Dim=getDim(isector)
+  !   print*,Dim,DimUp*DimDw
+  !   !
+  !   do idw=1,DimDw
+  !      do iup=1,DimUp
+  !         i = iup + (idw-1)*DimUp
+  !         iup_ = iup_index(i,DimUp)
+  !         if(iup_/=iup)stop "iup!=iup_"
+  !         idw_ = idw_index(i,DimUp)
+  !         if(idw_/=idw)stop "idw!=idw_"
+  !         print*,iup,iup_,"-",idw,idw_
+  !      enddo
+  !   enddo
+  ! end subroutine get_ud_from_i
 
 
 

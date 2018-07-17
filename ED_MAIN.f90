@@ -261,12 +261,12 @@ contains
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
     !
-    ! select case(ed_sparse_H)
-    ! case (.true.)
-    spHtimesV_cc => spMatVec_cc
-    ! case (.false.)
-    !    spHtimesV_cc => directMatVec_cc
-    ! end select
+    select case(ed_sparse_H)
+    case (.true.)
+       spHtimesV_cc => spMatVec_cc
+    case (.false.)
+       spHtimesV_cc => directMatVec_cc
+    end select
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
@@ -307,12 +307,12 @@ contains
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
     !
-    ! select case(ed_sparse_H)
-    ! case (.true.)
-    spHtimesV_cc => spMatVec_MPI_cc
-    ! case (.false.)
-    !    spHtimesV_cc => directMatVec_MPI_cc
-    ! end select
+    select case(ed_sparse_H)
+    case (.true.)
+       spHtimesV_cc => spMatVec_MPI_cc
+    case (.false.)
+       spHtimesV_cc => directMatVec_MPI_cc
+    end select
     !
     !SET THE LOCAL COMMUNICATORS IN ALL THE RELEVANT PARTS OF THE CODE:
     call ed_hamiltonian_matvec_set_MPI(MpiComm)

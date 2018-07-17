@@ -1,17 +1,26 @@
+  ! do i=first_state,last_state
+  !    iup = iup_index(i,DimUp)
+  !    idw = idw_index(i,DimUp)
+  !    !
+  !    nup  = bdecomp(Hs(1)%map(iup),Ns)
+  !    ndw  = bdecomp(Hs(2)%map(idw),Ns)
+  !    !
+  !    impi = i - ishift
+  
+  
   do idw=first_state_dw,last_state_dw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
-     impi_dw = idw - ishift_dw
-
-     do iup=first_state_up,last_state_up
+     !
+     do iup=first_state_up(idw),last_state_up(idw)
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
-        impi_up = iup - ishift_dw
-
+        !
         !MPI Shifts
         i    = iup + (idw-1)*dimUp
         impi = i - ishift
-        
+        !
+        !
         !Diagonal Elements, i.e. local part
         htmp = zero
         do iorb=1,Norb
@@ -27,17 +36,15 @@
 
 
 
-
   !Off-diagonal elements, i.e. non-local part
   !this loop considers only the orbital off-diagonal terms
   !because iorb=jorb can not have simultaneously
   !occupation 0 and 1, as required by this if Jcondition:
   !
   !UP
-  do iup=first_state_up,last_state_up
+  do iup=1,DimUp                !first_state_up,last_state_up
      mup  = Hs(1)%map(iup)
      nup  = bdecomp(mup,Ns)
-     impi_up = iup - ishift_dw
      !
      do iorb=1,Norb
         do jorb=1,Norb
@@ -50,7 +57,7 @@
               jup = binary_search(Hs(1)%map,k2)
               htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
               !
-              call sp_insert_element(spH0up,htmp,impi_up,jup)
+              call sp_insert_element(spH0up,htmp,iup,jup)
               !
            endif
         enddo
@@ -62,7 +69,6 @@
   do idw=first_state_dw,last_state_dw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
-     impi_dw = idw - ishift_dw
      !
      do iorb=1,Norb
         do jorb=1,Norb
@@ -72,10 +78,10 @@
            if (Jcondition) then
               call c(jorb,mdw,k1,sg1)
               call cdg(iorb,k1,k2,sg2)
-              jdw = binary_search(Hs(1)%map,k2)
+              jdw = binary_search(Hs(2)%map,k2)
               htmp = impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2
               !
-              call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
+              call sp_insert_element(spH0dw,htmp,idw,jdw)
               !
            endif
         enddo
