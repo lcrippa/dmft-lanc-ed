@@ -73,20 +73,37 @@ contains
     character(len=32)                           :: fmt
     !
     unit=LOGfile
-    !
     if(present(file))then
        open(free_unit(unit),file=reg(file))
        write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
     endif
     !
     Nso = Nspin*Norb
-    write(fmt,"(A,I0,A)")"(",Nso,"A)"
+    write(fmt,"(A,I0,A)")"(",Nso,"(A,2X))"
     do ispin=1,Nspin
        do iorb=1,Norb
-          write(unit,fmt)((str(Hloc(ispin,jspin,iorb,jorb)),jorb=1,Norb),jspin=1,Nspin)
+          do jspin=1,Nspin
+             do jorb=1,Norb
+                write(unit,fmt,advance='no')str(dreal(Hloc(ispin,jspin,iorb,jorb)),d=4)
+             enddo
+          enddo
+          write(unit,"(A)",advance='yes')
        enddo
     enddo
-    write(unit,*)""
+    !
+    write(unit,"(A)",advance='yes')
+    !
+    do ispin=1,Nspin
+       do iorb=1,Norb
+          do jspin=1,Nspin
+             do jorb=1,Norb
+                write(unit,fmt,advance='no')str(dimag(Hloc(ispin,jspin,iorb,jorb)),d=4)
+             enddo
+          enddo
+          write(unit,"(A)",advance='yes')
+       enddo
+    enddo
+    write(unit,"(A)",advance='yes')
     !
     if(present(file))close(unit)
   end subroutine print_Hloc_nn
@@ -98,18 +115,29 @@ contains
     character(len=32)                           :: fmt
     !
     unit=LOGfile
-    !
     if(present(file))then
        open(free_unit(unit),file=reg(file))
        write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
     endif
     !
     Nso = Nspin*Norb
-    write(fmt,"(A,I0,A)")"(",Nso,"A)"
+    write(fmt,"(A,I0,A)")"(",Nso,"(A,2X))"
     do is=1,Nso
-       write(unit,fmt)(str(Hloc(is,js),d=4),js =1,Nso)
+       do js=1,Nso
+          write(unit,fmt,advance='no')str(dreal(Hloc(is,js)),d=4)
+       enddo
+       write(unit,"(A)",advance='yes')
     enddo
-    write(unit,*)""
+    !
+    write(unit,"(A)",advance='yes')
+    !
+    do is=1,Nso
+       do js=1,Nso
+          write(unit,fmt,advance='no')str(dimag(Hloc(is,js)),d=4)
+       enddo
+       write(unit,"(A)",advance='yes')
+    enddo
+    write(unit,"(A)",advance='yes')
     !
     if(present(file))close(unit)
   end subroutine print_Hloc_so
