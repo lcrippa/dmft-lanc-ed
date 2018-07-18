@@ -29,16 +29,26 @@ module ED_DIAG
   public :: ed_diag_set_MPI
   public :: ed_diag_del_MPI
 
-
+  !> MPI local variables (shared)
 #ifdef _MPI
   integer :: MpiComm=MPI_UNDEFINED
 #else
   integer :: MpiComm=0
 #endif
   logical :: MpiStatus=.false.
-  integer :: MPI_SIZE=1
-  logical :: MPI_MASTER=.true.  !
+  integer :: Mpi_Size=1
+  integer :: Mpi_Rank=0
+  integer :: mpi_Q=1
+  integer :: mpi_R=0
+  logical :: Mpi_Master=.true.  !
+  integer :: Mpi_Ierr
+
   integer :: unit
+
+
+
+
+
 
 
 contains
@@ -53,8 +63,9 @@ contains
     integer :: comm
     MpiComm  = comm
     MpiStatus = .true.
-    MPI_SIZE  = get_Size_MPI(MpiComm)
-    MPI_MASTER= get_Master_MPI(MpiComm)
+    Mpi_Size  = get_Size_MPI(MpiComm)
+    Mpi_Rank  = get_Rank_MPI(MpiComm)
+    Mpi_Master= get_Master_MPI(MpiComm)
 #else
     integer,optional :: comm
 #endif
@@ -113,7 +124,7 @@ contains
     !
 
     ! call check_first_last(2,2)
-    
+
     iter=0
     sector: do isector=1,Nsectors
        if(.not.twin_mask(isector))cycle sector !cycle loop if this sector should not be investigated
@@ -123,18 +134,32 @@ contains
        Dim      = getdim(isector)
        Neigen   = min(dim,neigen_sector(isector))
        Nitermax = min(dim,lanc_niter)
-       Nblock   = min(dim,lanc_ncv_factor*max(Neigen,lanc_nstates_sector) + lanc_ncv_add)!min(dim,5*Neigen+10)
+       Nblock   = min(dim,lanc_ncv_factor*max(Neigen,lanc_nstates_sector) + lanc_ncv_add)
+       !
+       !
+       !Mpi vars:
+       mpi_Q = dim/Mpi_Size
+       mpi_R = 0
+       if(Mpi_Rank==(Mpi_Size-1))mpi_R=mod(Dim,Mpi_Size)
+       !
        !
        lanc_solve  = .true.
        if(Neigen==dim)lanc_solve=.false.
        if(dim<=max(lanc_dim_threshold,MPI_SIZE))lanc_solve=.false.
        !
        if(MPI_MASTER)then
-          if(ed_verbose==3)then
+          if(ed_verbose>=3)then
              nup  = getnup(isector)
              ndw  = getndw(isector)
-             write(LOGfile,"(1X,I4,A,I4,A6,I2,A6,I2,A6,I15,A12,3I6)")&
-                  iter,"-Solving sector:",isector,", nup:",nup,", ndw:",ndw,", dim=",getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
+             if(lanc_solve)then
+                write(LOGfile,"(1X,I4,A,I4,A6,I2,A6,I2,A6,I15,A12,3I6)")&
+                     iter,"-Solving sector:",isector,", nup:",nup,", ndw:",ndw,", dim=",&
+                     getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
+             else
+                write(LOGfile,"(1X,I4,A,I4,A6,I2,A6,I2,A6,I15)")&
+                     iter,"-Solving sector:",isector,", nup:",nup,", ndw:",ndw,", dim=",&
+                     getdim(isector)
+             endif
           elseif(ed_verbose==1.OR.ed_verbose==2)then
              call eta(iter,count(twin_mask),LOGfile)
           endif
@@ -143,20 +168,37 @@ contains
        if(lanc_solve)then
           if(allocated(eig_values))deallocate(eig_values)
           if(allocated(eig_basis))deallocate(eig_basis)
-          allocate(eig_values(Neigen),eig_basis(Dim,Neigen))
-          eig_values=0d0 ; eig_basis=zero
+          !
+          allocate(eig_values(Neigen))
+          eig_values=0d0 
+          !
+#ifdef _MPI
+          if(MpiStatus)then
+             allocate(eig_basis(mpi_Q+mpi_R,Neigen))
+          else
+             allocate(eig_basis(Dim,Neigen))
+          endif
+#endif
+          eig_basis=zero
           !
           call setup_Hv_sector(isector)
           if(ed_sparse_H)call ed_buildH_c()
           !
 #ifdef _MPI
           if(MpiStatus)then
-             call sp_eigh(MpiComm,spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,tol=lanc_tolerance)
+             call sp_eigh(MpiComm,spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+                  tol=lanc_tolerance,&
+                  iverbose=(ed_verbose>3),&
+                  mpi_reduce=.false.)
           else
-             call sp_eigh(spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,tol=lanc_tolerance)
+             call sp_eigh(spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+                  tol=lanc_tolerance,&
+                  iverbose=(ed_verbose>3))
           endif
 #else
-          call sp_eigh(spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,tol=lanc_tolerance)
+          call sp_eigh(spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+               tol=lanc_tolerance,&
+               iverbose=(ed_verbose>3))
 #endif
           call delete_Hv_sector()
        else
@@ -170,12 +212,12 @@ contains
           call eigh(eig_basis,eig_values,'V','U')
           if(dim==1)eig_basis(dim,dim)=one
        endif
-       !print *,eig_values
+       if(ed_verbose>=4)write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
        if(spH0%status)call sp_delete_matrix(spH0)
        !
        if(finiteT)then
           do i=1,Neigen
-             call es_add_state(state_list,eig_values(i),eig_basis(1:dim,i),isector,twin=Tflag,size=lanc_nstates_total)
+             call es_add_state(state_list,eig_values(i),eig_basis(:,i),isector,twin=Tflag,size=lanc_nstates_total)
           enddo
        else
           do i=1,Neigen
@@ -183,17 +225,18 @@ contains
              if (enemin < oldzero-10.d0*gs_threshold)then
                 oldzero=enemin
                 call es_free_espace(state_list)
-                call es_add_state(state_list,enemin,eig_basis(1:dim,i),isector,twin=Tflag)
+                call es_add_state(state_list,enemin,eig_basis(:,i),isector,twin=Tflag)
              elseif(abs(enemin-oldzero) <= gs_threshold)then
                 oldzero=min(oldzero,enemin)
-                call es_add_state(state_list,enemin,eig_basis(1:dim,i),isector,twin=Tflag)
+                call es_add_state(state_list,enemin,eig_basis(:,i),isector,twin=Tflag)
              endif
           enddo
        endif
+       !
        if(MPI_MASTER)then
           unit=free_unit()
           open(unit,file="eigenvalues_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
-          call print_eigenvalues_list(isector,eig_values(1:Neigen),unit)
+          call print_eigenvalues_list(isector,eig_values(1:Neigen),unit,lanc_solve)
           close(unit)
        endif
        !
@@ -373,12 +416,17 @@ contains
     endif
   end subroutine print_state_list
 
-  subroutine print_eigenvalues_list(isector,eig_values,unit)
+  subroutine print_eigenvalues_list(isector,eig_values,unit,bool)
     integer              :: isector
     real(8),dimension(:) :: eig_values
     integer              :: unit,i
+    logical :: bool
     if(MPI_MASTER)then
-       write(unit,"(A7,A3,A3)")" # Sector","Nup","Ndw"
+       if(bool)then
+          write(unit,"(A9,A3,A3)")" # Sector","Nup","Ndw"
+       else
+          write(unit,"(A10,A3,A3)")" #X Sector","Nup","Ndw"
+       endif
        write(unit,"(I4,2x,I3,I3)")isector,getnup(isector),getndw(isector)
        do i=1,size(eig_values)
           write(unit,*)eig_values(i)

@@ -117,7 +117,17 @@ contains
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
        !
-       gscvec  => es_return_cvector(state_list,istate)       
+       ! gscvec  => es_return_cvector(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          gscvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          gscvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       gscvec => es_return_cvector(state_list,istate)
+#endif
+       !
        !
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
@@ -178,7 +188,16 @@ contains
     do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
-       gscvec  => es_return_cvector(state_list,istate)
+       ! gscvec  => es_return_cvector(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          gscvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          gscvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       gscvec => es_return_cvector(state_list,istate)
+#endif
        !
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
@@ -234,7 +253,7 @@ contains
           !
        enddo
        !
-       nullify(gscvec)
+       if(associated(gscvec))nullify(gscvec)
        call delete_sector(isector,HI)
     enddo
     !
@@ -275,8 +294,7 @@ contains
   !+-------------------------------------------------------------------+
   !PURPOSE  : Get internal energy from the Impurity problem.
   !+-------------------------------------------------------------------+
-  subroutine local_energy_impurity(MpiComm)
-    integer,optional                :: MpiComm
+  subroutine local_energy_impurity()
     integer                         :: i,j
     integer                         :: istate,nud(2,Ns),iud(2),jud(2)
     integer                         :: isector,jsector
@@ -319,7 +337,16 @@ contains
     do istate=1,numstates
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
-       gscvec  => es_return_cvector(state_list,istate)
+       ! gscvec  => es_return_cvector(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          gscvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          gscvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       gscvec => es_return_cvector(state_list,istate)
+#endif
        !
        idim  = getdim(isector)
        idimUp  = getDimUp(isector)
@@ -493,17 +520,17 @@ contains
     enddo
     ed_Epot = ed_Epot + ed_Ehartree
     !
-    if(ed_verbose==3)then
-       write(LOGfile,"(A,10f18.12)")"<Hint>  =",ed_Epot
-       write(LOGfile,"(A,10f18.12)")"<V>     =",ed_Epot-ed_Ehartree
-       write(LOGfile,"(A,10f18.12)")"<E0>    =",ed_Eknot
-       write(LOGfile,"(A,10f18.12)")"<Ehf>   =",ed_Ehartree    
-       write(LOGfile,"(A,10f18.12)")"Dust    =",ed_Dust
-       write(LOGfile,"(A,10f18.12)")"Dund    =",ed_Dund
-       write(LOGfile,"(A,10f18.12)")"Dse     =",ed_Dse
-       write(LOGfile,"(A,10f18.12)")"Dph     =",ed_Dph
-    endif
     if(MPI_MASTER)then
+       if(ed_verbose==3)then
+          write(LOGfile,"(A,10f18.12)")"<Hint>  =",ed_Epot
+          write(LOGfile,"(A,10f18.12)")"<V>     =",ed_Epot-ed_Ehartree
+          write(LOGfile,"(A,10f18.12)")"<E0>    =",ed_Eknot
+          write(LOGfile,"(A,10f18.12)")"<Ehf>   =",ed_Ehartree    
+          write(LOGfile,"(A,10f18.12)")"Dust    =",ed_Dust
+          write(LOGfile,"(A,10f18.12)")"Dund    =",ed_Dund
+          write(LOGfile,"(A,10f18.12)")"Dse     =",ed_Dse
+          write(LOGfile,"(A,10f18.12)")"Dph     =",ed_Dph
+       endif
        call write_energy_info()
        call write_energy()
     endif

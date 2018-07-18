@@ -1,6 +1,10 @@
 module ED_EIGENSPACE
   USE ED_VARS_GLOBAL
   USE ED_SETUP
+#ifdef _MPI
+  USE SF_MPI
+  USE MPI
+#endif
   implicit none
   private
 
@@ -29,6 +33,14 @@ module ED_EIGENSPACE
      module procedure :: es_add_state_c
   end interface es_add_state
 
+  interface es_return_cvector
+     module procedure :: es_return_cvector_default
+#ifdef _MPI
+     module procedure :: es_return_cvector_mpi
+#endif
+  end interface es_return_cvector
+
+  
   public :: sparse_estate
   public :: sparse_espace
   !
@@ -60,8 +72,8 @@ contains        !some routine to perform simple operation on the lists
     space%status=.true.
     space%root%next => null()
     space%size=0
-    space%emax=-huge(1.d0)
-    space%emin=huge(1.d0)
+    space%emax=-huge(1d0)
+    space%emin= huge(1d0)
   end function es_init_espace
 
 
@@ -396,7 +408,7 @@ contains        !some routine to perform simple operation on the lists
   !+------------------------------------------------------------------+
   !PURPOSE  : 
   !+------------------------------------------------------------------+
-  function es_return_cvector(space,n) result(vector)
+  function es_return_cvector_default(space,n) result(vector)
     type(sparse_espace),intent(in)   :: space
     integer,optional,intent(in)      :: n
     complex(8),dimension(:),pointer  :: vector
@@ -404,10 +416,12 @@ contains        !some routine to perform simple operation on the lists
     integer                          :: i,pos
     integer                          :: dim
     integer,dimension(:),allocatable :: order
-    if(.not.space%status) stop "es_return_cvector: espace not allocated"
+    !
+    if(.not.space%status) stop "es_return_cvector ERRROR: espace not allocated"
     pos= space%size ; if(present(n))pos=n
-    if(pos>space%size)      stop "es_return_cvector: n > espace.size"
-    if(space%size==0)stop "es_return_cvector: espace emtpy"
+    if(pos>space%size)      stop "es_return_cvector ERRROR: n > espace.size"
+    if(space%size==0)stop "es_return_cvector ERRROR: espace emtpy"
+    !
     c => space%root
     do i=1,pos
        c => c%next
@@ -425,10 +439,69 @@ contains        !some routine to perform simple operation on the lists
        enddo
        deallocate(order)
     endif
-  end function es_return_cvector
+  end function es_return_cvector_default
 
-
-
+#ifdef _MPI
+  function es_return_cvector_mpi(MpiComm,space,n) result(vector)
+    integer                          :: MpiComm
+    type(sparse_espace),intent(in)   :: space
+    integer,optional,intent(in)      :: n
+    complex(8),dimension(:),pointer  :: vtmp
+    complex(8),dimension(:),pointer  :: vector
+    type(sparse_estate),pointer      :: c
+    integer                          :: i,pos,Nloc,Ns
+    integer                          :: dim
+    integer                          :: MpiSize,MpiRank,MpiIerr,mpiQ,mpiR
+    integer,allocatable,dimension(:) :: Counts,Displs
+    integer,dimension(:),allocatable :: order
+    !
+    if(MpiComm==MPI_UNDEFINED)stop "es_return_cvector ERRROR: MpiComm = MPI_UNDEFINED"
+    !
+    if(.not.space%status) stop "es_return_cvector ERRROR: espace not allocated"
+    pos= space%size ; if(present(n))pos=n
+    if(pos>space%size)      stop "es_return_cvector ERRROR: n > espace.size"
+    if(space%size==0)stop "es_return_cvector ERRROR: espace emtpy"
+    !
+    c => space%root
+    do i=1,pos
+       c => c%next
+       if(.not.associated(c))exit
+    end do
+    !
+    Nloc = size(c%cvec)
+    Ns   = 0
+    call MPI_AllReduce(Nloc,Ns,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+    !
+    MpiSize  = Get_size_MPI(MpiComm)
+    MpiRank  = Get_rank_MPI(MpiComm)
+    mpiQ = Ns/MpiSize
+    mpiR = 0
+    if(MpiRank == MpiSize-1)mpiR=mod(Ns,MpiSize)
+    !
+    allocate(Counts(0:MpiSize-1),Displs(0:MpiSize-1))
+    Counts(0:)        = mpiQ
+    Counts(MpiSize-1) = mpiQ+mod(Ns,MpiSize)
+    forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
+    !
+    if(.not.c%itwin)then
+       allocate(Vector(Ns)) ; Vector = zero
+       call MPI_Allgatherv(c%cvec(1:Nloc),Nloc,MPI_Double_Complex,Vector,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+    else
+       dim = getdim(c%sector)
+       allocate(Order(dim))
+       call twin_sector_order(c%twin%sector,Order)
+       if(Dim/=Ns)stop "es_return_cvector ERRROR: Dim != Ns"
+       !
+       allocate(Vtmp(Ns)) ; Vtmp = zero
+       call MPI_Allgatherv(c%twin%cvec(1:Nloc),Nloc,MPI_Double_Complex,Vtmp,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+       allocate(Vector(Ns))
+       do i=1,dim
+          Vector(i) = Vtmp(Order(i)) !c%twin%cvec(Order(i))
+       enddo
+       deallocate(order)
+    endif
+  end function es_return_cvector_mpi
+#endif
 
 
 

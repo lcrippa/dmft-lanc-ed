@@ -73,7 +73,17 @@ contains
     do istate=1,state_list%size
        isector     =  es_return_sector(state_list,istate)
        state_e    =  es_return_energy(state_list,istate)
+       ! state_cvec => es_return_cvector(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          state_cvec => es_return_cvector(state_list,istate)
+       endif
+#else
        state_cvec => es_return_cvector(state_list,istate)
+#endif
+       !
        !
        idim    = getdim(isector)
        idimUp  = getDimUp(isector)
@@ -161,7 +171,17 @@ contains
     do istate=1,state_list%size
        isector     =  es_return_sector(state_list,istate)
        state_e    =  es_return_energy(state_list,istate)
+       ! state_cvec => es_return_cvector(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          state_cvec => es_return_cvector(state_list,istate)
+       endif
+#else
        state_cvec => es_return_cvector(state_list,istate)
+#endif
+       !
        !
        idim  = getdim(isector)
        idimUp  = getDimUp(isector)

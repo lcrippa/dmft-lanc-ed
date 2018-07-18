@@ -217,31 +217,27 @@ contains
        allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
        allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
        !
+#ifdef _MPI       
        if(MpiStatus)then
-          allocate(Hredux(dim,dim));Hredux=zero
           !Dump the diagonal and global-non-local part:
+          allocate(Hredux(dim,dim));Hredux=zero          
           call sp_dump_matrix(spH0,Hredux(first_state:last_state,:))
-#ifdef _MPI
           call MPI_AllReduce(Hredux,Hmat,dim*dim,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
-#endif
           deallocate(Hredux)
           !
+          !
+          !Dump the DW part:
+          allocate(Hredux(DimDw,DimDw));Hredux=zero
+          call sp_dump_matrix(spH0dw,Hredux(:,:))
+          call MPI_AllReduce(Hredux,Htmp_dw,DimDw*DimDw,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
+          deallocate(Hredux)
+          Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
+          !
           !Dump the UP part:
-          if(MpiRank==0)then
-             !Dump the UP part:
-             call sp_dump_matrix(spH0up,Htmp_up)
-             Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
-             !
-             !Dump the DW part:
-             call sp_dump_matrix(spH0dw,Htmp_dw)
-             Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
-          endif
-#ifdef _MPI          
-          call Bcast_MPI(MpiComm,Hmat)
-#endif
+          call sp_dump_matrix(spH0up,Htmp_up)
+          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
           !
        else
-          !
           !Dump the diagonal and global-non-local part:
           call sp_dump_matrix(spH0,Hmat)
           !Dump the UP part:
@@ -252,6 +248,19 @@ contains
           call sp_dump_matrix(spH0dw,Htmp_dw)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
        endif
+#else
+       !
+       !Dump the diagonal and global-non-local part:
+       call sp_dump_matrix(spH0,Hmat)
+       !Dump the UP part:
+       call sp_dump_matrix(spH0up,Htmp_up)
+       Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
+       !
+       !Dump the DW part:
+       call sp_dump_matrix(spH0dw,Htmp_dw)
+       Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
+#endif
+
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
