@@ -116,8 +116,7 @@ contains
        nlanc=min(jdim,lanc_nGFiter)
        allocate(alfa_(nlanc),beta_(nlanc))
        !
-       call setup_Hv_sector(isector)
-       if(ed_sparse_H)call ed_buildH_c()
+       call build_Hv_sector(isector)
 #ifdef _MPI
        if(MpiStatus)then
           call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
@@ -215,8 +214,7 @@ contains
        nlanc=min(jdim,lanc_nGFiter)
        allocate(alfa_(nlanc),beta_(nlanc))
        !
-       call setup_Hv_sector(isector)
-       if(ed_sparse_H)call ed_buildH_c()
+       call build_Hv_sector(isector)
 #ifdef _MP
        if(MpiStatus)then
           call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)

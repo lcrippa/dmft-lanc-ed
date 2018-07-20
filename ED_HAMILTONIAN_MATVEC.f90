@@ -18,8 +18,11 @@ MODULE ED_HAMILTONIAN_MATVEC
   implicit none
   private
 
+
   !>Build sparse hamiltonian of the sector
-  public  :: ed_buildH_c
+  public  :: build_Hv_sector
+  public  :: delete_Hv_sector
+
   !
   !>Sparse Mat-Vec product using stored sparse matrix 
   public  :: spMatVec_cc
@@ -37,8 +40,6 @@ MODULE ED_HAMILTONIAN_MATVEC
   !>Related auxiliary routines:
   public  :: ed_hamiltonian_matvec_set_MPI
   public  :: ed_hamiltonian_matvec_del_MPI
-  public  :: setup_Hv_sector
-  public  :: delete_Hv_sector
 
 
   !> MPI local variables (shared)
@@ -103,13 +104,33 @@ contains
   end subroutine ed_hamiltonian_matvec_del_MPI
 
 
-  subroutine setup_Hv_sector(isector)
-    integer                   :: isector
+  subroutine build_Hv_sector(isector,Hmat)
+    integer                            :: isector,SectorDim,irank
+    complex(8),dimension(:,:),optional :: Hmat
+    !
     Hsector=isector
     Hstatus=.true.
+    !
     call build_sector(isector,H)
     call build_sector(isector,Hs)
-  end subroutine setup_Hv_sector
+    !
+    SectorDim=getDim(isector)
+    if(present(Hmat))then
+       if(any( shape(Hmat) /= [SectorDim,SectorDim]))&
+            stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
+       call ed_buildH_c(isector,Hmat)
+       return
+    endif
+    !
+    select case (ed_sparse_H)
+    case (.true.)
+       !if(ed_sparse_type="ell")call ed_buildH_c(isector,dryrun=.true.)
+       call ed_buildH_c(isector)
+    case (.false.)
+       !nothing to be done
+    end select
+    !
+  end subroutine build_Hv_sector
 
 
   subroutine delete_Hv_sector()
@@ -117,6 +138,13 @@ contains
     call delete_sector(Hsector,Hs)
     Hsector=0
     Hstatus=.false.
+    if(spH0%status)then
+       ! if(MpiStatus)then          
+       !    call sp_delete_matrix(MpiComm,spH0)
+       ! else
+       call sp_delete_matrix(spH0)
+       ! endif
+    endif
   end subroutine delete_Hv_sector
 
 
@@ -124,10 +152,12 @@ contains
   !####################################################################
   !             BUILD SPARSE HAMILTONIAN of the SECTOR
   !####################################################################
-  subroutine ed_buildH_c(Hmat)
+  subroutine ed_buildH_c(isector,Hmat,dryrun)
+    integer                                :: isector   
     complex(8),dimension(:,:),optional     :: Hmat
+    logical,optional                       :: dryrun
+    !
     complex(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
-    integer                                :: isector
     integer,dimension(Nlevels)             :: ib
     integer,dimension(Ns)                  :: nup,ndw
     integer                                :: dim,dimUp,dimDw
