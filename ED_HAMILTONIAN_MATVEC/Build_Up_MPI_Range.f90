@@ -15,4 +15,6 @@
      iup=iup_index(i,DimUp)
      if(iup < first_state_up(idw)) first_state_up(idw) = iup
      if(iup > last_state_up(idw) ) last_state_up(idw)  = iup
+     !
   enddo
+

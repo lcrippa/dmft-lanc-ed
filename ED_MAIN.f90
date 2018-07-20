@@ -265,7 +265,7 @@ contains
     case (.true.)
        spHtimesV_cc => spMatVec_cc
     case (.false.)
-       spHtimesV_cc => directMatVec_cc
+       ! spHtimesV_cc => directMatVec_cc
     end select
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
@@ -311,7 +311,7 @@ contains
     case (.true.)
        spHtimesV_cc => spMatVec_MPI_cc
     case (.false.)
-       spHtimesV_cc => directMatVec_MPI_cc
+       ! spHtimesV_cc => directMatVec_MPI_cc
     end select
     !
     !SET THE LOCAL COMMUNICATORS IN ALL THE RELEVANT PARTS OF THE CODE:

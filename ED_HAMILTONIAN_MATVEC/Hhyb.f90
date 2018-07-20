@@ -32,7 +32,7 @@
   enddo
 
   !IMP DW <--> BATH DW
-  do idw=first_state_dw,last_state_dw
+  do idw=map_first_state_dw(1),map_last_state_dw(1)
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
      !

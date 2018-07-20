@@ -31,11 +31,11 @@ MODULE ED_HAMILTONIAN_MATVEC
 #endif
   !
   !
-  !>Sparse Mat-Vec direct on-the-fly product 
-  public  :: directMatVec_cc
-#ifdef _MPI
-  public  :: directMatVec_MPI_cc
-#endif
+!   !>Sparse Mat-Vec direct on-the-fly product 
+!   public  :: directMatVec_cc
+! #ifdef _MPI
+!   public  :: directMatVec_MPI_cc
+! #endif
   !
   !>Related auxiliary routines:
   public  :: ed_hamiltonian_matvec_set_MPI
@@ -49,19 +49,27 @@ MODULE ED_HAMILTONIAN_MATVEC
   integer                          :: MpiComm=0
 #endif
   logical                          :: MpiStatus=.false.
+  logical                          :: MpiMaster=.true.
   integer                          :: MpiIerr
   integer                          :: MpiRank=0
   integer                          :: MpiSize=1
-  integer                          :: mpiQ=1
-  integer                          :: mpiQup=1
-  integer                          :: mpiQdw=1
-  integer                          :: mpiR=0
-  integer                          :: mpiRup=0
-  integer                          :: mpiRdw=0
+  integer                          :: MpiQ=1
+  integer                          :: MpiQup=1
+  integer                          :: MpiQdw=1
+  integer                          :: MpiR=0
+  integer                          :: MpiRup=0
+  integer                          :: MpiRdw=0
+  integer                          :: Ishift
+  integer                          :: IshiftUp
+  integer                          :: IshiftDw
   !
-  integer                          :: first_state,last_state
+  integer                          :: first_state   ,last_state
   integer                          :: first_state_dw,last_state_dw
-  integer,allocatable,dimension(:) :: first_state_up,last_state_up
+  integer                          :: first_state_up,last_state_up
+
+  integer,allocatable,dimension(:) :: map_first_state_dw,map_last_state_dw
+  integer,allocatable,dimension(:) :: map_first_state_up,map_last_state_up
+
   !  
   integer                          :: Hsector=0
   logical                          :: Hstatus=.false.
@@ -84,6 +92,7 @@ contains
     MpiStatus=.true.
     MpiRank = get_Rank_MPI(MpiComm)
     MpiSize = get_Size_MPI(MpiComm)
+    MpiMaster= get_Master_MPI(MpiComm)
 #else
     integer,optional :: comm_
 #endif
@@ -99,8 +108,6 @@ contains
     MpiStatus=.false.
     MpiRank=0
     MpiSize=1
-    MpiQ=1
-    MpiR=0
   end subroutine ed_hamiltonian_matvec_del_MPI
 
 
@@ -113,6 +120,8 @@ contains
     !
     call build_sector(isector,H)
     call build_sector(isector,Hs)
+    !
+    call build_up_MPI(isector)
     !
     SectorDim=getDim(isector)
     if(present(Hmat))then
@@ -149,6 +158,120 @@ contains
 
 
 
+  subroutine build_up_MPI(isector)
+    integer :: isector
+    integer :: Dim,DimUp,DimDw
+    integer :: irank
+    integer :: i,iup,idw
+    integer :: j,jup,jdw
+    !
+    Dim  = getDim(isector)
+    DimDw  = getDimDw(isector)
+    DimUp  = getDimUp(isector)
+    !
+    !
+    !DOWN part:
+    MpiQdw = DimDw/MpiSize
+    MpiRdw = 0
+    if(MpiRank==(MpiSize-1))MpiRdw=mod(DimDw,MpiSize)
+    ishiftDw = MpiRank*MpiQdw
+    first_state_dw = MpiRank*mpiQdw + 1
+    last_state_dw  = (MpiRank+1)*mpiQdw + mpiRdw
+    !
+#ifdef _MPI    
+    if(MpiStatus.AND.ed_verbose>3)then
+       if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+       do irank=0,MpiSize-1
+          if(MpiRank==irank)then
+             write(LOGfile,*)MpiRank,MpiQdw,MpiRdw,mpiQdw+mpiRdw,first_state_dw,last_state_dw,last_state_dw-first_state_dw+1
+             call MPI_Barrier(MpiComm,MpiIerr)
+          endif
+          call MPI_Barrier(MpiComm,MpiIerr)
+       enddo
+       call MPI_Barrier(MpiComm,MpiIerr)
+    endif
+#endif
+    !
+    !
+    !UP part:
+    MpiQup = DimUp/MpiSize
+    MpiRup = 0
+    if(MpiRank==(MpiSize-1))MpiRup=mod(DimUp,MpiSize)
+    ishiftUp = MpiRank*MpiQup
+    first_state_up = MpiRank*mpiQup + 1
+    last_state_up  = (MpiRank+1)*mpiQup + mpiRup
+    !
+#ifdef _MPI    
+    if(MpiStatus.AND.ed_verbose>3)then
+       if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+       do irank=0,MpiSize-1
+          if(MpiRank==irank)then
+             write(LOGfile,*)MpiRank,MpiQup,MpiRup,mpiQup+mpiRup,first_state_up,last_state_up,last_state_up-first_state_up+1
+             call MPI_Barrier(MpiComm,MpiIerr)
+          endif
+          call MPI_Barrier(MpiComm,MpiIerr)
+       enddo
+       call MPI_Barrier(MpiComm,MpiIerr)
+    endif
+#endif
+    !
+    !
+    !FULL:
+    MpiQ = Dim/MpiSize
+    MpiR = 0
+    if(MpiRank==(MpiSize-1))MpiR=mod(Dim,MpiSize)
+    ishift = MpiRank*MpiQ
+    first_state = MpiRank*mpiQ + 1
+    last_state  = (MpiRank+1)*mpiQ + mpiR
+    !
+#ifdef _MPI    
+    if(MpiStatus.AND.ed_verbose>3)then
+       if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+       do irank=0,MpiSize-1
+          if(MpiRank==irank)then
+             write(LOGfile,*)MpiRank,MpiQ,MpiR,mpiQ+mpiR,first_state,last_state,last_state-first_state+1
+             call MPI_Barrier(MpiComm,MpiIerr)
+          endif
+          call MPI_Barrier(MpiComm,MpiIerr)
+       enddo
+       call MPI_Barrier(MpiComm,MpiIerr)
+    endif
+#endif
+    !
+    !
+    if(allocated(map_first_state_dw))deallocate(map_first_state_dw)
+    if(allocated(map_last_state_dw))deallocate(map_last_state_dw)
+    if(allocated(map_first_state_up))deallocate(map_first_state_up)
+    if(allocated(map_last_state_up))deallocate(map_last_state_up)
+    !
+    allocate(map_first_state_dw(1),map_last_state_dw(1))
+    allocate(map_first_state_up(DimDw),map_last_state_up(DimDw))
+    !
+    map_first_state_dw =  huge(1)
+    map_last_state_dw  = -huge(1)
+    !
+    map_first_state_up =  huge(1)
+    map_last_state_up  = -huge(1)
+    !
+    do i=first_state,last_state
+       idw=idw_index(i,DimUp)
+       iup=iup_index(i,DimUp)
+       !
+       if(idw < map_first_state_dw(1)) map_first_state_dw(1) = idw
+       if(idw > map_last_state_dw(1) ) map_last_state_dw(1)  = idw
+       !
+       if(iup < map_first_state_up(idw)) map_first_state_up(idw) = iup
+       if(iup > map_last_state_up(idw) ) map_last_state_up(idw)  = iup
+    enddo
+  end subroutine build_up_MPI
+
+
+
+
+
+
+
+
   !####################################################################
   !             BUILD SPARSE HAMILTONIAN of the SECTOR
   !####################################################################
@@ -164,7 +287,6 @@ contains
     integer                                :: i,iup,idw
     integer                                :: j,jup,jdw
     integer                                :: m,mup,mdw
-    integer                                :: ishift
     integer                                :: ms
     integer                                :: impi
     integer                                :: iorb,jorb,ispin,jspin,ibath
@@ -211,13 +333,13 @@ contains
 
 
     !FULL:
-    mpiQ = dim/MpiSize
-    mpiR = 0
-    if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
+    ! mpiQ = dim/MpiSize
+    ! mpiR = 0
+    ! if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
     call sp_init_matrix(spH0,mpiQ + mpiR)
-    ishift      = MpiRank*mpiQ
-    first_state = MpiRank*mpiQ + 1
-    last_state  = (MpiRank+1)*mpiQ + mpiR
+    ! ishift      = MpiRank*mpiQ
+    ! first_state = MpiRank*mpiQ + 1
+    ! last_state  = (MpiRank+1)*mpiQ + mpiR
     !
     !DW
     call sp_init_matrix(spH0dw,DimDw)
@@ -225,8 +347,8 @@ contains
     !UP:
     call sp_init_matrix(spH0up,DimUp)
 
-    !Select the MPI states from the tensor product:
-    include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
+    ! !Select the MPI states from the tensor product:
+    ! include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -381,11 +503,11 @@ contains
     integer,allocatable,dimension(:)    :: Counts,Displs
     type(sparse_element),pointer        :: c
     integer                             :: iup,idw,j
-    integer                             :: Dim,DimUp,DimDw,DimUp_,DimDw_
-    integer                             :: first_state,last_state
-    integer                             :: first_up,last_up
-    integer                             :: first_dw,last_dw
-    integer                             :: ishift,ishift_up,ishift_dw
+    integer                             :: Dim,DimUp,DimDw
+    ! integer                             :: first_state,last_state
+    ! integer                             :: first_up,last_up
+    ! integer                             :: first_dw,last_dw
+    ! integer                             :: ishift,ishift_up,ishift_dw
     integer                             :: impi_up,impi_dw,impi
     !
     Dim   = getDim(Hsector)
@@ -402,15 +524,15 @@ contains
     !
     if(N/=Dim)stop "ud_spHtimesV_cc ERRRO: N != Dim"
     !FULL:
-    mpiQ = Dim/MpiSize
-    mpiR = 0
-    if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
-    ishift      = MpiRank*mpiQ
-    first_state = MpiRank*mpiQ + 1
-    last_state  = (MpiRank+1)*mpiQ + mpiR
+    ! mpiQ = Dim/MpiSize
+    ! mpiR = 0
+    ! if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
+    ! ishift      = MpiRank*mpiQ
+    ! first_state = MpiRank*mpiQ + 1
+    ! last_state  = (MpiRank+1)*mpiQ + mpiR
     !
-    !Select the MPI states from the tensor product:
-    include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
+    ! !Select the MPI states from the tensor product:
+    ! include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
     !
     allocate(vin(N))
     vin = zero
@@ -437,8 +559,8 @@ contains
     !
     !
     !NON-LOCAL PART:
-    do idw=first_state_dw,last_state_dw
-       do iup=first_state_up(idw),last_state_up(idw)
+    do idw=map_first_state_dw(1),map_last_state_dw(1)
+       do iup=map_first_state_up(idw),map_last_state_up(idw)
           i    = iup + (idw-1)*DimUp
           !
           impi    = i   - ishift
@@ -474,191 +596,191 @@ contains
 
 
 
-  !####################################################################
-  !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
-  !####################################################################
-  subroutine directMatVec_cc(Nloc,vin,Hv)
-    integer                                :: Nloc
-    complex(8),dimension(Nloc)             :: vin
-    complex(8),dimension(Nloc)             :: Hv
-    integer                                :: isector
-    integer,dimension(Ns)                  :: nup,ndw
-    integer                                :: dim,dimUp,dimDw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ishift
-    integer                                :: ms
-    integer                                :: impi
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8)                             :: htmp,htmpup,htmpdw
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition
-    !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
-    !
-    if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
-    !
-    !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
-          enddo
-       enddo
-    endif
-    !
-    Dim  = getDim(isector)
-    DimDw  = getDimDw(isector)
-    DimUp  = getDimUp(isector)
-    !
-    !FULL:
-    mpiQ = dim/MpiSize
-    mpiR = 0
-    if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
-    ishift      = MpiRank*mpiQ
-    first_state = MpiRank*mpiQ + 1
-    last_state  = (MpiRank+1)*mpiQ + mpiR
-    !
-    !Select the MPI states from the tensor product:
-    include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
-    !
-    !
-    !
-    Hv=zero
-    !
-    !-----------------------------------------------!
-    !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
-    !
-    !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
-    !
-    !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
-    !
-    !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
-    !-----------------------------------------------!
-    !
-  end subroutine directMatVec_cc
+  !   !####################################################################
+  !   !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
+  !   !####################################################################
+  !   subroutine directMatVec_cc(Nloc,vin,Hv)
+  !     integer                                :: Nloc
+  !     complex(8),dimension(Nloc)             :: vin
+  !     complex(8),dimension(Nloc)             :: Hv
+  !     integer                                :: isector
+  !     integer,dimension(Ns)                  :: nup,ndw
+  !     integer                                :: dim,dimUp,dimDw
+  !     integer                                :: i,iup,idw
+  !     integer                                :: j,jup,jdw
+  !     integer                                :: m,mup,mdw
+  !     integer                                :: ishift
+  !     integer                                :: ms
+  !     integer                                :: impi
+  !     integer                                :: iorb,jorb,ispin,jspin,ibath
+  !     integer                                :: kp,k1,k2,k3,k4
+  !     integer                                :: alfa,beta
+  !     real(8)                                :: sg1,sg2,sg3,sg4
+  !     complex(8)                             :: htmp,htmpup,htmpdw
+  !     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+  !     logical                                :: Jcondition
+  !     !
+  !     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
+  !     isector=Hsector
+  !     !
+  !     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
+  !     !
+  !     !Get diagonal hybridization
+  !     diag_hybr=zero
+  !     if(bath_type/="replica")then
+  !        do ibath=1,Nbath
+  !           do ispin=1,Nspin
+  !              do iorb=1,Norb
+  !                 diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
+  !              enddo
+  !           enddo
+  !        enddo
+  !     else
+  !        do ibath=1,Nbath
+  !           do ispin=1,Nspin
+  !              do iorb=1,Norb
+  !                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+  !              enddo
+  !           enddo
+  !        enddo
+  !     endif
+  !     !
+  !     Dim  = getDim(isector)
+  !     DimDw  = getDimDw(isector)
+  !     DimUp  = getDimUp(isector)
+  !     !
+  !     !FULL:
+  !     mpiQ = dim/MpiSize
+  !     mpiR = 0
+  !     if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
+  !     ishift      = MpiRank*mpiQ
+  !     first_state = MpiRank*mpiQ + 1
+  !     last_state  = (MpiRank+1)*mpiQ + mpiR
+  !     !
+  !     !Select the MPI states from the tensor product:
+  !     include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
+  !     !
+  !     !
+  !     !
+  !     Hv=zero
+  !     !
+  !     !-----------------------------------------------!
+  !     !IMPURITY  HAMILTONIAN
+  !     include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
+  !     !
+  !     !LOCAL INTERACTION
+  !     include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
+  !     !
+  !     !BATH HAMILTONIAN
+  !     include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
+  !     !
+  !     !IMPURITY- BATH HYBRIDIZATION
+  !     include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
+  !     !-----------------------------------------------!
+  !     !
+  !   end subroutine directMatVec_cc
 
 
 
 
 
-#ifdef _MPI
-  subroutine directMatVec_MPI_cc(Nloc,v,Hv)
-    integer                                :: Nloc
-    complex(8),dimension(Nloc)             :: v
-    complex(8),dimension(Nloc)             :: Hv
-    integer                                :: N
-    complex(8),dimension(:),allocatable    :: vin
-    integer,allocatable,dimension(:)       :: Counts,Displs
-    integer                                :: isector
-    integer,dimension(Ns)                  :: nup,ndw
-    integer                                :: dim,dimUp,dimDw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ishift
-    integer                                :: ms
-    integer                                :: impi
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8)                             :: htmp,htmpup,htmpdw
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition
-    !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
-    !
-    !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
-          enddo
-       enddo
-    endif
-    !
-    if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
-    !
-    Dim   = getDim(Hsector)
-    DimDw = getDimDw(Hsector)
-    DimUp = getDimUp(Hsector)
-    !
-    N=0
-    call MPI_AllReduce(Nloc,N,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
-    !
-    if(N/=Dim)stop "directMatVec_MPI_cc ERROR: N != dim(isector)"
-    !
-    !FULL:
-    mpiQ = Dim/MpiSize
-    mpiR = 0
-    if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
-    ishift      = MpiRank*mpiQ
-    first_state = MpiRank*mpiQ + 1
-    last_state  = (MpiRank+1)*mpiQ + mpiR
-    !
-    !Select the MPI states from the tensor product:
-    include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
-    !
-    allocate(vin(N))
-    vin = zero
-    !
-    allocate(Counts(0:MpiSize-1),Displs(0:MpiSize-1))
-    Counts(0:)        = mpiQ
-    Counts(MpiSize-1) = mpiQ+mod(N,MpiSize)
-    forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
-    call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
-    !
-    Hv=zero
-    !
-    !-----------------------------------------------!
-    !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
-    !
-    !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
-    !
-    !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
-    !
-    !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
-    !-----------------------------------------------!
-    !
-  end subroutine directMatVec_MPI_cc
-#endif
+  ! #ifdef _MPI
+  !   subroutine directMatVec_MPI_cc(Nloc,v,Hv)
+  !     integer                                :: Nloc
+  !     complex(8),dimension(Nloc)             :: v
+  !     complex(8),dimension(Nloc)             :: Hv
+  !     integer                                :: N
+  !     complex(8),dimension(:),allocatable    :: vin
+  !     integer,allocatable,dimension(:)       :: Counts,Displs
+  !     integer                                :: isector
+  !     integer,dimension(Ns)                  :: nup,ndw
+  !     integer                                :: dim,dimUp,dimDw
+  !     integer                                :: i,iup,idw
+  !     integer                                :: j,jup,jdw
+  !     integer                                :: m,mup,mdw
+  !     integer                                :: ishift
+  !     integer                                :: ms
+  !     integer                                :: impi
+  !     integer                                :: iorb,jorb,ispin,jspin,ibath
+  !     integer                                :: kp,k1,k2,k3,k4
+  !     integer                                :: alfa,beta
+  !     real(8)                                :: sg1,sg2,sg3,sg4
+  !     complex(8)                             :: htmp,htmpup,htmpdw
+  !     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+  !     logical                                :: Jcondition
+  !     !
+  !     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
+  !     isector=Hsector
+  !     !
+  !     !Get diagonal hybridization
+  !     diag_hybr=zero
+  !     if(bath_type/="replica")then
+  !        do ibath=1,Nbath
+  !           do ispin=1,Nspin
+  !              do iorb=1,Norb
+  !                 diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
+  !              enddo
+  !           enddo
+  !        enddo
+  !     else
+  !        do ibath=1,Nbath
+  !           do ispin=1,Nspin
+  !              do iorb=1,Norb
+  !                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+  !              enddo
+  !           enddo
+  !        enddo
+  !     endif
+  !     !
+  !     if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
+  !     !
+  !     Dim   = getDim(Hsector)
+  !     DimDw = getDimDw(Hsector)
+  !     DimUp = getDimUp(Hsector)
+  !     !
+  !     N=0
+  !     call MPI_AllReduce(Nloc,N,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+  !     !
+  !     if(N/=Dim)stop "directMatVec_MPI_cc ERROR: N != dim(isector)"
+  !     !
+  !     !FULL:
+  !     mpiQ = Dim/MpiSize
+  !     mpiR = 0
+  !     if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
+  !     ishift      = MpiRank*mpiQ
+  !     first_state = MpiRank*mpiQ + 1
+  !     last_state  = (MpiRank+1)*mpiQ + mpiR
+  !     !
+  !     !Select the MPI states from the tensor product:
+  !     include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
+  !     !
+  !     allocate(vin(N))
+  !     vin = zero
+  !     !
+  !     allocate(Counts(0:MpiSize-1),Displs(0:MpiSize-1))
+  !     Counts(0:)        = mpiQ
+  !     Counts(MpiSize-1) = mpiQ+mod(N,MpiSize)
+  !     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
+  !     call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+  !     !
+  !     Hv=zero
+  !     !
+  !     !-----------------------------------------------!
+  !     !IMPURITY  HAMILTONIAN
+  !     include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
+  !     !
+  !     !LOCAL INTERACTION
+  !     include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
+  !     !
+  !     !BATH HAMILTONIAN
+  !     include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
+  !     !
+  !     !IMPURITY- BATH HYBRIDIZATION
+  !     include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
+  !     !-----------------------------------------------!
+  !     !
+  !   end subroutine directMatVec_MPI_cc
+  ! #endif
 
 
 
@@ -671,3 +793,123 @@ end MODULE ED_HAMILTONIAN_MATVEC
 
 
 
+
+
+
+
+
+
+
+! subroutine check_first_last(nup,ndw)
+!   integer                          :: isector,nup,ndw
+!   integer                          :: dim,dimUp,dimDw
+!   integer                          :: i,iup,idw
+!   integer                          :: j,jup,jdw
+!   integer                          :: m,mup,mdw
+!   integer                          :: ishift,irank
+!   integer                          :: first_state   ,last_state
+!   integer                          :: first_state_dw,last_state_dw
+!   integer                          :: first_state_up,last_state_up
+!   integer,allocatable,dimension(:) :: map_first_state_up,map_last_state_up
+!   integer,allocatable,dimension(:) :: map_first_state_dw,map_last_state_dw
+!   !
+!   isector=getSector(nup,ndw)
+!   !
+!   Dim  = getDim(isector)
+!   DimDw  = getDimDw(isector)
+!   DimUp  = getDimUp(isector)
+!   !
+!   mpiQdw = dimdw/MpiSize
+!   mpiRdw = 0
+!   if(MpiRank==(MpiSize-1))mpiRdw=mod(dimdw,MpiSize)
+!   first_state_dw = MpiRank*mpiQdw + 1
+!   last_state_dw  = (MpiRank+1)*mpiQdw + mpiRdw
+!   if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+!   do irank=0,MpiSize-1
+!      if(MpiRank==irank)then
+!         print*,MpiRank,MpiQdw,MpiRdw,mpiQdw+mpiRdw,first_state_dw,last_state_dw,last_state_dw-first_state_dw+1
+!         call MPI_Barrier(MpiComm,MpiIerr)
+!      endif
+!      call MPI_Barrier(MpiComm,MpiIerr)
+!   enddo
+!   call MPI_Barrier(MpiComm,MpiIerr)
+!   !
+!   call sleep(1)
+!   call MPI_Barrier(MpiComm,MpiIerr)
+!   !
+!   !
+!   mpiQup = dimup/MpiSize
+!   mpiRup = 0
+!   if(MpiRank==(MpiSize-1))mpiRup=mod(dimup,MpiSize)
+!   first_state_up = MpiRank*mpiQup + 1
+!   last_state_up  = (MpiRank+1)*mpiQup + mpiRup
+!   if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+!   do irank=0,MpiSize-1
+!      if(MpiRank==irank)then
+!         print*,MpiRank,MpiQup,MpiRup,mpiQup+mpiRup,first_state_up,last_state_up,last_state_up-first_state_up+1
+!         call MPI_Barrier(MpiComm,MpiIerr)
+!      endif
+!      call MPI_Barrier(MpiComm,MpiIerr)
+!   enddo
+!   call MPI_Barrier(MpiComm,MpiIerr)
+!   !
+!   call sleep(1)
+!   call MPI_Barrier(MpiComm,MpiIerr)
+!   !
+!   mpiQ = dim/MpiSize
+!   mpiR = 0
+!   if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
+!   ishift      = MpiRank*mpiQ
+!   first_state = MpiRank*mpiQ + 1
+!   last_state  = (MpiRank+1)*mpiQ + mpiR
+!   if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+!   do irank=0,MpiSize-1
+!      if(MpiRank==irank)then
+!         print*,MpiRank,MpiQ,MpiR,mpiQ+mpiR,first_state,last_state,last_state-first_state+1
+!         call MPI_Barrier(MpiComm,MpiIerr)
+!      endif
+!      call MPI_Barrier(MpiComm,MpiIerr)
+!   enddo
+!   call MPI_Barrier(MpiComm,MpiIerr)
+!   !
+!   !
+!   !The threads generates all the states of the sector, however in a highly non-local way
+!   do iup=first_state_up,last_state_up
+!      do idw=1,DimDw
+!         i = iup + (idw-1)*DimUp
+!         write(250+MpiRank,*)i,idw,iup
+!      enddo
+!   end do
+!   !
+!   !This instead is local.
+!   do idw=first_state_dw,last_state_dw
+!      do iup=1,DimUp
+!         i = iup + (idw-1)*DimUp
+!         write(300+MpiRank,*)i,idw,iup
+!      enddo
+!   end do
+!   !
+!   !
+!   allocate(map_first_state_up(DimDw),map_last_state_up(DimDw))
+!   first_state_dw = huge(1)
+!   last_state_dw  = -huge(1)
+!   !
+!   map_first_state_up = huge(1)
+!   map_last_state_up  = -huge(1)
+!   !
+!   do i=first_state,last_state
+!      idw=idw_index(i,DimUp)
+!      !
+!      if(idw < first_state_dw) first_state_dw = idw
+!      if(idw > last_state_dw ) last_state_dw  = idw
+!      !
+!      iup=iup_index(i,DimUp)
+!      if(iup < map_first_state_up(idw)) map_first_state_up(idw) = iup
+!      if(iup > map_last_state_up(idw) ) map_last_state_up(idw)  = iup
+!      !
+!      write(200+MpiRank,*)i,idw,iup
+!      write(100+MpiRank,*)i,first_state_dw,last_state_dw
+!   enddo
+!   !
+!   stop
+! end subroutine check_first_last
