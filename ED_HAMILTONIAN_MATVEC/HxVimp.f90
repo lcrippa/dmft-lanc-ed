@@ -29,14 +29,16 @@
   !occupation 0 and 1, as required by this if Jcondition:
   !
   !UP
-  do idw=map_first_state_dw(1),map_last_state_dw(1)
-     do iup=map_first_state_up(idw),map_last_state_up(idw)
-        mup  = Hs(1)%map(iup)
-        nup  = bdecomp(mup,Ns)
+  ! do idw=map_first_state_dw(1),map_last_state_dw(1)
+  !    do iup=map_first_state_up(idw),map_last_state_up(idw)
+  do iup=first_state_up,last_state_up
+     mup  = Hs(1)%map(iup)
+     nup  = bdecomp(mup,Ns)
+     do idw=1,DimDw
         !
         !MPI Shifts
         i    = iup + (idw-1)*dimUp
-        impi = i - ishift
+        ! impi = i - ishift
         !
         do iorb=1,Norb
            do jorb=1,Norb
@@ -50,7 +52,8 @@
                  j   = jup + (idw-1)*DimUp
                  htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
                  !
-                 hv(impi) = hv(impi) + htmp*vin(j)
+                 ! hv(impi) = hv(impi) + htmp*vin(j)
+                 vout(i) = vout(i) + htmp*vin(j)
                  !
               endif
            enddo
@@ -61,14 +64,16 @@
 
 
   !DW
-  do idw=map_first_state_dw(1),map_last_state_dw(1)
-     do iup=map_first_state_up(idw),map_last_state_up(idw)
-        mdw  = Hs(2)%map(idw)
-        ndw  = bdecomp(mdw,Ns)
+  ! do idw=map_first_state_dw(1),map_last_state_dw(1)
+  !    do iup=map_first_state_up(idw),map_last_state_up(idw)
+  do idw=first_state_dw,last_state_dw
+     mdw  = Hs(2)%map(idw)
+     ndw  = bdecomp(mdw,Ns)
+     do iup=1,DimUp
         !
         !MPI Shifts
         i    = iup + (idw-1)*dimUp
-        impi = i - ishift
+        ! impi = i - ishift
         !
         do iorb=1,Norb
            do jorb=1,Norb
@@ -82,7 +87,8 @@
                  j   = iup + (jdw-1)*DimUp
                  htmp = impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2
                  !
-                 hv(impi) = hv(impi) + htmp*vin(j)
+                 ! hv(impi) = hv(impi) + htmp*vin(j)
+                 vout(i) = vout(i) + htmp*vin(j)
                  !
               endif
            enddo

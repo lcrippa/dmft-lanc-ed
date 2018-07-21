@@ -27,7 +27,7 @@
            htmp = htmp - xmu*(nup(iorb)+ndw(iorb))
         enddo
         !
-        call sp_insert_element(spH0,htmp,impi,i)
+        call sp_insert_element(spH0d,htmp,impi,i)
         !
      enddo
   enddo

@@ -247,10 +247,10 @@ contains
     call delete_sector(Hsector,Hs)
     Hsector=0
     Hstatus=.false.
-    if(spH0%status)call sp_delete_matrix(spH0)
+    if(spH0d%status) call sp_delete_matrix(spH0d)
     if(spH0up%status)call sp_delete_matrix(spH0up)
     if(spH0dw%status)call sp_delete_matrix(spH0dw)
-    if(spH0nl%status)call sp_delete_matrix(spH0nl)
+    if(spH0nd%status)call sp_delete_matrix(spH0nd)
     !
   end subroutine delete_Hv_sector
 
@@ -314,10 +314,10 @@ contains
     endif
     !
     !
-    call sp_init_matrix(spH0,mpiQ + mpiR)
+    call sp_init_matrix(spH0d,mpiQ + mpiR)
     call sp_init_matrix(spH0dw,mpiQdw+mpiRdw)!DimDw)
     call sp_init_matrix(spH0up,mpiQup+mpiRup)!DimUp)
-    if(Jhflag)call sp_init_matrix(spH0nl,mpiQ + mpiR)
+    if(Jhflag)call sp_init_matrix(spH0nd,mpiQ + mpiR)
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -342,8 +342,8 @@ contains
        if(MpiStatus)then
           !Dump the diagonal and global-non-local part:
           allocate(Hredux(Dim,Dim));Hredux=zero          
-          call sp_dump_matrix(spH0,Hredux(first_state:last_state,:))
-          if(Jhflag)call sp_dump_matrix(spH0nl,Hredux(first_state:last_state,:))
+          call sp_dump_matrix(spH0d,Hredux(first_state:last_state,:))
+          if(Jhflag)call sp_dump_matrix(spH0nd,Hredux(first_state:last_state,:))
           call MPI_AllReduce(Hredux,Hmat,dim*dim,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
           deallocate(Hredux)
           !
@@ -364,8 +364,8 @@ contains
           !
        else
           !Dump the diagonal and global-non-local part:
-          call sp_dump_matrix(spH0,Hmat)
-          if(Jhflag)call sp_dump_matrix(spH0nl,Hmat)
+          call sp_dump_matrix(spH0d,Hmat)
+          if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
           !Dump the UP part:
           call sp_dump_matrix(spH0up,Htmp_up)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
@@ -377,8 +377,8 @@ contains
 #else
        !
        !Dump the diagonal and global-non-local part:
-       call sp_dump_matrix(spH0,Hmat)
-       if(Jhflag)call sp_dump_matrix(spH0nl,Hmat)
+       call sp_dump_matrix(spH0d,Hmat)
+       if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
        !Dump the UP part:
        call sp_dump_matrix(spH0up,Htmp_up)
        Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
@@ -425,7 +425,7 @@ contains
     Hv=zero
     !
     do i = 1,Nloc
-       c => spH0%row(i)%root%next
+       c => spH0d%row(i)%root%next
        do while(associated(c))
           Hv(i) = Hv(i) + c%cval*V(c%col)    !<== V
           c => c%next
@@ -435,7 +435,7 @@ contains
     !
     if(jhflag)then
        do i = 1,Nloc
-          c => spH0nl%row(i)%root%next
+          c => spH0nd%row(i)%root%next
           do while(associated(c))
              Hv(i) = Hv(i) + c%cval*V(c%col)    !<== V
              c => c%next
@@ -498,9 +498,9 @@ contains
     !
     Hv=zero
     !
-    !LOCAL PART:
+    !DIAGONAL PART:
     do i=1,Nloc
-       c => spH0%row(i)%root%next
+       c => spH0d%row(i)%root%next
        do while(associated(c))
           Hv(i) = Hv(i) + c%cval*V(c%col-ishift)    !<== V
           c => c%next
@@ -519,10 +519,10 @@ contains
     allocate(vin(N)) ; vin = zero
     call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
     !
-    !NON-LOCAL PART: including S-E and P-H terms.
+    !NON-DIAGONAL PART: including S-E and P-H terms.
     if(jhflag)then
        do i=1,Nloc
-          c => spH0nl%row(i)%root%next
+          c => spH0nd%row(i)%root%next
           do while(associated(c))
              Hv(i) = Hv(i) + c%cval*Vin(c%col)    !<== Vin
              c => c%next
@@ -588,6 +588,7 @@ contains
     integer                                :: Nloc
     complex(8),dimension(Nloc)             :: vin
     complex(8),dimension(Nloc)             :: Hv
+    complex(8),dimension(Nloc)             :: Vout
     integer                                :: isector
     integer,dimension(Ns)                  :: nup,ndw
     integer                                :: i,iup,idw
@@ -631,6 +632,7 @@ contains
     !
     !
     Hv=zero
+    Vout=zero
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -646,6 +648,7 @@ contains
     include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
     !-----------------------------------------------!
     !
+    Hv = Hv + Vout
   end subroutine directMatVec_cc
 
 
@@ -658,7 +661,7 @@ contains
     complex(8),dimension(Nloc)             :: v
     complex(8),dimension(Nloc)             :: Hv
     integer                                :: N
-    complex(8),dimension(:),allocatable    :: vin
+    complex(8),dimension(:),allocatable    :: vin,vout
     integer,allocatable,dimension(:)       :: Counts,Displs
     integer                                :: isector
     integer,dimension(Ns)                  :: nup,ndw
@@ -713,6 +716,7 @@ contains
     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
     !
     allocate(vin(N)) ; vin = zero
+    allocate(vout(N)); vout= zero
     call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
     !
     Hv=zero
@@ -731,6 +735,13 @@ contains
     include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
     !-----------------------------------------------!
     !
+    !
+    !Now we pack back the Vout content to Hv vectors:
+    Vin=zero
+    call AllReduce_MPI(MpiComm,Vout,Vin)
+    do i=first_state,last_state
+       Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
+    end do
   end subroutine directMatVec_MPI_cc
 #endif
 

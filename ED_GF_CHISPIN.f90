@@ -134,7 +134,6 @@ contains
        call delete_Hv_sector()
        !
        deallocate(vvinit,alfa_,beta_)
-       if(spH0%status)call sp_delete_matrix(spH0)
        nullify(state_cvec)
     enddo
     return
@@ -232,7 +231,6 @@ contains
        call delete_Hv_sector()
        !
        deallocate(vvinit,alfa_,beta_)
-       if(spH0%status)call sp_delete_matrix(spH0)
        nullify(state_cvec)
     enddo
     return

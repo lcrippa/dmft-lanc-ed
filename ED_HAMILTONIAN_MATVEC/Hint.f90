@@ -50,7 +50,7 @@
            endif
         endif
         !
-        call sp_insert_element(spH0,htmp,impi,i)
+        call sp_insert_element(spH0d,htmp,impi,i)
         !
         !
         !
@@ -76,7 +76,7 @@
                     jup=binary_search(Hs(1)%map,k2)
                     htmp = one*Jx*sg1*sg2*sg3*sg4
                     j = jup + (jdw-1)*dimup
-                    call sp_insert_element(spH0nl,htmp,impi,j)
+                    call sp_insert_element(spH0nd,htmp,impi,j)
                     !
                  endif
               enddo
@@ -106,7 +106,7 @@
                     jup = binary_search(Hs(1)%map,k2)
                     htmp = one*Jp*sg1*sg2*sg3*sg4
                     j = jup + (jdw-1)*dimup
-                    call sp_insert_element(spH0nl,htmp,impi,j)
+                    call sp_insert_element(spH0nd,htmp,impi,j)
                     !
                  endif
               enddo

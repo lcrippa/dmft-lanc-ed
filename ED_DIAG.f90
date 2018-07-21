@@ -210,7 +210,6 @@ contains
           call delete_Hv_sector()
        endif
        if(ed_verbose>=4)write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
-       if(spH0%status)call sp_delete_matrix(spH0)
        !
        if(finiteT)then
           do i=1,Neigen

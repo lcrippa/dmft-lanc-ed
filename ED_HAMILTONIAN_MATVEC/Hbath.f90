@@ -22,7 +22,7 @@
               enddo
            enddo
            !
-           call sp_insert_element(spH0,htmp,impi,i)
+           call sp_insert_element(spH0d,htmp,impi,i)
            !
         else
            !
@@ -36,7 +36,7 @@
               enddo
            enddo
            !
-           call sp_insert_element(spH0,htmp,impi,i)
+           call sp_insert_element(spH0d,htmp,impi,i)
            !
         endif
 

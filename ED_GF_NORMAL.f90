@@ -177,7 +177,6 @@ contains
           call delete_Hv_sector()
           !
           deallocate(vvinit,alfa_,beta_)
-          if(spH0%status)call sp_delete_matrix(spH0)
        endif
        !
        !REMOVE ONE PARTICLE:
@@ -235,7 +234,6 @@ contains
           call delete_Hv_sector()
           !
           deallocate(vvinit,alfa_,beta_)
-          if(spH0%status)call sp_delete_matrix(spH0)
        endif
        !
        !
@@ -375,7 +373,6 @@ contains
           call delete_Hv_sector()
           !
           deallocate(vvinit,alfa_,beta_)
-          if(spH0%status)call sp_delete_matrix(spH0)
        endif
        !
        !EVALUATE (c_iorb + c_jorb)|gs>
@@ -456,7 +453,6 @@ contains
           call delete_Hv_sector()
           !
           deallocate(vvinit,alfa_,beta_)
-          if(spH0%status)call sp_delete_matrix(spH0)
        endif
        !
        !
@@ -538,7 +534,6 @@ contains
           call delete_Hv_sector()
           !
           deallocate(vvinit,alfa_,beta_)
-          if(spH0%status)call sp_delete_matrix(spH0)
        endif
        !
        !EVALUATE (c_iorb - xi*c_jorb)|gs>
@@ -619,7 +614,6 @@ contains
           call delete_Hv_sector()
           !
           deallocate(vvinit,alfa_,beta_)
-          if(spH0%status)call sp_delete_matrix(spH0)
        endif
        !
        !
