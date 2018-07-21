@@ -580,11 +580,10 @@ contains
     Ndim2=size(matrix,2)
     !if(Ndim1/=Ndim2)print*,"Warning: SPARSE_MATRIX/sp_dump_matrix_d: Ndim1/=Ndim2"
     if(sparse%Nrow /= Ndim1)stop "Warning SPARSE/load_matrix: dimensions error"
-    matrix=0.d0
     do i=1,Ndim1
        c => sparse%row(i)%root%next
        do while(associated(c))
-          matrix(i,c%col) = c%cval
+          matrix(i,c%col) = matrix(i,c%col) + c%cval
           c => c%next  !traverse list
        enddo
     enddo

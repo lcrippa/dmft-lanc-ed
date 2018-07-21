@@ -25,7 +25,6 @@ MODULE ED_INPUT_VARS
   real(8)              :: eps                 !broadening
   real(8)              :: wini,wfin           !
   integer              :: Nsuccess            !
-  logical              :: Jhflag              !spin-exchange and pair-hopping flag.
   logical              :: chiflag             !
   logical              :: HFmode              !flag for HF interaction form U(n-1/2)(n-1/2) VS Unn
   real(8)              :: cutoff              !cutoff for spectral summation
@@ -33,6 +32,14 @@ MODULE ED_INPUT_VARS
   real(8)              :: dmft_error          !dmft convergence threshold
   real(8)              :: sb_field            !symmetry breaking field
   real(8)              :: hwband              !half-bandwidth for the bath initialization: flat in -hwband:hwband
+  !
+  integer              :: ed_verbose          !
+  logical              :: ed_sparse_H         !flag to select  storage of sparse matrix H (mem--, cpu++) if TRUE, or direct on-the-fly H*v product (mem++, cpu--
+  logical              :: ed_print_Sigma   !flag to print impurity Self-energies
+  logical              :: ed_print_G       !flag to print impurity Green`s functions
+  logical              :: ed_print_G0      !flag to print impurity non-interacting Green`s functions
+  logical              :: ed_twin             !flag to reduce (T) or not (F,default) the number of visited sector using twin symmetry.
+  !
   real(8)              :: lanc_tolerance      !Tolerance for the Lanczos iterations as used in Arpack and plain lanczos. 
   integer              :: lanc_niter          !Max number of Lanczos iterations
   integer              :: lanc_ngfiter        !Max number of iteration in resolvant tri-diagonalization
@@ -42,6 +49,7 @@ MODULE ED_INPUT_VARS
   integer              :: lanc_nstates_total  !Max number of states hold in the finite T calculation
   integer              :: lanc_nstates_step   !Number of states added at each step to determine the optimal spectrum size at finite T
   integer              :: lanc_dim_threshold  !Min dimension threshold to use Lanczos determination of the spectrum rather than Lapack based exact diagonalization.
+  !
   integer              :: cg_Niter            !Max number of iteration in the fit
   real(8)              :: cg_Ftol             !Tolerance in the cg fit
   integer              :: cg_Weight           !CGfit mode 0=normal,1=1/n weight, 2=1/w weight
@@ -49,23 +57,14 @@ MODULE ED_INPUT_VARS
   integer              :: cg_method           !fit routine type:0=CGnr (default), 1=minimize (old f77), 2=CG+
   integer              :: cg_stop             !fit stop condition:0-3, 0=default
   real(8)              :: cg_eps              !fit eps tolerance
+  !
   logical              :: finiteT             !flag for finite temperature calculation
-  logical              :: ed_print_Sigma   !flag to print impurity Self-energies
-  logical              :: ed_print_G       !flag to print impurity Green`s functions
-  logical              :: ed_print_G0      !flag to print impurity non-interacting Green`s functions
-  logical              :: ed_twin             !flag to reduce (T) or not (F,default) the number of visited sector using twin symmetry.
-  real(8)              :: ed_vsf_ratio        !
   real(8)              :: ed_bath_noise_thr   !
   character(len=7)     :: bath_type           !flag to set bath type: normal (1bath/imp), hybrid(1bath)
   real(8)              :: nread               !fixed density. if 0.d0 fixed chemical potential calculation.
   real(8)              :: nerr                !fix density threshold. a loop over from 1.d-1 to required nerr is performed
   real(8)              :: ndelta              !initial chemical potential step
   integer              :: niter               !
-  integer              :: ed_verbose          !
-  logical              :: ed_sparse_H         !flag to select  storage of sparse matrix H (mem--, cpu++) if TRUE, or direct on-the-fly H*v product (mem++, cpu--) if FALSE
-  logical              :: Jz_basis
-  logical              :: Jz_max
-  real(8)              :: Jz_max_value
 
 
   !Some parameters for function dimension:
@@ -138,7 +137,6 @@ contains
     call parse_input_variable(wini,"WINI",INPUTunit,default=-5.d0,comment="Smallest real-axis frequency")
     call parse_input_variable(wfin,"WFIN",INPUTunit,default=5.d0,comment="Largest real-axis frequency")
     call parse_input_variable(chiflag,"CHIFLAG",INPUTunit,default=.false.,comment="Flag to activate spin susceptibility calculation.")
-    call parse_input_variable(jhflag,"JHFLAG",INPUTunit,default=.false.,comment="Flag to include full SU(2) invariant term: spin-flip, pair-hopping.")
     call parse_input_variable(hfmode,"HFMODE",INPUTunit,default=.true.,comment="Flag to set the Hartree form of the interaction (n-1/2). see xmu.")
     call parse_input_variable(eps,"EPS",INPUTunit,default=0.01d0,comment="Broadening on the real-axis.")
     call parse_input_variable(cutoff,"CUTOFF",INPUTunit,default=1.d-9,comment="Spectrum cut-off, used to determine the number states to be retained.")
@@ -160,16 +158,12 @@ contains
     call parse_input_variable(cg_stop,"CG_STOP",INPUTunit,default=0,comment="Conjugate-Gradient stopping condition.")
     call parse_input_variable(cg_eps,"CG_EPS",INPUTunit,default=0.000001d0,comment="Conjugate-Gradient eps tolerance.")
     call parse_input_variable(cg_weight,"CG_WEIGHT",INPUTunit,default=0,comment="Conjugate-Gradient weight form: 0=1.0 ,1=1/n , 2=1/w.")
-    call parse_input_variable(ed_vsf_ratio,"ED_VSF_RATIO",INPUTunit,default=0.1d0,comment="Ration of the spin-flip hopping to spin-hold ones in the nonSU2 channel.")
     call parse_input_variable(ed_bath_noise_thr,"ED_BATH_NOISE_THR",INPUTunit,default=0.d0,comment="Noise added to the impurity hybridization")
     call parse_input_variable(bath_type,"BATH_TYPE",INPUTunit,default='normal',comment="flag to set bath type: normal (1bath/imp), hybrid(1bath), replica(1replica/imp)")
     call parse_input_variable(Hfile,"HFILE",INPUTunit,default="hamiltonian",comment="File where to retrieve/store the bath parameters.")
     call parse_input_variable(HLOCfile,"impHfile",INPUTunit,default="inputHLOC.in",comment="File read the input local H.")
     call parse_input_variable(LOGfile,"LOGFILE",INPUTunit,default=6,comment="LOG unit.")
     call parse_input_variable(ed_verbose,"ED_VERBOSE",INPUTunit,default=3,comment="Verbosity level: 0=almost nothing --> 3:all.")
-    call parse_input_variable(Jz_basis,"JZ_BASIS",INPUTunit,default=.false.,comment="")
-    call parse_input_variable(Jz_max,"JZ_MAX",INPUTunit,default=.false.,comment="")
-    call parse_input_variable(Jz_max_value,"JZ_MAX_VALUE",INPUTunit,default=1000.d0,comment="")
 
 #ifdef _MPI
     if(present(comm))then

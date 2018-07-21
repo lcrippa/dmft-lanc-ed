@@ -189,6 +189,9 @@ contains
     if(Norb>3)stop "ED ERROR: Norb > 3 is currently not supported" 
     !
     !
+    Jhflag=.FALSE.
+    if(Norb>1.AND.(Jx/=0d0.OR.Jp/=0d0))Jhflag=.TRUE.
+    !
     if(nread/=0.d0)then
        i=abs(floor(log10(abs(nerr)))) !modulus of the order of magnitude of nerror
        niter=nloop/3

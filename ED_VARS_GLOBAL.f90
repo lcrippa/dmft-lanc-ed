@@ -85,8 +85,10 @@ MODULE ED_VARS_GLOBAL
   !Variables for DIAGONALIZATION
   !PRIVATE
   !=========================================================  
-  type(sparse_matrix)                                :: spH0
-  type(sparse_matrix)                                :: spH0up,spH0dw
+  type(sparse_matrix)                                :: spH0 !local part
+  type(sparse_matrix)                                :: spH0nl !non-local part
+  type(sparse_matrix)                                :: spH0up,spH0dw !reduced UP and DW parts
+  !
   procedure(cc_sparse_HxV),pointer                   :: spHtimesV_cc=>null()
 
 
@@ -181,7 +183,6 @@ MODULE ED_VARS_GLOBAL
   !PRIVATE (now public but accessible thru routine)
   !=========================================================
   complex(8),allocatable,dimension(:,:,:,:)          :: imp_density_matrix
-  complex(8),allocatable,dimension(:,:,:,:,:)        :: bth_density_matrix
 
 
 
@@ -191,7 +192,7 @@ MODULE ED_VARS_GLOBAL
   character(len=32)                                  :: ed_file_suffix=""       !suffix string attached to the output files.
   character(len=10)                                  :: ineq_site_suffix="_ineq"
   integer                                            :: site_indx_padding=4
-
+  logical                                            :: Jhflag              !spin-exchange and pair-hopping flag.
 
 
 contains
