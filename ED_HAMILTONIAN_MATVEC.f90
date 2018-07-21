@@ -128,7 +128,7 @@ contains
     call build_sector(isector,Hs)
     !
     !
-    Dim  = getDim(isector)
+    Dim    = getDim(isector)
     DimDw  = getDimDw(isector)
     DimUp  = getDimUp(isector)
     !
@@ -137,7 +137,7 @@ contains
     MpiQdw = DimDw/MpiSize
     MpiRdw = 0
     if(MpiRank==(MpiSize-1))MpiRdw=mod(DimDw,MpiSize)
-    ishiftDw = MpiRank*MpiQdw
+    ishiftDw = MpiRank*MpiQdw 
     first_state_dw = MpiRank*mpiQdw + 1
     last_state_dw  = (MpiRank+1)*mpiQdw + mpiRdw
     !
@@ -228,17 +228,13 @@ contains
 
     if(present(Hmat))then
        if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
-       !
        call ed_buildH_c(isector,Hmat)
        return
     endif
     !
     select case (ed_sparse_H)
     case (.true.)
-       !
-       !
        call ed_buildH_c(isector)
-
     case (.false.)
        !nothing to be done
     end select
@@ -283,7 +279,7 @@ contains
     integer                                :: j,jup,jdw
     integer                                :: m,mup,mdw
     integer                                :: ms
-    integer                                :: impi
+    integer                                :: impi,impi_up,impi_dw
     integer                                :: iorb,jorb,ispin,jspin,ibath
     integer                                :: kp,k1,k2,k3,k4
     integer                                :: alfa,beta
@@ -319,8 +315,8 @@ contains
     !
     !
     call sp_init_matrix(spH0,mpiQ + mpiR)
-    call sp_init_matrix(spH0dw,DimDw)
-    call sp_init_matrix(spH0up,DimUp)
+    call sp_init_matrix(spH0dw,mpiQdw+mpiRdw)!DimDw)
+    call sp_init_matrix(spH0up,mpiQup+mpiRup)!DimUp)
     if(Jhflag)call sp_init_matrix(spH0nl,mpiQ + mpiR)
     !
     !-----------------------------------------------!
@@ -345,7 +341,7 @@ contains
 #ifdef _MPI       
        if(MpiStatus)then
           !Dump the diagonal and global-non-local part:
-          allocate(Hredux(dim,dim));Hredux=zero          
+          allocate(Hredux(Dim,Dim));Hredux=zero          
           call sp_dump_matrix(spH0,Hredux(first_state:last_state,:))
           if(Jhflag)call sp_dump_matrix(spH0nl,Hredux(first_state:last_state,:))
           call MPI_AllReduce(Hredux,Hmat,dim*dim,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
@@ -354,13 +350,16 @@ contains
           !
           !Dump the DW part:
           allocate(Hredux(DimDw,DimDw));Hredux=zero
-          call sp_dump_matrix(spH0dw,Hredux(:,:))
+          call sp_dump_matrix(spH0dw,Hredux(first_state_dw:last_state_dw,:))
           call MPI_AllReduce(Hredux,Htmp_dw,DimDw*DimDw,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
           deallocate(Hredux)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
           !
           !Dump the UP part:
-          call sp_dump_matrix(spH0up,Htmp_up)
+          allocate(Hredux(DimUp,DimUp));Hredux=zero
+          call sp_dump_matrix(spH0up,Hredux(first_state_up:last_state_up,:))
+          call MPI_AllReduce(Hredux,Htmp_up,DimUp*DimUp,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
+          deallocate(Hredux)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
           !
        else
@@ -482,7 +481,7 @@ contains
     complex(8),dimension(Nloc)          :: Hv
     integer                             :: i
     integer                             :: N
-    complex(8),dimension(:),allocatable :: vin
+    complex(8),dimension(:),allocatable :: Vin,Vout
     integer,allocatable,dimension(:)    :: Counts,Displs
     type(sparse_element),pointer        :: c
     integer                             :: iup,idw,j
@@ -533,30 +532,63 @@ contains
     endif
     !
     !
-    !NON-LOCAL PART:
-    do idw=map_first_state_dw(1),map_last_state_dw(1)
-       do iup=map_first_state_up(idw),map_last_state_up(idw)
-          i    = iup + (idw-1)*DimUp
-          !
-          impi    = i   - ishift
-          !
-          c => spH0up%row(iup)%root%next
-          do while(associated(c))
-             j = c%col + (idw-1)*DimUp
-             Hv(impi) = Hv(impi) + c%cval*Vin(j) !<== Vin
-             c => c%next
-          enddo
-          nullify(c)
-          !
-          c => spH0dw%row(idw)%root%next
+    !DW PART: this is local and contiguous in memory, i.e. index i corresponds to consecutive states.
+    allocate(Vout(N)) ; Vout = zero
+    do idw=first_state_dw,last_state_dw
+       do iup=1,DimUp
+          i = iup + (idw-1)*DimUp
+          c => spH0dw%row(idw-IshiftDw)%root%next
           do while(associated(c))
              j = iup +  (c%col-1)*DimUp
-             Hv(impi) = Hv(impi) + c%cval*Vin(j)
+             Vout(i) = Vout(i) + c%cval*Vin(j) !<== Vin
              c => c%next
           enddo
           nullify(c)
        enddo
     enddo
+    !
+    !UP PART: this is non-local and non-contiguous in memory, i.e. index i corresponds to non-consecutive states.
+    do iup=first_state_up,last_state_up
+       do idw=1,DimDw
+          i = iup + (idw-1)*DimUp
+          c => spH0up%row(iup-IshiftUp)%root%next
+          do while(associated(c))
+             j = c%col + (idw-1)*DimUp
+             Vout(i) = Vout(i) + c%cval*Vin(j) !<== Vin
+             c => c%next
+          enddo
+          nullify(c)
+       enddo
+    enddo
+    !
+    !Now we pack back the Vout content to Hv vectors:
+    do i=first_state,last_state
+       Hv(i-ishift) = Hv(i-ishift) + Vout(i)
+    end do
+
+    ! do idw=map_first_state_dw(1),map_last_state_dw(1)
+    !    do iup=map_first_state_up(idw),map_last_state_up(idw)
+    !       i    = iup + (idw-1)*DimUp
+    !       !
+    !       impi    = i   - ishift
+    !       !
+    !       c => spH0up%row(iup)%root%next
+    !       do while(associated(c))
+    !          j = c%col + (idw-1)*DimUp
+    !          Hv(impi) = Hv(impi) + c%cval*Vin(j) !<== Vin
+    !          c => c%next
+    !       enddo
+    !       nullify(c)
+    !       !
+    !       c => spH0dw%row(idw)%root%next
+    !       do while(associated(c))
+    !          j = iup +  (c%col-1)*DimUp
+    !          Hv(impi) = Hv(impi) + c%cval*Vin(j)
+    !          c => c%next
+    !       enddo
+    !       nullify(c)
+    !    enddo
+    ! enddo
   end subroutine spMatVec_mpi_cc
 #endif
 

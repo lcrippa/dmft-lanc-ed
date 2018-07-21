@@ -40,9 +40,11 @@
   !occupation 0 and 1, as required by this if Jcondition:
   !
   !UP
-  do iup=1,DimUp                !first_state_up,last_state_up
+  ! do iup=1,DimUp                !first_state_up,last_state_up
+  do iup=first_state_up,last_state_up
      mup  = Hs(1)%map(iup)
      nup  = bdecomp(mup,Ns)
+     impi_up = iup - IshiftUp
      !
      do iorb=1,Norb
         do jorb=1,Norb
@@ -55,7 +57,7 @@
               jup = binary_search(Hs(1)%map,k2)
               htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
               !
-              call sp_insert_element(spH0up,htmp,iup,jup)
+              call sp_insert_element(spH0up,htmp,impi_up,jup)
               !
            endif
         enddo
@@ -64,9 +66,11 @@
   end do
 
   !DW
-  do idw=map_first_state_dw(1),map_last_state_dw(1)
+  !do idw=map_first_state_dw(1),map_last_state_dw(1)
+  do idw=first_state_dw,last_state_dw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
+     impi_dw = idw - IshiftDw
      !
      do iorb=1,Norb
         do jorb=1,Norb
@@ -79,7 +83,7 @@
               jdw = binary_search(Hs(2)%map,k2)
               htmp = impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2
               !
-              call sp_insert_element(spH0dw,htmp,idw,jdw)
+              call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
               !
            endif
         enddo
