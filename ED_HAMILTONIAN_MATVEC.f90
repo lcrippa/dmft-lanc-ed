@@ -80,9 +80,9 @@ MODULE ED_HAMILTONIAN_MATVEC
 
 
 
-
-
 contains
+
+
 
 
   !####################################################################
@@ -562,33 +562,11 @@ contains
     enddo
     !
     !Now we pack back the Vout content to Hv vectors:
+    Vin=zero
+    call AllReduce_MPI(MpiComm,Vout,Vin)
     do i=first_state,last_state
-       Hv(i-ishift) = Hv(i-ishift) + Vout(i)
+       Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
     end do
-
-    ! do idw=map_first_state_dw(1),map_last_state_dw(1)
-    !    do iup=map_first_state_up(idw),map_last_state_up(idw)
-    !       i    = iup + (idw-1)*DimUp
-    !       !
-    !       impi    = i   - ishift
-    !       !
-    !       c => spH0up%row(iup)%root%next
-    !       do while(associated(c))
-    !          j = c%col + (idw-1)*DimUp
-    !          Hv(impi) = Hv(impi) + c%cval*Vin(j) !<== Vin
-    !          c => c%next
-    !       enddo
-    !       nullify(c)
-    !       !
-    !       c => spH0dw%row(idw)%root%next
-    !       do while(associated(c))
-    !          j = iup +  (c%col-1)*DimUp
-    !          Hv(impi) = Hv(impi) + c%cval*Vin(j)
-    !          c => c%next
-    !       enddo
-    !       nullify(c)
-    !    enddo
-    ! enddo
   end subroutine spMatVec_mpi_cc
 #endif
 
