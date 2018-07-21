@@ -124,7 +124,6 @@ contains
     Hsector=isector
     Hstatus=.true.
     !
-    call build_sector(isector,H)
     call build_sector(isector,Hs)
     !
     !
@@ -223,9 +222,6 @@ contains
        if(iup > map_last_state_up(idw) ) map_last_state_up(idw)  = iup
     enddo
     !
-
-
-
     if(present(Hmat))then
        if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
        call ed_buildH_c(isector,Hmat)
@@ -242,11 +238,14 @@ contains
   end subroutine build_Hv_sector
 
 
+
+
+
   subroutine delete_Hv_sector()
-    call delete_sector(Hsector,H)
     call delete_sector(Hsector,Hs)
     Hsector=0
     Hstatus=.false.
+    !There is no difference here between Mpi and serial version, as Local part was removed.
     if(spH0d%status) call sp_delete_matrix(spH0d)
     if(spH0up%status)call sp_delete_matrix(spH0up)
     if(spH0dw%status)call sp_delete_matrix(spH0dw)
@@ -314,10 +313,26 @@ contains
     endif
     !
     !
-    call sp_init_matrix(spH0d,mpiQ + mpiR)
-    call sp_init_matrix(spH0dw,mpiQdw+mpiRdw)!DimDw)
-    call sp_init_matrix(spH0up,mpiQup+mpiRup)!DimUp)
-    if(Jhflag)call sp_init_matrix(spH0nd,mpiQ + mpiR)
+    !The MPI version can allocate directly from the total dimension,
+    !evaluating the chunks independently.
+#ifdef _MPI
+    if(MpiStatus)then
+       call sp_init_matrix(MpiComm,spH0d,Dim)
+       call sp_init_matrix(MpiComm,spH0dw,DimDw)
+       call sp_init_matrix(MpiComm,spH0up,DimUp)
+       if(Jhflag)call sp_init_matrix(MpiComm,spH0nd,Dim)
+    else
+       call sp_init_matrix(spH0d,Dim)
+       call sp_init_matrix(spH0dw,DimDw)
+       call sp_init_matrix(spH0up,DimUp)
+       if(Jhflag)call sp_init_matrix(spH0nd,Dim)
+    endif
+#else
+    call sp_init_matrix(spH0d,Dim)
+    call sp_init_matrix(spH0dw,DimDw)
+    call sp_init_matrix(spH0up,DimUp)
+    if(Jhflag)call sp_init_matrix(spH0nd,Dim)
+#endif
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -340,54 +355,29 @@ contains
        !
 #ifdef _MPI       
        if(MpiStatus)then
-          !Dump the diagonal and global-non-local part:
-          allocate(Hredux(Dim,Dim));Hredux=zero          
-          call sp_dump_matrix(spH0d,Hredux(first_state:last_state,:))
-          if(Jhflag)call sp_dump_matrix(spH0nd,Hredux(first_state:last_state,:))
-          call MPI_AllReduce(Hredux,Hmat,dim*dim,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
-          deallocate(Hredux)
-          !
-          !
-          !Dump the DW part:
-          allocate(Hredux(DimDw,DimDw));Hredux=zero
-          call sp_dump_matrix(spH0dw,Hredux(first_state_dw:last_state_dw,:))
-          call MPI_AllReduce(Hredux,Htmp_dw,DimDw*DimDw,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
-          deallocate(Hredux)
+          call sp_dump_matrix(MpiComm,spH0d,Hmat)
+          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
+          call sp_dump_matrix(MpiComm,spH0dw,Htmp_dw)
+          call sp_dump_matrix(MpiComm,spH0up,Htmp_up)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
-          !
-          !Dump the UP part:
-          allocate(Hredux(DimUp,DimUp));Hredux=zero
-          call sp_dump_matrix(spH0up,Hredux(first_state_up:last_state_up,:))
-          call MPI_AllReduce(Hredux,Htmp_up,DimUp*DimUp,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
-          deallocate(Hredux)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
           !
        else
-          !Dump the diagonal and global-non-local part:
           call sp_dump_matrix(spH0d,Hmat)
           if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
-          !Dump the UP part:
           call sp_dump_matrix(spH0up,Htmp_up)
-          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
-          !
-          !Dump the DW part:
           call sp_dump_matrix(spH0dw,Htmp_dw)
+          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
        endif
 #else
-       !
-       !Dump the diagonal and global-non-local part:
        call sp_dump_matrix(spH0d,Hmat)
        if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
-       !Dump the UP part:
        call sp_dump_matrix(spH0up,Htmp_up)
-       Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
-       !
-       !Dump the DW part:
        call sp_dump_matrix(spH0dw,Htmp_dw)
+       Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
        Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
 #endif
-
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
@@ -415,11 +405,11 @@ contains
   ! - MPI cmplx(H)*cmplx(V)
   !+------------------------------------------------------------------+
   subroutine spMatVec_cc(Nloc,v,Hv)
-    integer                      :: Nloc
-    complex(8),dimension(Nloc)   :: v
-    complex(8),dimension(Nloc)   :: Hv
-    integer                      :: i,iup,idw,j
-    type(sparse_element),pointer :: c
+    integer                         :: Nloc
+    complex(8),dimension(Nloc)      :: v
+    complex(8),dimension(Nloc)      :: Hv
+    integer                         :: i,iup,idw,j
+    type(sparse_element_ll),pointer :: c
     !
     ! !
     Hv=zero
@@ -483,7 +473,7 @@ contains
     integer                             :: N
     complex(8),dimension(:),allocatable :: Vin,Vout
     integer,allocatable,dimension(:)    :: Counts,Displs
-    type(sparse_element),pointer        :: c
+    type(sparse_element_ll),pointer     :: c
     integer                             :: iup,idw,j
     integer                             :: impi_up,impi_dw,impi
     !

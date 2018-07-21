@@ -104,13 +104,13 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
      module procedure :: sp_size_matrix_ell
   end interface sp_size_matrix
 
-! #ifdef _MPI
-!   !GET SIZE OF THE LOCAL MATRIX (Non-Zero Elements): only MPI
-!   interface sp_size_local
-!      module procedure :: sp_size_local_ll
-!      module procedure :: sp_size_local_ell
-!   end interface sp_size_local
-! #endif
+#ifdef _MPI
+  !GET SIZE OF THE LOCAL MATRIX (Non-Zero Elements): only MPI
+  interface sp_size_local
+     module procedure :: sp_size_local_ll
+     module procedure :: sp_size_local_ell
+  end interface sp_size_local
+#endif
 
 
 
@@ -481,13 +481,13 @@ contains
     enddo
     deallocate(sparse%row)
     !
-    ! do i=1,sparse%Nrow
-    !    deallocate(sparse%loc(i)%vals)
-    !    deallocate(sparse%loc(i)%cols)
-    !    sparse%loc(i)%Size  = 0
-    !    sparse%loc(i)%Count = 0
-    ! enddo
-    ! deallocate(sparse%loc)
+    do i=1,sparse%Nrow
+       deallocate(sparse%loc(i)%vals)
+       deallocate(sparse%loc(i)%cols)
+       sparse%loc(i)%Size  = 0
+       sparse%loc(i)%Count = 0
+    enddo
+    deallocate(sparse%loc)
     !
     sparse%Nrow=0
     sparse%Ncol=0
@@ -914,12 +914,11 @@ contains
   !
 #ifdef _MPI
   subroutine mpi_sp_dump_matrix_ll(MpiComm,sparse,matrix)
-    integer                                             :: MpiComm
-    type(sparse_matrix_ll),intent(in)                   :: sparse
-    complex(8),dimension(:,:),intent(inout)             :: matrix
-    complex(8),dimension(size(matrix,1),size(matrix,2)) :: mtmp
-    type(sparse_element_ll),pointer                     :: c
-    integer                                             :: i,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
+    integer                              :: MpiComm
+    type(sparse_matrix_ll),intent(in)       :: sparse
+    complex(8),dimension(:,:),intent(inout) :: matrix
+    type(sparse_element_ll),pointer         :: c
+    integer                              :: i,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
     Ndim1=size(matrix,1)
     Ndim2=size(matrix,2)
@@ -933,30 +932,27 @@ contains
     !
     call sp_MPI_setup(MpiComm,Ndim1)
     !
-    mtmp=zero
+    matrix=dcmplx(0d0,0d0)
     do i=MpiIstart,MpiIend
        ! c => sparse%loc(i-MpiIshift)%root%next
        ! do while(associated(c))
-       !    mtmp(i,c%col) = mtmp(i,c%col) + c%cval
+       !    matrix(i,c%col) = matrix(i,c%col) + c%cval
        !    c => c%next  !traverse list
        ! enddo
        !
        c => sparse%row(i-MpiIshift)%root%next
        do while(associated(c))
-          mtmp(i,c%col) = mtmp(i,c%col) + c%cval
+          matrix(i,c%col) = matrix(i,c%col) + c%cval
           c => c%next  !traverse list
        enddo
     enddo
-    !
-    call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
   end subroutine mpi_sp_dump_matrix_ll
 
   subroutine mpi_sp_dump_matrix_ell(MpiComm,sparse,matrix)
-    integer                                             :: MpiComm
-    type(sparse_matrix_ell),intent(in)                  :: sparse
-    complex(8),dimension(:,:),intent(inout)             :: matrix
-    complex(8),dimension(size(matrix,1),size(matrix,2)) :: mtmp
-    integer                                             :: i,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
+    integer                              :: MpiComm
+    type(sparse_matrix_ell),intent(in)   :: sparse
+    complex(8),dimension(:,:),intent(inout) :: matrix
+    integer                              :: i,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
     Ndim1=size(matrix,1)
     Ndim2=size(matrix,2)
@@ -970,18 +966,16 @@ contains
     !
     call sp_MPI_setup(MpiComm,Ndim1)
     !
-    mtmp=zero
+    matrix=dcmplx(0d0,0d0)
     do i=MpiIstart,MpiIend
        do j=1,sparse%row(i-mpiIshift)%Size
-          mtmp(i,sparse%row(i-mpiIshift)%cols(j))=mtmp(i,sparse%row(i-mpiIshift)%cols(j))+sparse%row(i-mpiIshift)%vals(j)
+          matrix(i,sparse%row(i-mpiIshift)%cols(j))=matrix(i,sparse%row(i-mpiIshift)%cols(j))+sparse%row(i-mpiIshift)%vals(j)
        enddo
        !
        ! do j=1,sparse%loc(i-mpiIshift)%Size
        !    matrix(i,sparse%loc(i-mpiIshift)%cols(j))=matrix(i,sparse%loc(i-mpiIshift)%cols(j))+sparse%loc(i-mpiIshift)%vals(j)
        ! enddo
     enddo
-    !
-    call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
   end subroutine mpi_sp_dump_matrix_ell
 #endif
 
