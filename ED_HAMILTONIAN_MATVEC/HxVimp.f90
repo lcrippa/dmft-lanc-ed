@@ -1,8 +1,8 @@
-  do idw=first_state_dw,last_state_dw
+  do idw=map_first_state_dw(1),map_last_state_dw(1)
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
      !
-     do iup=first_state_up(idw),last_state_up(idw)
+     do iup=map_first_state_up(idw),map_last_state_up(idw)
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
         !
@@ -29,8 +29,8 @@
   !occupation 0 and 1, as required by this if Jcondition:
   !
   !UP
-  do idw=first_state_dw,last_state_dw
-     do iup=first_state_up(idw),last_state_up(idw)
+  do idw=map_first_state_dw(1),map_last_state_dw(1)
+     do iup=map_first_state_up(idw),map_last_state_up(idw)
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
         !
@@ -61,8 +61,8 @@
 
 
   !DW
-  do idw=first_state_dw,last_state_dw
-     do iup=first_state_up(idw),last_state_up(idw)    
+  do idw=map_first_state_dw(1),map_last_state_dw(1)
+     do iup=map_first_state_up(idw),map_last_state_up(idw)
         mdw  = Hs(2)%map(idw)
         ndw  = bdecomp(mdw,Ns)
         !

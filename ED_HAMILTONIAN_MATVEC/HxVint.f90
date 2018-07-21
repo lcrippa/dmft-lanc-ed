@@ -1,8 +1,8 @@
-  do idw=first_state_dw,last_state_dw
+  do idw=map_first_state_dw(1),map_last_state_dw(1)
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
      !
-     do iup=first_state_up(idw),last_state_up(idw)
+     do iup=map_first_state_up(idw),map_last_state_up(idw)
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
         !
@@ -57,7 +57,7 @@
         ! SPIN-EXCHANGE (S-E) and PAIR-HOPPING TERMS
         !    S-E: J c^+_iorb_up c^+_jorb_dw c_iorb_dw c_jorb_up  (i.ne.j) 
         !    S-E: J c^+_{iorb} c^+_{jorb+Ns} c_{iorb+Ns} c_{jorb}
-        if(Norb>1.AND.Jhflag)then
+        if(Norb>1.AND.Jx/=0d0)then
            !
            do iorb=1,Norb
               do jorb=1,Norb
@@ -87,7 +87,7 @@
         ! PAIR-HOPPING (P-H) TERMS
         !    P-H: J c^+_iorb_up c^+_iorb_dw   c_jorb_dw   c_jorb_up  (i.ne.j) 
         !    P-H: J c^+_{iorb}  c^+_{iorb+Ns} c_{jorb+Ns} c_{jorb}
-        if(Norb>1.AND.Jhflag)then
+        if(Norb>1.AND.Jp/=0d0)then
            !
            do iorb=1,Norb
               do jorb=1,Norb

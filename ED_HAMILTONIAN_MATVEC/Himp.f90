@@ -6,8 +6,6 @@
   !    ndw  = bdecomp(Hs(2)%map(idw),Ns)
   !    !
   !    impi = i - ishift
-  
-  
   do idw=map_first_state_dw(1),map_last_state_dw(1)
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)

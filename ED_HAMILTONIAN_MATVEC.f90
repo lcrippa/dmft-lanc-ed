@@ -31,11 +31,11 @@ MODULE ED_HAMILTONIAN_MATVEC
 #endif
   !
   !
-  !   !>Sparse Mat-Vec direct on-the-fly product 
-  !   public  :: directMatVec_cc
-  ! #ifdef _MPI
-  !   public  :: directMatVec_MPI_cc
-  ! #endif
+  !>Sparse Mat-Vec direct on-the-fly product 
+  public  :: directMatVec_cc
+#ifdef _MPI
+  public  :: directMatVec_MPI_cc
+#endif
   !
   !>Related auxiliary routines:
   public  :: ed_hamiltonian_matvec_set_MPI
@@ -224,21 +224,21 @@ contains
     enddo
     !
 
-    call sp_init_matrix(spH0,mpiQ + mpiR)
-    if(Jhflag)call sp_init_matrix(spH0nl,mpiQ + mpiR)
-    call sp_init_matrix(spH0dw,DimDw)
-    call sp_init_matrix(spH0up,DimUp)
 
 
     if(present(Hmat))then
        if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
+       !
        call ed_buildH_c(isector,Hmat)
        return
     endif
     !
     select case (ed_sparse_H)
     case (.true.)
+       !
+       !
        call ed_buildH_c(isector)
+
     case (.false.)
        !nothing to be done
     end select
@@ -252,9 +252,9 @@ contains
     Hsector=0
     Hstatus=.false.
     if(spH0%status)call sp_delete_matrix(spH0)
-    if(spH0nl%status)call sp_delete_matrix(spH0nl)
     if(spH0up%status)call sp_delete_matrix(spH0up)
     if(spH0dw%status)call sp_delete_matrix(spH0dw)
+    if(spH0nl%status)call sp_delete_matrix(spH0nl)
     !
   end subroutine delete_Hv_sector
 
@@ -316,7 +316,13 @@ contains
           enddo
        enddo
     endif
-    !    
+    !
+    !
+    call sp_init_matrix(spH0,mpiQ + mpiR)
+    call sp_init_matrix(spH0dw,DimDw)
+    call sp_init_matrix(spH0up,DimUp)
+    if(Jhflag)call sp_init_matrix(spH0nl,mpiQ + mpiR)
+    !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
     include "ED_HAMILTONIAN_MATVEC/Himp.f90"
@@ -416,10 +422,7 @@ contains
     integer                      :: i,iup,idw,j
     type(sparse_element),pointer :: c
     !
-    Dim   = getDim(Hsector)
-    DimDw = getDimDw(Hsector)
-    DimUp = getDimUp(Hsector)
-    !
+    ! !
     Hv=zero
     !
     do i = 1,Nloc
@@ -568,189 +571,158 @@ contains
 
 
 
-  !   !####################################################################
-  !   !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
-  !   !####################################################################
-  !   subroutine directMatVec_cc(Nloc,vin,Hv)
-  !     integer                                :: Nloc
-  !     complex(8),dimension(Nloc)             :: vin
-  !     complex(8),dimension(Nloc)             :: Hv
-  !     integer                                :: isector
-  !     integer,dimension(Ns)                  :: nup,ndw
-  !     integer                                :: i,iup,idw
-  !     integer                                :: j,jup,jdw
-  !     integer                                :: m,mup,mdw
-  !     integer                                :: ishift
-  !     integer                                :: ms
-  !     integer                                :: impi
-  !     integer                                :: iorb,jorb,ispin,jspin,ibath
-  !     integer                                :: kp,k1,k2,k3,k4
-  !     integer                                :: alfa,beta
-  !     real(8)                                :: sg1,sg2,sg3,sg4
-  !     complex(8)                             :: htmp,htmpup,htmpdw
-  !     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-  !     logical                                :: Jcondition
-  !     !
-  !     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-  !     isector=Hsector
-  !     !
-  !     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
-  !     !
-  !     !Get diagonal hybridization
-  !     diag_hybr=zero
-  !     if(bath_type/="replica")then
-  !        do ibath=1,Nbath
-  !           do ispin=1,Nspin
-  !              do iorb=1,Norb
-  !                 diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-  !              enddo
-  !           enddo
-  !        enddo
-  !     else
-  !        do ibath=1,Nbath
-  !           do ispin=1,Nspin
-  !              do iorb=1,Norb
-  !                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-  !              enddo
-  !           enddo
-  !        enddo
-  !     endif
-  !     !
-  !     Dim  = getDim(isector)
-  !     DimDw  = getDimDw(isector)
-  !     DimUp  = getDimUp(isector)
-  !     !
-  !     !FULL:
-  !     mpiQ = dim/MpiSize
-  !     mpiR = 0
-  !     if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
-  !     ishift      = MpiRank*mpiQ
-  !     first_state = MpiRank*mpiQ + 1
-  !     last_state  = (MpiRank+1)*mpiQ + mpiR
-  !     !
-  !     !Select the MPI states from the tensor product:
-  !     include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
-  !     !
-  !     !
-  !     !
-  !     Hv=zero
-  !     !
-  !     !-----------------------------------------------!
-  !     !IMPURITY  HAMILTONIAN
-  !     include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
-  !     !
-  !     !LOCAL INTERACTION
-  !     include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
-  !     !
-  !     !BATH HAMILTONIAN
-  !     include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
-  !     !
-  !     !IMPURITY- BATH HYBRIDIZATION
-  !     include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
-  !     !-----------------------------------------------!
-  !     !
-  !   end subroutine directMatVec_cc
+  !####################################################################
+  !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
+  !####################################################################
+  subroutine directMatVec_cc(Nloc,vin,Hv)
+    integer                                :: Nloc
+    complex(8),dimension(Nloc)             :: vin
+    complex(8),dimension(Nloc)             :: Hv
+    integer                                :: isector
+    integer,dimension(Ns)                  :: nup,ndw
+    integer                                :: i,iup,idw
+    integer                                :: j,jup,jdw
+    integer                                :: m,mup,mdw
+    integer                                :: ishift
+    integer                                :: ms
+    integer                                :: impi
+    integer                                :: iorb,jorb,ispin,jspin,ibath
+    integer                                :: kp,k1,k2,k3,k4
+    integer                                :: alfa,beta
+    real(8)                                :: sg1,sg2,sg3,sg4
+    complex(8)                             :: htmp,htmpup,htmpdw
+    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                                :: Jcondition
+    !
+    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
+    isector=Hsector
+    !
+    if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
+    !
+    !Get diagonal hybridization
+    diag_hybr=zero
+    if(bath_type/="replica")then
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
+             enddo
+          enddo
+       enddo
+    else
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+             enddo
+          enddo
+       enddo
+    endif
+    !
+    !
+    Hv=zero
+    !
+    !-----------------------------------------------!
+    !IMPURITY  HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
+    !
+    !LOCAL INTERACTION
+    include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
+    !
+    !BATH HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
+    !
+    !IMPURITY- BATH HYBRIDIZATION
+    include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
+    !-----------------------------------------------!
+    !
+  end subroutine directMatVec_cc
 
 
 
 
 
-  ! #ifdef _MPI
-  !   subroutine directMatVec_MPI_cc(Nloc,v,Hv)
-  !     integer                                :: Nloc
-  !     complex(8),dimension(Nloc)             :: v
-  !     complex(8),dimension(Nloc)             :: Hv
-  !     integer                                :: N
-  !     complex(8),dimension(:),allocatable    :: vin
-  !     integer,allocatable,dimension(:)       :: Counts,Displs
-  !     integer                                :: isector
-  !     integer,dimension(Ns)                  :: nup,ndw
-  !     integer                                :: i,iup,idw
-  !     integer                                :: j,jup,jdw
-  !     integer                                :: m,mup,mdw
-  !     integer                                :: ishift
-  !     integer                                :: ms
-  !     integer                                :: impi
-  !     integer                                :: iorb,jorb,ispin,jspin,ibath
-  !     integer                                :: kp,k1,k2,k3,k4
-  !     integer                                :: alfa,beta
-  !     real(8)                                :: sg1,sg2,sg3,sg4
-  !     complex(8)                             :: htmp,htmpup,htmpdw
-  !     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-  !     logical                                :: Jcondition
-  !     !
-  !     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-  !     isector=Hsector
-  !     !
-  !     !Get diagonal hybridization
-  !     diag_hybr=zero
-  !     if(bath_type/="replica")then
-  !        do ibath=1,Nbath
-  !           do ispin=1,Nspin
-  !              do iorb=1,Norb
-  !                 diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-  !              enddo
-  !           enddo
-  !        enddo
-  !     else
-  !        do ibath=1,Nbath
-  !           do ispin=1,Nspin
-  !              do iorb=1,Norb
-  !                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-  !              enddo
-  !           enddo
-  !        enddo
-  !     endif
-  !     !
-  !     if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
-  !     !
-  !     Dim   = getDim(Hsector)
-  !     DimDw = getDimDw(Hsector)
-  !     DimUp = getDimUp(Hsector)
-  !     !
-  !     N=0
-  !     call MPI_AllReduce(Nloc,N,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
-  !     !
-  !     if(N/=Dim)stop "directMatVec_MPI_cc ERROR: N != dim(isector)"
-  !     !
-  !     !FULL:
-  !     mpiQ = Dim/MpiSize
-  !     mpiR = 0
-  !     if(MpiRank==(MpiSize-1))mpiR=mod(dim,MpiSize)
-  !     ishift      = MpiRank*mpiQ
-  !     first_state = MpiRank*mpiQ + 1
-  !     last_state  = (MpiRank+1)*mpiQ + mpiR
-  !     !
-  !     !Select the MPI states from the tensor product:
-  !     include "ED_HAMILTONIAN_MATVEC/Build_Up_MPI_Range.f90"
-  !     !
-  !     allocate(vin(N))
-  !     vin = zero
-  !     !
-  !     allocate(Counts(0:MpiSize-1),Displs(0:MpiSize-1))
-  !     Counts(0:)        = mpiQ
-  !     Counts(MpiSize-1) = mpiQ+mod(N,MpiSize)
-  !     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
-  !     call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
-  !     !
-  !     Hv=zero
-  !     !
-  !     !-----------------------------------------------!
-  !     !IMPURITY  HAMILTONIAN
-  !     include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
-  !     !
-  !     !LOCAL INTERACTION
-  !     include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
-  !     !
-  !     !BATH HAMILTONIAN
-  !     include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
-  !     !
-  !     !IMPURITY- BATH HYBRIDIZATION
-  !     include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
-  !     !-----------------------------------------------!
-  !     !
-  !   end subroutine directMatVec_MPI_cc
-  ! #endif
+#ifdef _MPI
+  subroutine directMatVec_MPI_cc(Nloc,v,Hv)
+    integer                                :: Nloc
+    complex(8),dimension(Nloc)             :: v
+    complex(8),dimension(Nloc)             :: Hv
+    integer                                :: N
+    complex(8),dimension(:),allocatable    :: vin
+    integer,allocatable,dimension(:)       :: Counts,Displs
+    integer                                :: isector
+    integer,dimension(Ns)                  :: nup,ndw
+    integer                                :: i,iup,idw
+    integer                                :: j,jup,jdw
+    integer                                :: m,mup,mdw
+    integer                                :: ms
+    integer                                :: impi
+    integer                                :: iorb,jorb,ispin,jspin,ibath
+    integer                                :: kp,k1,k2,k3,k4
+    integer                                :: alfa,beta
+    real(8)                                :: sg1,sg2,sg3,sg4
+    complex(8)                             :: htmp,htmpup,htmpdw
+    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                                :: Jcondition
+    !
+    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
+    isector=Hsector
+    !
+    !Get diagonal hybridization
+    diag_hybr=zero
+    if(bath_type/="replica")then
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
+             enddo
+          enddo
+       enddo
+    else
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+             enddo
+          enddo
+       enddo
+    endif
+    !
+    if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
+    !
+    N=0
+    call MPI_AllReduce(Nloc,N,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+    if(N/=Dim)stop "directMatVec_MPI_cc ERROR: N != dim(isector)"
+    !
+    !
+    allocate(Counts(0:MpiSize-1))
+    Counts(0:)        = mpiQ
+    Counts(MpiSize-1) = mpiQ+mod(N,MpiSize)
+    !
+    allocate(Displs(0:MpiSize-1))
+    forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
+    !
+    allocate(vin(N)) ; vin = zero
+    call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+    !
+    Hv=zero
+    !
+    !-----------------------------------------------!
+    !IMPURITY  HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
+    !
+    !LOCAL INTERACTION
+    include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
+    !
+    !BATH HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
+    !
+    !IMPURITY- BATH HYBRIDIZATION
+    include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
+    !-----------------------------------------------!
+    !
+  end subroutine directMatVec_MPI_cc
+#endif
 
 
 
