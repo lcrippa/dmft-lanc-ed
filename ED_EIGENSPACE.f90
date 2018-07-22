@@ -449,7 +449,7 @@ contains        !some routine to perform simple operation on the lists
     complex(8),dimension(:),pointer  :: vtmp
     complex(8),dimension(:),pointer  :: vector
     type(sparse_estate),pointer      :: c
-    integer                          :: i,pos,Nloc,Ns
+    integer                          :: i,pos,Nloc,Ndim
     integer                          :: dim
     integer                          :: MpiSize,MpiRank,MpiIerr,mpiQ,mpiR
     integer,allocatable,dimension(:) :: Counts,Displs
@@ -468,43 +468,50 @@ contains        !some routine to perform simple operation on the lists
        if(.not.associated(c))exit
     end do
     !
-    Nloc = size(c%cvec)
-    Ns   = 0
-    call MPI_AllReduce(Nloc,Ns,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+    if(.not.c%itwin)then
+       Nloc = size(c%cvec)
+    else
+       Nloc = size(c%twin%cvec)
+    endif
+    !
+    !Ensure that the sum of the dimension of all vector chunks equals the sector dimension.
+    Dim  = getdim(c%sector)
+    Ndim = 0
+    call MPI_AllReduce(Nloc,Ndim,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+    if(Dim/=Ndim)stop "es_return_cvector ERROR: Dim != Ndim from v chunks"
     !
     MpiSize  = Get_size_MPI(MpiComm)
     MpiRank  = Get_rank_MPI(MpiComm)
-    mpiQ = Ns/MpiSize
+    mpiQ = Ndim/MpiSize
     mpiR = 0
-    if(MpiRank == MpiSize-1)mpiR=mod(Ns,MpiSize)
+    if(MpiRank == MpiSize-1)mpiR=mod(Ndim,MpiSize)
     !
-    allocate(Counts(0:MpiSize-1),Displs(0:MpiSize-1))
+    allocate(Counts(0:MpiSize-1))
     Counts(0:)        = mpiQ
     Counts(MpiSize-1) = mpiQ+mod(Ns,MpiSize)
+    !
+    allocate(Displs(0:MpiSize-1))
     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
     !
     if(.not.c%itwin)then
-       allocate(Vector(Ns)) ; Vector = zero
+       allocate(Vector(Ndim)) ; Vector = zero
        call MPI_Allgatherv(c%cvec(1:Nloc),Nloc,MPI_Double_Complex,Vector,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
     else
-       dim = getdim(c%sector)
-       allocate(Order(dim))
+       allocate(Order(Dim))
        call twin_sector_order(c%twin%sector,Order)
-       if(Dim/=Ns)stop "es_return_cvector ERRROR: Dim != Ns"
        !
-       allocate(Vtmp(Ns)) ; Vtmp = zero
+       allocate(Vtmp(Ndim)) ; Vtmp = zero
        call MPI_Allgatherv(c%twin%cvec(1:Nloc),Nloc,MPI_Double_Complex,Vtmp,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
-       allocate(Vector(Ns))
-       do i=1,dim
-          Vector(i) = Vtmp(Order(i)) !c%twin%cvec(Order(i))
-       enddo
-       deallocate(order)
+       allocate(Vector(Ndim))
+       forall(i=1:Dim)Vector(i) = Vtmp(Order(i)) !c%twin%cvec(Order(i))
+       deallocate(Vtmp,order)
     endif
   end function es_return_cvector_mpi
 #endif
 
 
 
+  
 
   !+------------------------------------------------------------------+
   !PURPOSE  : pretty print the list of states
