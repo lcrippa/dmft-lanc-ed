@@ -126,7 +126,6 @@ contains
     !
     call build_sector(isector,Hs)
     !
-    !
     Dim    = getDim(isector)
     DimDw  = getDimDw(isector)
     DimUp  = getDimUp(isector)
@@ -158,36 +157,29 @@ contains
     last_state  = (MpiRank+1)*mpiQ + mpiR
     !
 #ifdef _MPI    
-    if(MpiStatus.AND.ed_verbose>3)then
-       if(MpiMaster)print*,"         mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
-       call MPI_Barrier(MpiComm,MpiIerr)
-       if(MpiMaster)print*,"DW:"
-       call MPI_Barrier(MpiComm,MpiIerr)
+    if(MpiStatus.AND.ed_verbose>4)then
+       if(MpiMaster)write(*,*)"           mpiRank,   mpi_Q,   mpi_R,   mpi_CHunk,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
        do irank=0,MpiSize-1
           if(MpiRank==irank)then
-             write(*,*)MpiRank,MpiQdw,MpiRdw,mpiQdw+mpiRdw,first_state_dw,last_state_dw,last_state_dw-first_state_dw+1
+             write(*,*)"DW",MpiRank,MpiQdw,MpiRdw,mpiQdw+mpiRdw,first_state_dw,last_state_dw,last_state_dw-first_state_dw+1
              call MPI_Barrier(MpiComm,MpiIerr)
           endif
           call MPI_Barrier(MpiComm,MpiIerr)
        enddo
        call MPI_Barrier(MpiComm,MpiIerr)
        !
-       if(MpiMaster)print*,"UP:"
-       call MPI_Barrier(MpiComm,MpiIerr)
        do irank=0,MpiSize-1
           if(MpiRank==irank)then
-             write(*,*)MpiRank,MpiQup,MpiRup,mpiQup+mpiRup,first_state_up,last_state_up,last_state_up-first_state_up+1
+             write(*,*)"UP",MpiRank,MpiQup,MpiRup,mpiQup+mpiRup,first_state_up,last_state_up,last_state_up-first_state_up+1
              call MPI_Barrier(MpiComm,MpiIerr)
           endif
           call MPI_Barrier(MpiComm,MpiIerr)
        enddo
        call MPI_Barrier(MpiComm,MpiIerr)
        !
-       if(MpiMaster)print*,"Full:"
-       call MPI_Barrier(MpiComm,MpiIerr)
        do irank=0,MpiSize-1
           if(MpiRank==irank)then
-             write(*,*)MpiRank,MpiQ,MpiR,mpiQ+mpiR,first_state,last_state,last_state-first_state+1
+             write(*,*)"UD",MpiRank,MpiQ,MpiR,mpiQ+mpiR,first_state,last_state,last_state-first_state+1
              call MPI_Barrier(MpiComm,MpiIerr)
           endif
           call MPI_Barrier(MpiComm,MpiIerr)
@@ -246,10 +238,17 @@ contains
     Hsector=0
     Hstatus=.false.
     !There is no difference here between Mpi and serial version, as Local part was removed.
-    if(spH0d%status) call sp_delete_matrix(spH0d)
-    if(spH0up%status)call sp_delete_matrix(spH0up)
-    if(spH0dw%status)call sp_delete_matrix(spH0dw)
-    if(spH0nd%status)call sp_delete_matrix(spH0nd)
+    if(MpiStatus)then
+       if(spH0d%status) call sp_delete_matrix(MpiComm,spH0d)
+       if(spH0up%status)call sp_delete_matrix(MpiComm,spH0up)
+       if(spH0dw%status)call sp_delete_matrix(MpiComm,spH0dw)
+       if(spH0nd%status)call sp_delete_matrix(MpiComm,spH0nd)
+    else
+       if(spH0d%status) call sp_delete_matrix(spH0d)
+       if(spH0up%status)call sp_delete_matrix(spH0up)
+       if(spH0dw%status)call sp_delete_matrix(spH0dw)
+       if(spH0nd%status)call sp_delete_matrix(spH0nd)
+    endif
     !
   end subroutine delete_Hv_sector
 
@@ -272,7 +271,6 @@ contains
     logical,optional                       :: dryrun
     !
     complex(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
-    integer,dimension(Nlevels)             :: ib
     integer,dimension(Ns)                  :: nup,ndw
     integer                                :: i,iup,idw
     integer                                :: j,jup,jdw
@@ -285,7 +283,7 @@ contains
     real(8)                                :: sg1,sg2,sg3,sg4
     complex(8)                             :: htmp,htmpup,htmpdw
     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition
+    logical                                :: Jcondition,dryrun_
     !
     if(.not.Hstatus)stop "ed_buildH_c ERROR: Hsector NOT set"
     isector=Hsector
@@ -315,7 +313,6 @@ contains
     !
     !The MPI version can allocate directly from the total dimension,
     !evaluating the chunks independently.
-#ifdef _MPI
     if(MpiStatus)then
        call sp_init_matrix(MpiComm,spH0d,Dim)
        call sp_init_matrix(MpiComm,spH0dw,DimDw)
@@ -327,12 +324,6 @@ contains
        call sp_init_matrix(spH0up,DimUp)
        if(Jhflag)call sp_init_matrix(spH0nd,Dim)
     endif
-#else
-    call sp_init_matrix(spH0d,Dim)
-    call sp_init_matrix(spH0dw,DimDw)
-    call sp_init_matrix(spH0up,DimUp)
-    if(Jhflag)call sp_init_matrix(spH0nd,Dim)
-#endif
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -353,31 +344,22 @@ contains
        allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
        allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
        !
-#ifdef _MPI       
        if(MpiStatus)then
-          call sp_dump_matrix(MpiComm,spH0d,Hmat)
-          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
+          call sp_dump_matrix(MpiComm,spH0d,Hmat)          
           call sp_dump_matrix(MpiComm,spH0dw,Htmp_dw)
           call sp_dump_matrix(MpiComm,spH0up,Htmp_up)
+          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
           !
        else
           call sp_dump_matrix(spH0d,Hmat)
-          if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
           call sp_dump_matrix(spH0up,Htmp_up)
           call sp_dump_matrix(spH0dw,Htmp_dw)
+          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
        endif
-#else
-       call sp_dump_matrix(spH0d,Hmat)
-       if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
-       call sp_dump_matrix(spH0up,Htmp_up)
-       call sp_dump_matrix(spH0dw,Htmp_dw)
-       Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
-       Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
-#endif
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
@@ -524,6 +506,7 @@ contains
     !
     !DW PART: this is local and contiguous in memory, i.e. index i corresponds to consecutive states.
     allocate(Vout(N)) ; Vout = zero
+    !
     do idw=first_state_dw,last_state_dw
        do iup=1,DimUp
           i = iup + (idw-1)*DimUp

@@ -29,8 +29,6 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
      logical                                  :: status=.false.
      type(sparse_row_ll),dimension(:),pointer :: row
 #ifdef _MPI
-     ! type(sparse_row_ll),dimension(:),pointer :: loc
-     !MPI vars
      integer                                  :: istart=0 !global start index for MPI storage
      integer                                  :: iend=0
      integer                                  :: ishift=0
@@ -55,8 +53,6 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
      integer                                   :: Ncol
      type(sparse_row_ell),dimension(:),pointer :: Row
 #ifdef _MPI
-     ! type(sparse_row_ell),dimension(:),pointer :: Loc
-     !MPI vars
      integer                                   :: istart=0 !global start index for MPI storage
      integer                                   :: iend=0
      integer                                   :: ishift=0
@@ -95,34 +91,12 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
   interface sp_insert_element
      module procedure :: sp_insert_element_ll
      module procedure :: sp_insert_element_ell
+#ifdef _MPI
+     module procedure :: mpi_sp_insert_element_ll
+     module procedure :: mpi_sp_insert_element_ell
+#endif
   end interface sp_insert_element
 
-
-  !GET SIZE OF THE MATRIX (Non-Zero Elements)
-  interface sp_size_matrix
-     module procedure :: sp_size_matrix_ll
-     module procedure :: sp_size_matrix_ell
-  end interface sp_size_matrix
-
-! #ifdef _MPI
-!   !GET SIZE OF THE LOCAL MATRIX (Non-Zero Elements): only MPI
-!   interface sp_size_local
-!      module procedure :: sp_size_local_ll
-!      module procedure :: sp_size_local_ell
-!   end interface sp_size_local
-! #endif
-
-
-
-  !LOAD STANDARD MATRIX INTO SPARSE MATRICES
-  interface sp_load_matrix
-     module procedure :: sp_load_matrix_ll
-     module procedure :: sp_load_matrix_ell
-#ifdef _MPI
-     module procedure :: mpi_sp_load_matrix_ll
-     module procedure :: mpi_sp_load_matrix_ell
-#endif
-  end interface sp_load_matrix
 
 
   !DUMP SPARSE MATRIX INTO STANDARD MATRIX
@@ -166,14 +140,10 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
   public  :: sp_init_matrix      !init the sparse matrix   !checked
   public  :: sp_delete_matrix    !delete the sparse matrix !checked
   public  :: sp_insert_element   !insert an element        !checked
-  public  :: sp_load_matrix      !create sparse from array !checked
   public  :: sp_dump_matrix      !dump sparse into array   !checked
   public  :: sp_print_matrix     !print sparse             !checked
   public  :: sp_spy_matrix       !
-  public  :: sp_size_matrix
-  ! #ifdef _MPI
-  !   public  :: sp_size_local
-  ! #endif
+
 
   integer :: MpiRank=0
   integer :: MpiSize=1
@@ -277,14 +247,6 @@ contains
     if(present(N1))Ncol=N1
     call sp_init_matrix_ll(sparse,MpiChunk,Ncol)
     !
-    ! allocate(sparse%loc(MpiChunk))
-    ! do i=1,MpiChunk
-    !    allocate(sparse%loc(i)%root)
-    !    sparse%loc(i)%root%next => null()
-    !    sparse%loc(i)%size=0
-    !    sparse%loc(i)%min_column=huge(1)
-    !    sparse%loc(i)%max_column=-huge(1)
-    ! end do
     sparse%Q      = MpiQ
     sparse%R      = MpiR
     sparse%Chunk  = sparse%Q + sparse%R
@@ -317,15 +279,6 @@ contains
        allocate(sparse%row(i-MpiIshift)%vals(Nnz))  ;sparse%row(i-MpiIshift)%vals=dcmplx(0d0,0d0)
        allocate(sparse%row(i-MpiIshift)%cols(Nnz))  ;sparse%row(i-MpiIshift)%cols=0
     end do
-    !
-    ! allocate(sparse%loc(MpiChunk))
-    ! do i=MpiIstart,MpiIend
-    !    Nnz = vecNnz(2,i)
-    !    sparse%loc(i-MpiIshift)%Size  = Nnz
-    !    sparse%loc(i-MpiIshift)%Count = 0
-    !    allocate(sparse%loc(i-MpiIshift)%vals(Nnz))  ;sparse%loc(i-MpiIshift)%vals=dcmplx(0d0,0d0)
-    !    allocate(sparse%loc(i-MpiIshift)%cols(Nnz))  ;sparse%loc(i-MpiIshift)%cols=0
-    ! end do
     !
     sparse%Q      = MpiQ
     sparse%R      = MpiR
@@ -438,23 +391,6 @@ contains
     enddo
     deallocate(sparse%row)
     !
-    ! do i=1,sparse%Nrow
-    !    row=>sparse%loc(i)
-    !    do
-    !       p => row%root
-    !       c => p%next
-    !       if(.not.associated(c))exit  !empty list
-    !       p%next => c%next !
-    !       c%next=>null()
-    !       deallocate(c)
-    !    end do
-    !    sparse%loc(i)%size=0
-    !    sparse%loc(i)%min_column=huge(1)
-    !    sparse%loc(i)%max_column=-huge(1)
-    !    deallocate(sparse%loc(i)%root)
-    ! end do
-    ! deallocate(sparse%loc)
-    !
     sparse%Nrow=0
     sparse%Ncol=0
     sparse%status=.false.
@@ -480,14 +416,6 @@ contains
        sparse%row(i)%count = 0
     enddo
     deallocate(sparse%row)
-    !
-    ! do i=1,sparse%Nrow
-    !    deallocate(sparse%loc(i)%vals)
-    !    deallocate(sparse%loc(i)%cols)
-    !    sparse%loc(i)%Size  = 0
-    !    sparse%loc(i)%Count = 0
-    ! enddo
-    ! deallocate(sparse%loc)
     !
     sparse%Nrow=0
     sparse%Ncol=0
@@ -687,187 +615,6 @@ contains
 
 
 
-
-
-
-
-
-
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE: Get Matrix size
-  !+------------------------------------------------------------------+
-  function sp_size_matrix_ll(sparse) result(Nnz)
-    type(sparse_matrix_ll),intent(in) :: sparse
-    integer                           :: i,Nnz
-    if(.not.sparse%status)stop "Warning SPARSE/sp_size_matrix: sparse not allocated already."
-    Nnz = 0
-    do i=1,sparse%Nrow
-       Nnz = Nnz + sparse%row(i)%size
-    enddo
-    if(Nnz==0)Nnz=1
-  end function sp_size_matrix_ll
-
-  function sp_size_matrix_ell(sparse) result(Nnz)
-    type(sparse_matrix_ell),intent(in) :: sparse
-    integer                            :: i,Nnz
-    if(.not.sparse%status)stop "Warning SPARSE/sp_size_matrix: sparse not allocated already."
-    Nnz = 0
-    do i=1,sparse%Nrow
-       Nnz = Nnz + sparse%row(i)%Size
-    enddo
-    if(Nnz==0)Nnz=1
-  end function sp_size_matrix_ell
-
-
-! #ifdef _MPI
-!   function sp_size_local_ll(MpiComm,sparse) result(Nnz)
-!     integer                           :: MpiComm
-!     type(sparse_matrix_ll),intent(in) :: sparse
-!     integer                           :: i,Nnz
-!     if(.not.sparse%status)stop "Warning SPARSE/sp_size_matrix: sparse not allocated already."
-!     Nnz = 0
-!     do i=1,sparse%Nrow
-!        Nnz = Nnz + sparse%loc(i)%size
-!     enddo
-!     if(Nnz==0)Nnz=1
-!   end function sp_size_local_ll
-
-!   function sp_size_local_ell(MpiComm,sparse) result(Nnz)
-!     integer                            :: MpiComm
-!     type(sparse_matrix_ell),intent(in) :: sparse
-!     integer                            :: i,Nnz
-!     if(.not.sparse%status)stop "Warning SPARSE/sp_size_matrix: sparse not allocated already."
-!     Nnz = 0
-!     do i=1,sparse%Nrow
-!        Nnz = Nnz + sparse%loc(i)%size
-!     enddo
-!     if(Nnz==0)Nnz=1
-!   end function sp_size_local_ell
-! #endif
-
-
-
-
-
-
-
-
-
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE: load a regular matrix (2dim array) into a sparse matrix
-  !+------------------------------------------------------------------+
-  subroutine sp_load_matrix_ll(matrix,sparse)
-    complex(8),dimension(:,:),intent(in) :: matrix
-    type(sparse_matrix_ll),intent(inout) :: sparse    
-    integer                           :: i,j,Ndim1,Ndim2
-    !
-    Ndim1=size(matrix,1)
-    Ndim2=size(matrix,2)   
-    !
-    if(sparse%status)call sp_delete_matrix_ll(sparse)
-    call sp_init_matrix_ll(sparse,Ndim1,Ndim2)
-    !
-    do i=1,Ndim1
-       do j=1,Ndim2
-          if(matrix(i,j)/=0.d0)call sp_insert_element_ll(sparse,matrix(i,j),i,j)
-       enddo
-    enddo
-  end subroutine sp_load_matrix_ll
-
-  subroutine sp_load_matrix_ell(matrix,sparse)
-    complex(8),dimension(:,:),intent(in)     :: matrix
-    type(sparse_matrix_ell),intent(inout) :: sparse    
-    integer                               :: i,j,Ndim1,Ndim2,Nnz(size(matrix,1))
-    !
-    Ndim1 = size(matrix,1)
-    Ndim2 = size(matrix,2)
-    do i=1,Ndim1
-       Nnz(i) = count(matrix(i,:)/=0d0)
-    enddo
-    !
-    if(sparse%status)call sp_delete_matrix_ell(sparse)
-    call sp_init_matrix_ell(sparse,Nnz,Ndim1,Ndim2)
-    !
-    do i=1,Ndim1
-       do j=1,Ndim2
-          if(matrix(i,j)/=0.d0)call sp_insert_element_ell(sparse,matrix(i,j),i,j)
-       enddo
-    enddo
-  end subroutine sp_load_matrix_ell
-
-
-
-
-
-#ifdef _MPI
-  subroutine mpi_sp_load_matrix_ll(MpiComm,matrix,sparse)
-    integer                           :: MpiComm
-    complex(8),dimension(:,:),intent(in) :: matrix
-    type(sparse_matrix_ll),intent(inout) :: sparse    
-    integer                           :: i,j,Ndim1,Ndim2
-    !
-    Ndim1=size(matrix,1)
-    Ndim2=size(matrix,2)
-    !
-    call sp_MPI_setup(MpiComm,Ndim1) !split MPI ownership range along the rows of the matrix
-    !
-    if(sparse%status)call sp_delete_matrix_ll(sparse)
-    call mpi_sp_init_matrix_ll(MpiComm,sparse,Ndim1,Ndim2)
-    !
-    do i=MpiIstart,MpiIend
-       do j=1,Ndim2
-          ! if(matrix(i,j)/=0.d0)call mpi_sp_insert_element_ll(MpiComm,sparse,matrix(i,j),i-MpiIshift,j)
-          if(matrix(i,j)/=0.d0)call mpi_sp_insert_element_ll(MpiComm,sparse,matrix(i,j),i,j)!-MpiIshift,j)
-       enddo
-    enddo
-  end subroutine mpi_sp_load_matrix_ll
-
-
-  subroutine mpi_sp_load_matrix_ell(MpiComm,matrix,sparse)
-    integer                               :: MpiComm
-    complex(8),dimension(:,:),intent(in)     :: matrix
-    type(sparse_matrix_ell),intent(inout) :: sparse    
-    integer                               :: i,j,Ndim1,Ndim2,Nnz(2,size(matrix,1))
-    !
-    !
-    Ndim1=size(matrix,1)
-    Ndim2=size(matrix,2)
-    !
-    call sp_MPI_setup(MpiComm,Ndim1) !split MPI ownership range along the rows of the matrix
-    !
-    Nnz = 0
-    do i=1,Ndim1
-       do j=1,Ndim2
-          if(matrix(i,j)==0d0)cycle
-          if(j>=MpiIstart.AND.j<=MpiIend)then
-             Nnz(2,i) = Nnz(2,i) + 1
-          else
-             Nnz(1,i) = Nnz(1,i) + 1
-          endif
-       enddo
-    enddo
-    !
-    if(sparse%status)call sp_delete_matrix_ell(sparse)
-    call mpi_sp_init_matrix_ell(MpiComm,sparse,Nnz,Ndim1,Ndim2)
-    !
-    do i=MpiIstart,MpiIend
-       do j=1,Ndim2
-          ! if(matrix(i,j)/=0.d0)call mpi_sp_insert_element_ell(MpiComm,sparse,matrix(i,j),i-MpiIshift,j)
-          if(matrix(i,j)/=0.d0)call mpi_sp_insert_element_ell(MpiComm,sparse,matrix(i,j),i,j)!-MpiIshift,j)
-       enddo
-    enddo
-  end subroutine mpi_sp_load_matrix_ell
-#endif
-
-
-
-
-
-
   !+------------------------------------------------------------------+
   !PURPOSE: dump a sparse matrix into a regular 2dim array
   !+------------------------------------------------------------------+
@@ -935,12 +682,6 @@ contains
     !
     mtmp=zero
     do i=MpiIstart,MpiIend
-       ! c => sparse%loc(i-MpiIshift)%root%next
-       ! do while(associated(c))
-       !    mtmp(i,c%col) = mtmp(i,c%col) + c%cval
-       !    c => c%next  !traverse list
-       ! enddo
-       !
        c => sparse%row(i-MpiIshift)%root%next
        do while(associated(c))
           mtmp(i,c%col) = mtmp(i,c%col) + c%cval
@@ -975,10 +716,6 @@ contains
        do j=1,sparse%row(i-mpiIshift)%Size
           mtmp(i,sparse%row(i-mpiIshift)%cols(j))=mtmp(i,sparse%row(i-mpiIshift)%cols(j))+sparse%row(i-mpiIshift)%vals(j)
        enddo
-       !
-       ! do j=1,sparse%loc(i-mpiIshift)%Size
-       !    matrix(i,sparse%loc(i-mpiIshift)%cols(j))=matrix(i,sparse%loc(i-mpiIshift)%cols(j))+sparse%loc(i-mpiIshift)%vals(j)
-       ! enddo
     enddo
     !
     call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
@@ -1083,15 +820,6 @@ contains
           c => c%next  !traverse list
        end do
        write(unit_,*)
-       ! row => sparse%loc(i)
-       ! c => row%root%next   !assume is associated,ie list exists
-       ! do
-       !    if(.not.associated(c))exit
-       !    count=count+1
-       !    write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')c%cval,',',c%col
-       !    c => c%next  !traverse list
-       ! end do
-       ! write(unit_,*)
     enddo
     write(unit_,*)
   end subroutine mpi_sp_print_matrix_ll
@@ -1115,11 +843,6 @@ contains
           write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')row%vals(j),',',row%cols(j)
        end do
        write(unit_,*)
-       ! row => sparse%loc(i)
-       ! do j=1,row%Size
-       !    write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')row%vals(j),',',row%cols(j)
-       ! end do
-       ! write(unit_,*)
     enddo
     write(unit_,*)
   end subroutine mpi_sp_print_matrix_ell
@@ -1273,18 +996,18 @@ contains
     write(data_unit,'(2x,i6,2x,i6)')
     close(data_unit)
     !
-    data_filename(2) = trim(header)//"_rank"//str(MpiRank,4)//'_local.dat'
-    open(unit=free_unit(data_unit),file=data_filename(2), status = 'replace' )
-    ! do i=1,MpiChunk
-    !    c => sparse%loc(i)%root%next
-    !    do while(associated(c))
-    !       write(data_unit,'(2x,i6,2x,i6)') c%col,i+MpiIshift
-    !       nz_num = nz_num + 1
-    !       c => c%next  !traverse list
-    !    enddo
-    ! enddo
-    write(data_unit,'(2x,i6,2x,i6)')
-    close(data_unit)
+    ! data_filename(2) = trim(header)//"_rank"//str(MpiRank,4)//'_local.dat'
+    ! open(unit=free_unit(data_unit),file=data_filename(2), status = 'replace' )
+    ! ! do i=1,MpiChunk
+    ! !    c => sparse%loc(i)%root%next
+    ! !    do while(associated(c))
+    ! !       write(data_unit,'(2x,i6,2x,i6)') c%col,i+MpiIshift
+    ! !       nz_num = nz_num + 1
+    ! !       c => c%next  !traverse list
+    ! !    enddo
+    ! ! enddo
+    ! write(data_unit,'(2x,i6,2x,i6)')
+    ! close(data_unit)
     !
     call MPI_Barrier(MpiComm,MpiIerr)
     !
@@ -1302,8 +1025,7 @@ contains
          'set title "',nz_num,' nonzeros for '//str(header)//"_rank"//str(MpiRank,4)//'"'
     write(command_unit,'(a)') 'set timestamp'
     write(command_unit,'(a)' )'plot [x=1:'//str(N1)//'] [y='//str(N2)//':1] "'//&
-         str(data_filename(1))//'" w p pt 5 ps 0.4 lc rgb "red" title "Non-Local", "'//&
-         str(data_filename(2))//'" w p pt 5 ps 0.4 lc rgb "blue" title "Local"'
+         str(data_filename(1))//'" w p pt 5 ps 0.4 lc rgb "red" title "Matrix", "'
     close ( unit = command_unit )
     return
   end subroutine mpi_sp_spy_matrix_ll
@@ -1347,16 +1069,16 @@ contains
     write(data_unit,'(2x,i6,2x,i6)')
     close(data_unit)
     !
-    data_filename(2) = trim(header)//"_rank"//str(MpiRank,4)//'_local.dat'
-    open(unit=free_unit(data_unit),file=data_filename(2), status = 'replace' )
-    ! do i=1,MpiChunk
-    !    do j=1,sparse%loc(i)%Size
-    !       write(data_unit,'(2x,i6,2x,i6)') sparse%loc(i)%cols(j),i+MpiIshift
-    !       nz_num = nz_num + 1
-    !    enddo
-    ! enddo
-    write(data_unit,'(2x,i6,2x,i6)')
-    close(data_unit)
+    ! data_filename(2) = trim(header)//"_rank"//str(MpiRank,4)//'_local.dat'
+    ! open(unit=free_unit(data_unit),file=data_filename(2), status = 'replace' )
+    ! ! do i=1,MpiChunk
+    ! !    do j=1,sparse%loc(i)%Size
+    ! !       write(data_unit,'(2x,i6,2x,i6)') sparse%loc(i)%cols(j),i+MpiIshift
+    ! !       nz_num = nz_num + 1
+    ! !    enddo
+    ! ! enddo
+    ! write(data_unit,'(2x,i6,2x,i6)')
+    ! close(data_unit)
     !
     call MPI_Barrier(MpiComm,MpiIerr)
     !
@@ -1374,8 +1096,8 @@ contains
          'set title "',nz_num,' nonzeros for '//str(header)//"_rank"//str(MpiRank,4)//'"'
     write(command_unit,'(a)') 'set timestamp'
     write(command_unit,'(a)' )'plot [x=1:'//str(N1)//'] [y='//str(N2)//':1] "'//&
-         str(data_filename(1))//'" w p pt 5 ps 0.4 lc rgb "red" title "Non-Local", "'//&
-         str(data_filename(2))//'" w p pt 5 ps 0.4 lc rgb "blue" title "Local"'
+         str(data_filename(1))//'" w p pt 5 ps 0.4 lc rgb "red" title "Matrix", "'! //&
+    ! str(data_filename(2))//'" w p pt 5 ps 0.4 lc rgb "blue" title "Local"'
     close ( unit = command_unit )
     return
   end subroutine mpi_sp_spy_matrix_ell

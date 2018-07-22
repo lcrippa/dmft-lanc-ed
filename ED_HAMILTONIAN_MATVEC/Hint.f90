@@ -50,7 +50,13 @@
            endif
         endif
         !
-        call sp_insert_element(spH0d,htmp,impi,i)
+        select case(MpiStatus)
+        case (.true.)
+           call sp_insert_element(MpiComm,spH0d,htmp,i,i)
+        case (.false.)
+           call sp_insert_element(spH0d,htmp,i,i)
+        end select
+        ! call sp_insert_element(spH0d,htmp,impi,i)
         !
         !
         !
@@ -76,7 +82,13 @@
                     jup=binary_search(Hs(1)%map,k2)
                     htmp = one*Jx*sg1*sg2*sg3*sg4
                     j = jup + (jdw-1)*dimup
-                    call sp_insert_element(spH0nd,htmp,impi,j)
+                    select case(MpiStatus)
+                    case (.true.)
+                       call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
+                    case (.false.)
+                       call sp_insert_element(spH0nd,htmp,i,j)
+                    end select
+                    ! call sp_insert_element(spH0nd,htmp,impi,j)
                     !
                  endif
               enddo
@@ -106,7 +118,13 @@
                     jup = binary_search(Hs(1)%map,k2)
                     htmp = one*Jp*sg1*sg2*sg3*sg4
                     j = jup + (jdw-1)*dimup
-                    call sp_insert_element(spH0nd,htmp,impi,j)
+                    select case(MpiStatus)
+                    case (.true.)
+                       call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
+                    case (.false.)
+                       call sp_insert_element(spH0nd,htmp,i,j)
+                    end select
+                    ! call sp_insert_element(spH0nd,htmp,impi,j)
                     !
                  endif
               enddo

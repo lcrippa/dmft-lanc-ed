@@ -27,7 +27,13 @@
            htmp = htmp - xmu*(nup(iorb)+ndw(iorb))
         enddo
         !
-        call sp_insert_element(spH0d,htmp,impi,i)
+        select case(MpiStatus)
+        case (.true.)
+           call sp_insert_element(MpiComm,spH0d,htmp,i,i)
+        case (.false.)
+           call sp_insert_element(spH0d,htmp,i,i)
+        end select
+        ! call sp_insert_element(spH0d,htmp,impi,i)
         !
      enddo
   enddo
@@ -57,7 +63,13 @@
               jup = binary_search(Hs(1)%map,k2)
               htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
               !
-              call sp_insert_element(spH0up,htmp,impi_up,jup)
+              select case(MpiStatus)
+              case (.true.)
+                 call sp_insert_element(MpiComm,spH0up,htmp,iup,jup)
+              case (.false.)
+                 call sp_insert_element(spH0up,htmp,iup,jup)
+              end select
+              ! call sp_insert_element(spH0up,htmp,impi_up,jup)
               !
            endif
         enddo
@@ -83,7 +95,13 @@
               jdw = binary_search(Hs(2)%map,k2)
               htmp = impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2
               !
-              call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
+              select case(MpiStatus)
+              case (.true.)
+                 call sp_insert_element(MpiComm,spH0dw,htmp,idw,jdw)
+              case (.false.)
+                 call sp_insert_element(spH0dw,htmp,idw,jdw)
+              end select
+              ! call sp_insert_element(spH0dw,htmp,impi_dw,jdw)
               !
            endif
         enddo
