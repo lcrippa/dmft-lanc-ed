@@ -162,22 +162,17 @@ contains
           endif
        endif
        !
+       if(allocated(eig_values))deallocate(eig_values)
+       if(allocated(eig_basis))deallocate(eig_basis)
        if(lanc_solve)then
-          if(allocated(eig_values))deallocate(eig_values)
-          if(allocated(eig_basis))deallocate(eig_basis)
-          !
           allocate(eig_values(Neigen))
           eig_values=0d0 
           !
-#ifdef _MPI
-          if(MpiStatus)then
-             allocate(eig_basis(mpi_Q+mpi_R,Neigen))
-          else
-             allocate(eig_basis(Dim,Neigen))
-          endif
-#else
-          allocate(eig_basis(Dim,Neigen))
-#endif
+          ! if(MpiStatus)then
+          allocate(eig_basis(mpi_Q+mpi_R,Neigen))
+          ! else
+          !    allocate(eig_basis(Dim,Neigen))
+          ! endif
           eig_basis=zero
           !
           call build_Hv_sector(isector)
@@ -200,13 +195,14 @@ contains
 #endif
           call delete_Hv_sector()
        else
-          if(allocated(eig_values))deallocate(eig_values)
-          if(allocated(eig_basis))deallocate(eig_basis)
-          allocate(eig_values(Dim),eig_basis(Dim,dim))
+          allocate(eig_values(Dim))
+          allocate(eig_basis(Dim,dim))
           eig_values=0d0 ; eig_basis=zero
+          !
           call build_Hv_sector(isector,eig_basis)
           call eigh(eig_basis,eig_values,'V','U')
           if(dim==1)eig_basis(dim,dim)=one
+          !
           call delete_Hv_sector()
        endif
        if(ed_verbose>=4)write(LOGfile,*)"EigValues: ",eig_values(:Neigen)

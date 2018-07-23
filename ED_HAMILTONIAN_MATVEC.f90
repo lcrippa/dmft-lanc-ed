@@ -24,12 +24,18 @@ MODULE ED_HAMILTONIAN_MATVEC
   public  :: delete_Hv_sector
 
   !
-  !>Sparse Mat-Vec product using stored sparse matrix 
+  !>Sparse Mat-Vec product using stored sparse matrix
+  !LL format
   public  :: spMatVec_cc
 #ifdef _MPI
   public  :: spMatVec_MPI_cc
 #endif
   !
+  !ELL format:
+  public  :: dpMatVec_cc
+#ifdef _MPI
+  public  :: dpMatVec_MPI_cc
+#endif
   !
   !>Sparse Mat-Vec direct on-the-fly product 
   public  :: directMatVec_cc
@@ -73,6 +79,8 @@ MODULE ED_HAMILTONIAN_MATVEC
   integer                          :: Dim
   integer                          :: DimUp
   integer                          :: DimDw
+
+  integer,allocatable,dimension(:) :: vecNnz_d,vecNnz_nd,vecNnz_up,vecNnz_dw
 
   integer                          :: Hsector=0
   logical                          :: Hstatus=.false.
@@ -216,12 +224,14 @@ contains
     !
     if(present(Hmat))then
        if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
+       if(ed_sparse_format=="ELL")call ed_dryrunH_c(isector)
        call ed_buildH_c(isector,Hmat)
        return
     endif
     !
     select case (ed_sparse_H)
     case (.true.)
+       if(ed_sparse_format=="ELL")call ed_dryrunH_c(isector)
        call ed_buildH_c(isector)
     case (.false.)
        !nothing to be done
@@ -238,17 +248,33 @@ contains
     Hsector=0
     Hstatus=.false.
     !There is no difference here between Mpi and serial version, as Local part was removed.
-    if(MpiStatus)then
-       if(spH0d%status) call sp_delete_matrix(MpiComm,spH0d)
-       if(spH0up%status)call sp_delete_matrix(MpiComm,spH0up)
-       if(spH0dw%status)call sp_delete_matrix(MpiComm,spH0dw)
-       if(spH0nd%status)call sp_delete_matrix(MpiComm,spH0nd)
-    else
-       if(spH0d%status) call sp_delete_matrix(spH0d)
-       if(spH0up%status)call sp_delete_matrix(spH0up)
-       if(spH0dw%status)call sp_delete_matrix(spH0dw)
-       if(spH0nd%status)call sp_delete_matrix(spH0nd)
-    endif
+    select case(ed_sparse_format)
+    case default
+       if(MpiStatus)then
+          call sp_delete_matrix(MpiComm,spH0d)
+          call sp_delete_matrix(MpiComm,spH0up)
+          call sp_delete_matrix(MpiComm,spH0dw)
+          call sp_delete_matrix(MpiComm,spH0nd)
+       else
+          call sp_delete_matrix(spH0d)
+          call sp_delete_matrix(spH0up)
+          call sp_delete_matrix(spH0dw)
+          call sp_delete_matrix(spH0nd)
+       endif
+    case ("ELL")
+       if(MpiStatus)then
+          call sp_delete_matrix(MpiComm,dpH0d)
+          call sp_delete_matrix(MpiComm,dpH0up)
+          call sp_delete_matrix(MpiComm,dpH0dw)
+          call sp_delete_matrix(MpiComm,dpH0nd)
+       else
+          call sp_delete_matrix(dpH0d)
+          call sp_delete_matrix(dpH0up)
+          call sp_delete_matrix(dpH0dw)
+          call sp_delete_matrix(dpH0nd)
+       endif
+    end select
+
     !
   end subroutine delete_Hv_sector
 
@@ -265,11 +291,9 @@ contains
   !####################################################################
   !             BUILD SPARSE HAMILTONIAN of the SECTOR
   !####################################################################
-  subroutine ed_buildH_c(isector,Hmat,dryrun)
+  subroutine ed_buildH_c(isector,Hmat)
     integer                                :: isector   
     complex(8),dimension(:,:),optional     :: Hmat
-    logical,optional                       :: dryrun
-    !
     complex(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
     integer,dimension(Ns)                  :: nup,ndw
     integer                                :: i,iup,idw
@@ -313,17 +337,37 @@ contains
     !
     !The MPI version can allocate directly from the total dimension,
     !evaluating the chunks independently.
-    if(MpiStatus)then
-       call sp_init_matrix(MpiComm,spH0d,Dim)
-       call sp_init_matrix(MpiComm,spH0dw,DimDw)
-       call sp_init_matrix(MpiComm,spH0up,DimUp)
-       if(Jhflag)call sp_init_matrix(MpiComm,spH0nd,Dim)
-    else
-       call sp_init_matrix(spH0d,Dim)
-       call sp_init_matrix(spH0dw,DimDw)
-       call sp_init_matrix(spH0up,DimUp)
-       if(Jhflag)call sp_init_matrix(spH0nd,Dim)
-    endif
+    select case(ed_sparse_format)
+    case default
+       if(MpiStatus)then
+          call sp_init_matrix(MpiComm,spH0d,Dim)
+          call sp_init_matrix(MpiComm,spH0dw,DimDw)
+          call sp_init_matrix(MpiComm,spH0up,DimUp)
+          if(Jhflag)call sp_init_matrix(MpiComm,spH0nd,Dim)
+       else
+          call sp_init_matrix(spH0d,Dim)
+          call sp_init_matrix(spH0dw,DimDw)
+          call sp_init_matrix(spH0up,DimUp)
+          if(Jhflag)call sp_init_matrix(spH0nd,Dim)
+       endif
+       !
+    case ("ELL")
+       if(MpiStatus)then
+          call sp_init_matrix(MpiComm,dpH0d,vecNnz_d,Dim)
+          call sp_init_matrix(MpiComm,dpH0dw,vecNnz_dw,DimDw)
+          call sp_init_matrix(MpiComm,dpH0up,vecNnz_up,DimUp)
+          if(Jhflag)call sp_init_matrix(MpiComm,dpH0nd,vecNnz_nd,Dim)
+       else
+          call sp_init_matrix(dpH0d,vecNnz_d,Dim)
+          call sp_init_matrix(dpH0dw,vecNnz_dw,DimDw)
+          call sp_init_matrix(dpH0up,vecNnz_up,DimUp)
+          if(Jhflag)call sp_init_matrix(dpH0nd,vecNnz_nd,Dim)
+       endif
+       if(allocated(vecNnz_d))deallocate(vecNnz_d)
+       if(allocated(vecNnz_dw))deallocate(vecNnz_dw)
+       if(allocated(vecNnz_up))deallocate(vecNnz_up)
+       if(allocated(vecNnz_nd))deallocate(vecNnz_nd)
+    end select
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -344,27 +388,105 @@ contains
        allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
        allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
        !
-       if(MpiStatus)then
-          call sp_dump_matrix(MpiComm,spH0d,Hmat)          
-          call sp_dump_matrix(MpiComm,spH0dw,Htmp_dw)
-          call sp_dump_matrix(MpiComm,spH0up,Htmp_up)
-          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
-          Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
-          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
+       select case (ed_sparse_format)
+       case default
+          if(MpiStatus)then
+             call sp_dump_matrix(MpiComm,spH0d,Hmat)          
+             call sp_dump_matrix(MpiComm,spH0dw,Htmp_dw)
+             call sp_dump_matrix(MpiComm,spH0up,Htmp_up)
+             if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
+             !
+          else
+             call sp_dump_matrix(spH0d,Hmat)
+             call sp_dump_matrix(spH0up,Htmp_up)
+             call sp_dump_matrix(spH0dw,Htmp_dw)
+             if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
+          endif
           !
-       else
-          call sp_dump_matrix(spH0d,Hmat)
-          call sp_dump_matrix(spH0up,Htmp_up)
-          call sp_dump_matrix(spH0dw,Htmp_dw)
-          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
-          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
-          Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
-       endif
+       case ("ELL")
+          if(MpiStatus)then
+             call sp_dump_matrix(MpiComm,dpH0d,Hmat)          
+             call sp_dump_matrix(MpiComm,dpH0dw,Htmp_dw)
+             call sp_dump_matrix(MpiComm,dpH0up,Htmp_up)
+             if(Jhflag)call sp_dump_matrix(MpiComm,dpH0nd,Hmat)
+             !
+          else
+             call sp_dump_matrix(dpH0d,Hmat)
+             call sp_dump_matrix(dpH0up,Htmp_up)
+             call sp_dump_matrix(dpH0dw,Htmp_dw)
+             if(Jhflag)call sp_dump_matrix(MpiComm,dpH0nd,Hmat)
+          endif
+       end select
+       !
+       Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
+       Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
   end subroutine ed_buildH_c
 
+
+  subroutine ed_dryrunH_c(isector)
+    integer                                :: isector   
+    integer,dimension(Ns)                  :: nup,ndw
+    integer                                :: i,iup,idw
+    integer                                :: j,jup,jdw
+    integer                                :: m,mup,mdw
+    integer                                :: ms
+    integer                                :: impi,impi_up,impi_dw
+    integer                                :: iorb,jorb,ispin,jspin,ibath
+    integer                                :: kp,k1,k2,k3,k4
+    integer                                :: alfa,beta
+    real(8)                                :: sg1,sg2,sg3,sg4
+    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                                :: Jcondition
+    !
+    if(.not.Hstatus)stop "ed_buildH_c ERROR: Hsector NOT set"
+    isector=Hsector
+    !
+    !Get diagonal hybridization
+    diag_hybr=zero
+    if(bath_type/="replica")then
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
+             enddo
+          enddo
+       enddo
+    else
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+             enddo
+          enddo
+       enddo
+    endif
+    !
+    allocate(vecNnz_d(MpiQ+mpiR))
+    allocate(vecNnz_dw(MpiQdw+MpiRdw))
+    allocate(vecNnz_up(MpiQup+MpiRup))
+    if(Jhflag)allocate(vecNnz_nd(MpiQ+MpiR))
+    vecNnz_d  = 1               !this stores the diagonal, as such it is identically 1 for any row
+    vecNnz_dw = 0
+    vecNnz_up = 0
+    if(Jhflag)vecNnz_nd = 0
+    !
+    !-----------------------------------------------!
+    !IMPURITY  HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/Himp_dryrun.f90"
+    !
+    !LOCAL INTERACTION
+    include "ED_HAMILTONIAN_MATVEC/Hint_dryrun.f90"
+    !
+    !BATH HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/Hbath_dryrun.f90"
+    !
+    !IMPURITY- BATH HYBRIDIZATION
+    include "ED_HAMILTONIAN_MATVEC/Hhyb_dryrun.f90"
+    !-----------------------------------------------!
+  end subroutine ed_dryrunH_c
 
 
 
@@ -383,8 +505,9 @@ contains
   !####################################################################
   !+------------------------------------------------------------------+
   !PURPOSE: Perform the matrix-vector product H*v used in the
-  ! - serial cmplx(H)*cmplx(V)
-  ! - MPI cmplx(H)*cmplx(V)
+  ! - serial
+  ! - MPI
+  !                     USE LL sparse format
   !+------------------------------------------------------------------+
   subroutine spMatVec_cc(Nloc,v,Hv)
     integer                         :: Nloc
@@ -393,7 +516,7 @@ contains
     integer                         :: i,iup,idw,j
     type(sparse_element_ll),pointer :: c
     !
-    ! !
+    !
     Hv=zero
     !
     do i = 1,Nloc
@@ -419,9 +542,9 @@ contains
     do idw=1,DimDw
        do iup=1,DimUp
           i = iup + (idw-1)*DimUp          
-          c => spH0up%row(iup)%root%next
+          c => spH0dw%row(idw)%root%next
           do while(associated(c))
-             j = c%col + (idw-1)*DimUp
+             j = iup +  (c%col-1)*DimUp
              Hv(i) = Hv(i) + c%cval*V(j)
              c => c%next
           enddo
@@ -432,9 +555,9 @@ contains
     do idw=1,DimDw
        do iup=1,DimUp
           i = iup + (idw-1)*DimUp          
-          c => spH0dw%row(idw)%root%next
+          c => spH0up%row(iup)%root%next
           do while(associated(c))
-             j = iup +  (c%col-1)*DimUp
+             j = c%col + (idw-1)*DimUp
              Hv(i) = Hv(i) + c%cval*V(j)
              c => c%next
           enddo
@@ -545,6 +668,146 @@ contains
 
 
 
+
+
+
+
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE: Perform the matrix-vector product H*v used in the
+  ! - serial
+  ! - MPI
+  !                     USE ELL sparse format
+  !+------------------------------------------------------------------+
+  subroutine dpMatVec_cc(Nloc,v,Hv)
+    integer                         :: Nloc
+    complex(8),dimension(Nloc)      :: v
+    complex(8),dimension(Nloc)      :: Hv
+    integer                         :: i,iup,idw,j,ij
+    !
+    Hv=zero
+    !
+    do i=1,Nloc
+       do j=1,dpH0d%row(i)%Size
+          Hv(i) = Hv(i) + dpH0d%row(i)%vals(j)*v(dpH0d%row(i)%cols(j))
+       end do
+    end do
+    !
+    if(jhflag)then
+       do i=1,Nloc
+          do j=1,dpH0nd%row(i)%Size
+             Hv(i) = Hv(i) + dpH0nd%row(i)%vals(j)*v(dpH0nd%row(i)%cols(j))
+          end do
+       end do
+    endif
+    !
+    do idw=1,DimDw
+       do iup=1,DimUp
+          i = iup + (idw-1)*DimUp
+          do ij=1,dpH0dw%row(idw)%Size             
+             j = iup +  (dpH0dw%row(idw)%cols(ij)-1)*DimUp
+             Hv(i) = Hv(i) + dpH0dw%row(idw)%vals(ij)*v(j)
+          end do
+       enddo
+    enddo
+    !
+    do idw=1,DimDw
+       do iup=1,DimUp
+          i = iup + (idw-1)*DimUp
+          do ij=1,dpH0up%row(iup)%Size
+             j = dpH0up%row(iup)%cols(ij) + (idw-1)*DimUp
+             Hv(i) = Hv(i) + dpH0up%row(iup)%vals(ij)*V(j)
+          end do
+       enddo
+    enddo
+    !
+  end subroutine dpMatVec_cc
+
+
+
+#ifdef _MPI
+  subroutine dpMatVec_mpi_cc(Nloc,v,Hv)
+    integer                             :: Nloc
+    complex(8),dimension(Nloc)          :: v
+    complex(8),dimension(Nloc)          :: Hv
+    integer                             :: i
+    integer                             :: N
+    complex(8),dimension(:),allocatable :: Vin,Vout
+    integer,allocatable,dimension(:)    :: Counts,Displs
+    integer                             :: iup,idw,j,ij
+    integer                             :: impi_up,impi_dw,impi
+    !
+    if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
+    MpiSize = get_Size_MPI(MpiComm)
+    MpiRank = get_Rank_MPI(MpiComm)
+    !
+    N=0
+    call MPI_AllReduce(Nloc,N,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+    if(N/=Dim)stop "spMatVec_mpi_cc ERROR: N != Dim"
+    !
+    !
+    Hv=zero
+    !
+    !DIAGONAL PART:
+    do i=1,Nloc
+       do j=1,dpH0d%row(i)%Size
+          Hv(i) = Hv(i) + dpH0d%row(i)%vals(j)*V(dpH0d%row(i)%cols(j)-Ishift)
+       end do
+    end do
+    !
+    allocate(Counts(0:MpiSize-1))
+    Counts(0:)        = mpiQ
+    Counts(MpiSize-1) = mpiQ+mod(N,MpiSize)
+    !
+    allocate(Displs(0:MpiSize-1))
+    forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
+    !
+    allocate(Vin(N)) ; Vin = zero
+    call MPI_Allgatherv(V(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+    !
+    !NON-DIAGONAL PART: including S-E and P-H terms.
+    if(jhflag)then
+       do i=1,Nloc
+          do j=1,dpH0nd%row(i)%Size
+             Hv(i) = Hv(i) + dpH0nd%row(i)%vals(j)*Vin(dpH0nd%row(i)%cols(j))
+          end do
+       end do
+    endif
+    !
+    !
+    !DW PART: this is local and contiguous in memory, i.e. index i corresponds to consecutive states.
+    allocate(Vout(N)) ; Vout = zero
+    !
+    do idw=first_state_dw,last_state_dw
+       do iup=1,DimUp
+          i = iup + (idw-1)*DimUp
+          do ij=1,dpH0dw%row(idw-IshiftDw)%Size
+             j = iup +  (dpH0dw%row(idw-IshiftDw)%cols(ij)-1)*DimUp
+             Vout(i) = Vout(i) + dpH0dw%row(idw-IshiftDw)%vals(ij)*Vin(j)
+          end do
+       enddo
+    enddo
+    !
+    !UP PART: this is non-local and non-contiguous in memory, i.e. index i corresponds to non-consecutive states
+    do iup=first_state_up,last_state_up
+       do idw=1,DimDw
+          i = iup + (idw-1)*DimUp
+          do ij=1,dpH0up%row(iup-IshiftUp)%Size
+             j = dpH0up%row(iup-IshiftUp)%cols(ij) + (idw-1)*DimUp
+             Vout(i) = Vout(i) + dpH0up%row(iup-IshiftUp)%vals(ij)*Vin(j)
+          end do
+       enddo
+    enddo
+    !
+    !Now we pack back the Vout content to Hv vectors:
+    Vin=zero
+    call AllReduce_MPI(MpiComm,Vout,Vin)
+    do i=first_state,last_state
+       Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
+    end do
+  end subroutine dpMatVec_mpi_cc
+#endif
 
 
 

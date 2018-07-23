@@ -173,7 +173,7 @@ contains
     integer,optional                  :: N1
     integer                           :: i
     !put here a delete statement to avoid problems
-    if(sparse%status)stop "sp_init_matrix: alreay allocate can not init"
+    if(sparse%status)stop "sp_init_matrix LL: alreay allocate can not init"
     sparse%Nrow=N
     sparse%Ncol=N
     if(present(N1))sparse%Ncol=N1
@@ -206,7 +206,7 @@ contains
     integer,dimension(N)    :: vecNnz
     integer,optional        :: N1
     integer                 :: i,Nnz
-    if(sparse%status)stop "sp_init_matrix: alreay allocate can not init"
+    if(sparse%status)stop "sp_init_matrix ELL: alreay allocate can not init"
     sparse%Nrow    = N
     sparse%Ncol    = N
     if(present(N1))sparse%Ncol=N1
@@ -241,6 +241,8 @@ contains
     integer,optional                     :: N1
     integer                              :: i,Ncol
     !
+    if(sparse%status)stop "mpi_sp_init_matrix LL: alreay allocate can not init"
+    !
     call sp_MPI_setup(MpiComm,N)    
     !
     Ncol = N
@@ -259,11 +261,11 @@ contains
     integer                 :: MpiComm
     type(sparse_matrix_ell) :: sparse
     integer                 :: N
-    integer                 :: vecNnz(2,N)
+    integer                 :: vecNnz(N)
     integer,optional        :: N1
     integer                 :: i,Ncol,Nnz
     !
-    if(sparse%status)stop "sp_init_matrix: alreay allocate can not init"
+    if(sparse%status)stop "mpi_sp_init_matrix ELL: alreay allocate can not init"
     !
     call sp_MPI_setup(MpiComm,N)    
     !
@@ -273,7 +275,7 @@ contains
     !
     allocate(sparse%row(MpiChunk))
     do i=MpiIstart,MpiIend
-       Nnz = vecNnz(1,i)
+       Nnz = vecNnz(i-MpiIshift)
        sparse%row(i-MpiIshift)%Size  = Nnz
        sparse%row(i-MpiIshift)%Count = 0
        allocate(sparse%row(i-MpiIshift)%vals(Nnz))  ;sparse%row(i-MpiIshift)%vals=dcmplx(0d0,0d0)
@@ -308,7 +310,7 @@ contains
     integer                           :: i
     type(sparse_row_ll),pointer          :: row
     type(sparse_element_ll),pointer      :: p,c
-    if(.not.sparse%status)stop "Warning SPARSE/sp_delete_matrix: sparse not allocated already."
+    if(.not.sparse%status)return
     do i=1,sparse%Nrow
        row=>sparse%row(i)
        do
@@ -342,7 +344,7 @@ contains
   subroutine sp_delete_matrix_ell(sparse)    
     type(sparse_matrix_ell),intent(inout) :: sparse
     integer                               :: i
-    if(.not.sparse%status)stop "Warning SPARSE/sp_delete_matrix: sparse not allocated already."
+    if(.not.sparse%status)return
     !
     do i=1,sparse%Nrow
        deallocate(sparse%row(i)%vals)
@@ -373,7 +375,7 @@ contains
     integer                           :: i
     type(sparse_row_ll),pointer          :: row
     type(sparse_element_ll),pointer      :: p,c
-    if(.not.sparse%status)stop "Warning SPARSE/mpi_sp_delete_matrix: sparse not allocated already."
+    if(.not.sparse%status)return
     do i=1,sparse%Nrow
        row=>sparse%row(i)
        do
@@ -407,7 +409,7 @@ contains
     integer                               :: MpiComm
     type(sparse_matrix_ell),intent(inout) :: sparse
     integer                               :: i
-    if(.not.sparse%status)stop "Warning SPARSE/sp_delete_matrix: sparse not allocated already."
+    if(.not.sparse%status)return
     !
     do i=1,sparse%Nrow
        deallocate(sparse%row(i)%vals)

@@ -263,7 +263,12 @@ contains
     !
     select case(ed_sparse_H)
     case (.true.)
-       spHtimesV_cc => spMatVec_cc
+       select case (ed_sparse_format)
+       case default
+          spHtimesV_cc => spMatVec_cc
+       case ("ELL")
+          spHtimesV_cc => dpMatVec_cc
+       end select
     case (.false.)
        spHtimesV_cc => directMatVec_cc
     end select
@@ -309,7 +314,12 @@ contains
     !
     select case(ed_sparse_H)
     case (.true.)
-       spHtimesV_cc => spMatVec_MPI_cc
+       select case (ed_sparse_format)
+       case default
+          spHtimesV_cc => spMatVec_MPI_cc
+       case ("ELL")
+          spHtimesV_cc => dpMatVec_MPI_cc
+       end select
     case (.false.)
        spHtimesV_cc => directMatVec_MPI_cc
     end select

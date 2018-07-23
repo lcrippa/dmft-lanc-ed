@@ -50,13 +50,23 @@
            endif
         endif
         !
-        select case(MpiStatus)
-        case (.true.)
-           call sp_insert_element(MpiComm,spH0d,htmp,i,i)
-        case (.false.)
-           call sp_insert_element(spH0d,htmp,i,i)
+        select case (ed_sparse_format)
+        case default
+           select case(MpiStatus)
+           case (.true.)
+              call sp_insert_element(MpiComm,spH0d,htmp,i,i)
+           case (.false.)
+              call sp_insert_element(spH0d,htmp,i,i)
+           end select
+        case ("ELL")
+           select case(MpiStatus)
+           case (.true.)
+              call sp_insert_element(MpiComm,dpH0d,htmp,i,i)
+           case (.false.)
+              call sp_insert_element(dpH0d,htmp,i,i)
+           end select
         end select
-        ! call sp_insert_element(spH0d,htmp,impi,i)
+
         !
         !
         !
@@ -82,13 +92,23 @@
                     jup=binary_search(Hs(1)%map,k2)
                     htmp = one*Jx*sg1*sg2*sg3*sg4
                     j = jup + (jdw-1)*dimup
-                    select case(MpiStatus)
-                    case (.true.)
-                       call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
-                    case (.false.)
-                       call sp_insert_element(spH0nd,htmp,i,j)
+                    !
+                    select case (ed_sparse_format)
+                    case default
+                       select case(MpiStatus)
+                       case (.true.)
+                          call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
+                       case (.false.)
+                          call sp_insert_element(spH0nd,htmp,i,j)
+                       end select
+                    case ("ELL")
+                       select case(MpiStatus)
+                       case (.true.)
+                          call sp_insert_element(MpiComm,dpH0nd,htmp,i,j)
+                       case (.false.)
+                          call sp_insert_element(dpH0nd,htmp,i,j)
+                       end select
                     end select
-                    ! call sp_insert_element(spH0nd,htmp,impi,j)
                     !
                  endif
               enddo
@@ -118,13 +138,23 @@
                     jup = binary_search(Hs(1)%map,k2)
                     htmp = one*Jp*sg1*sg2*sg3*sg4
                     j = jup + (jdw-1)*dimup
-                    select case(MpiStatus)
-                    case (.true.)
-                       call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
-                    case (.false.)
-                       call sp_insert_element(spH0nd,htmp,i,j)
+                    !
+                    select case (ed_sparse_format)
+                    case default
+                       select case(MpiStatus)
+                       case (.true.)
+                          call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
+                       case (.false.)
+                          call sp_insert_element(spH0nd,htmp,i,j)
+                       end select
+                    case ("ELL")
+                       select case(MpiStatus)
+                       case (.true.)
+                          call sp_insert_element(MpiComm,dpH0nd,htmp,i,j)
+                       case (.false.)
+                          call sp_insert_element(dpH0nd,htmp,i,j)
+                       end select
                     end select
-                    ! call sp_insert_element(spH0nd,htmp,impi,j)
                     !
                  endif
               enddo
