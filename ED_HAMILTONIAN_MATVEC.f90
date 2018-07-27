@@ -371,16 +371,16 @@ contains
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/Himp.f90"
+    include "ED_HAMILTONIAN_MATVEC/stored/Himp.f90"
     !
     !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/Hint.f90"
+    include "ED_HAMILTONIAN_MATVEC/stored/Hint.f90"
     !
     !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/Hbath.f90"
+    include "ED_HAMILTONIAN_MATVEC/stored/Hbath.f90"
     !
     !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/Hhyb.f90"
+    include "ED_HAMILTONIAN_MATVEC/stored/Hhyb.f90"
     !-----------------------------------------------!
     !
     if(present(Hmat))then
@@ -475,16 +475,16 @@ contains
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/Himp_dryrun.f90"
+    include "ED_HAMILTONIAN_MATVEC/dryrun/Himp_dryrun.f90"
     !
     !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/Hint_dryrun.f90"
+    include "ED_HAMILTONIAN_MATVEC/dryrun/Hint_dryrun.f90"
     !
     !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/Hbath_dryrun.f90"
+    include "ED_HAMILTONIAN_MATVEC/dryrun/Hbath_dryrun.f90"
     !
     !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/Hhyb_dryrun.f90"
+    include "ED_HAMILTONIAN_MATVEC/dryrun/Hhyb_dryrun.f90"
     !-----------------------------------------------!
   end subroutine ed_dryrunH_c
 
@@ -872,16 +872,16 @@ contains
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVimp.f90"
     !
     !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVint.f90"
     !
     !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVbath.f90"
     !
     !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVhyb.f90"
     !-----------------------------------------------!
     !
     Hv = Hv + Vout
