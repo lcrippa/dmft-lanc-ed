@@ -26,21 +26,22 @@ MODULE ED_HAMILTONIAN_MATVEC
   !
   !>Sparse Mat-Vec product using stored sparse matrix
   !LL format
-  public  :: spMatVec_cc
+  public  :: spMatVec_main
+  public  :: spMatVec_orbs
 #ifdef _MPI
-  public  :: spMatVec_MPI_cc
+  public  :: spMatVec_MPI_main
 #endif
   !
   !ELL format:
-  public  :: dpMatVec_cc
+  public  :: dpMatVec_main
 #ifdef _MPI
-  public  :: dpMatVec_MPI_cc
+  public  :: dpMatVec_MPI_main
 #endif
   !
   !>Sparse Mat-Vec direct on-the-fly product 
-  public  :: directMatVec_cc
+  public  :: directMatVec_main
 #ifdef _MPI
-  public  :: directMatVec_MPI_cc
+  public  :: directMatVec_MPI_main
 #endif
   !
   !>Related auxiliary routines:
@@ -76,15 +77,17 @@ MODULE ED_HAMILTONIAN_MATVEC
   integer,allocatable,dimension(:) :: map_first_state_dw,map_last_state_dw
   integer,allocatable,dimension(:) :: map_first_state_up,map_last_state_up
 
-  integer                          :: Dim
-  integer                          :: DimUp
-  integer                          :: DimDw
+  integer                                   :: Dim
+  integer                                   :: DimUp
+  integer                                   :: DimDw
+  integer,allocatable,dimension(:)          :: DimUps
+  integer,allocatable,dimension(:)          :: DimDws
 
-  integer,allocatable,dimension(:) :: vecNnz_d,vecNnz_nd,vecNnz_up,vecNnz_dw
+  integer,allocatable,dimension(:)          :: vecNnz_d,vecNnz_nd,vecNnz_up,vecNnz_dw
 
-  integer                          :: Hsector=0
-  logical                          :: Hstatus=.false.
-  type(sector_map)                 :: H,Hs(2)
+  integer                                   :: Hsector=0
+  logical                                   :: Hstatus=.false.
+  type(sector_map),dimension(:),allocatable :: Hs
 
 
 
@@ -94,7 +97,7 @@ contains
 
 
   !####################################################################
-  !                        AUXILIARY ROUTINES
+  !                      AUXILIARY MPI ROUTINES
   !####################################################################
   subroutine ed_hamiltonian_matvec_set_MPI(comm_)
 #ifdef _MPI
@@ -122,7 +125,45 @@ contains
   end subroutine ed_hamiltonian_matvec_del_MPI
 
 
+
+
+
+  !####################################################################
+  !                 MAIN ROUTINES: BUILD/DELETE SECTOR
+  !####################################################################
   subroutine build_Hv_sector(isector,Hmat)
+    integer                            :: isector,SectorDim
+    complex(8),dimension(:,:),optional :: Hmat
+    select case (ed_total_ud)
+    case (.true.)
+       if(present(Hmat))then
+          call build_Hv_sector_main(isector,Hmat)
+       else
+          call build_Hv_sector_main(isector)
+       endif
+    case (.false.)
+       if(present(Hmat))then
+          call build_Hv_sector_orbs(isector,Hmat)
+       else
+          call build_Hv_sector_orbs(isector)
+       endif
+    end select
+  end subroutine build_Hv_sector
+
+
+  subroutine delete_Hv_sector()
+    select case (ed_total_ud)
+    case (.true.)
+       call delete_Hv_sector_main()
+    case (.false.)
+       call delete_Hv_sector_orbs()
+    end select
+  end subroutine delete_Hv_sector
+
+
+
+
+  subroutine build_Hv_sector_main(isector,Hmat)
     integer                            :: isector,SectorDim
     complex(8),dimension(:,:),optional :: Hmat   
     integer                            :: irank
@@ -132,12 +173,21 @@ contains
     Hsector=isector
     Hstatus=.true.
     !
+    !
+    allocate(Hs(2))
     call build_sector(isector,Hs)
     !
-    Dim    = getDim(isector)
-    DimDw  = getDimDw(isector)
-    DimUp  = getDimUp(isector)
+    call get_DimUp(isector,DimUp)
+    call get_DimDw(isector,DimDw)
+    Dim = getDim(isector)
     !
+    !FULL:
+    MpiQ = Dim/MpiSize
+    MpiR = 0
+    if(MpiRank==(MpiSize-1))MpiR=mod(Dim,MpiSize)
+    ishift = MpiRank*MpiQ
+    first_state = MpiRank*mpiQ + 1
+    last_state  = (MpiRank+1)*mpiQ + mpiR
     !
     !DOWN part:
     MpiQdw = DimDw/MpiSize
@@ -147,7 +197,6 @@ contains
     first_state_dw = MpiRank*mpiQdw + 1
     last_state_dw  = (MpiRank+1)*mpiQdw + mpiRdw
     !
-    !
     !UP part:
     MpiQup = DimUp/MpiSize
     MpiRup = 0
@@ -155,14 +204,6 @@ contains
     ishiftUp = MpiRank*MpiQup
     first_state_up = MpiRank*mpiQup + 1
     last_state_up  = (MpiRank+1)*mpiQup + mpiRup
-    !
-    !FULL:
-    MpiQ = Dim/MpiSize
-    MpiR = 0
-    if(MpiRank==(MpiSize-1))MpiR=mod(Dim,MpiSize)
-    ishift = MpiRank*MpiQ
-    first_state = MpiRank*mpiQ + 1
-    last_state  = (MpiRank+1)*mpiQ + mpiR
     !
 #ifdef _MPI    
     if(MpiStatus.AND.ed_verbose>4)then
@@ -224,27 +265,62 @@ contains
     !
     if(present(Hmat))then
        if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
-       if(ed_sparse_format=="ELL")call ed_dryrunH_c(isector)
-       call ed_buildH_c(isector,Hmat)
+       if(ed_sparse_format=="ELL")call ed_dryrunH_main(isector)
+       call ed_buildh_main(isector,Hmat)
        return
     endif
     !
     select case (ed_sparse_H)
     case (.true.)
-       if(ed_sparse_format=="ELL")call ed_dryrunH_c(isector)
-       call ed_buildH_c(isector)
+       if(ed_sparse_format=="ELL")call ed_dryrunH_main(isector)
+       call ed_buildh_main(isector)
     case (.false.)
        !nothing to be done
     end select
     !
-  end subroutine build_Hv_sector
+  end subroutine build_Hv_sector_main
+
+
+
+  subroutine build_Hv_sector_orbs(isector,Hmat)
+    integer                            :: isector,SectorDim
+    complex(8),dimension(:,:),optional :: Hmat   
+    integer                            :: irank
+    integer                            :: i,iup,idw
+    integer                            :: j,jup,jdw
+    !
+    Hsector=isector
+    Hstatus=.true.
+    !
+    allocate(Hs(2*Norb))
+    allocate(DimUps(Norb))
+    allocate(DimDws(Norb))
+    allocate(spH0ups(Norb))
+    allocate(spH0dws(Norb))
+    call build_sector(isector,Hs)
+    !
+    call get_DimUp(isector,DimUps)
+    call get_DimDw(isector,DimDws)
+    DimUp = product(DimUps)
+    DimDw = product(DimDws)
+    Dim = getDim(isector)
+    !
+    if(present(Hmat))then
+       if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
+       call ed_buildh_orbs(isector,Hmat)
+       return
+    endif
+    !
+    call ed_buildh_orbs(isector)
+    !
+  end subroutine build_Hv_sector_orbs
 
 
 
 
-
-  subroutine delete_Hv_sector()
+  subroutine delete_Hv_sector_main()
     call delete_sector(Hsector,Hs)
+    deallocate(Hs)
     Hsector=0
     Hstatus=.false.
     !There is no difference here between Mpi and serial version, as Local part was removed.
@@ -274,10 +350,28 @@ contains
           call sp_delete_matrix(dpH0nd)
        endif
     end select
-
     !
-  end subroutine delete_Hv_sector
+  end subroutine delete_Hv_sector_main
 
+  subroutine delete_Hv_sector_orbs()
+    integer :: iorb
+    call delete_sector(Hsector,Hs)
+    deallocate(Hs)
+    deallocate(DimUps)
+    deallocate(DimDws)    
+    Hsector=0
+    Hstatus=.false.
+    !There is no difference here between Mpi and serial version, as Local part was removed.
+    call sp_delete_matrix(spH0d)
+    call sp_delete_matrix(spH0nd)
+    do iorb=1,Norb
+       call sp_delete_matrix(spH0ups(iorb))
+       call sp_delete_matrix(spH0dws(iorb))
+    enddo
+    deallocate(spH0ups)
+    deallocate(spH0dws)
+    !
+  end subroutine delete_Hv_sector_orbs
 
 
 
@@ -291,7 +385,7 @@ contains
   !####################################################################
   !             BUILD SPARSE HAMILTONIAN of the SECTOR
   !####################################################################
-  subroutine ed_buildH_c(isector,Hmat)
+  subroutine ed_buildh_main(isector,Hmat)
     integer                                :: isector   
     complex(8),dimension(:,:),optional     :: Hmat
     complex(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
@@ -309,10 +403,10 @@ contains
     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
     logical                                :: Jcondition,dryrun_
     !
-    if(.not.Hstatus)stop "ed_buildH_c ERROR: Hsector NOT set"
+    if(.not.Hstatus)stop "ed_buildh_main ERROR: Hsector NOT set"
     isector=Hsector
     !
-    if(present(Hmat))call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildH_c","Hmat")
+    if(present(Hmat))call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_main","Hmat")
     !
     !Get diagonal hybridization
     diag_hybr=zero
@@ -423,10 +517,145 @@ contains
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
-  end subroutine ed_buildH_c
+  end subroutine ed_buildh_main
 
 
-  subroutine ed_dryrunH_c(isector)
+
+
+  subroutine ed_buildh_orbs(isector,Hmat)
+    integer                                :: isector   
+    complex(8),dimension(:,:),optional     :: Hmat
+    complex(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
+    integer,dimension(2*Norb)              :: Indices
+    integer,dimension(Norb)                :: Mups,Mdws
+    integer,dimension(Norb,Ns_Orb)         :: Nups,Ndws
+    integer,dimension(Norb)                :: Nup,Ndw
+    integer,dimension(Ns_Orb)              :: Ibup,Ibdw
+    integer                                :: i,iup,idw
+    integer                                :: j,jup,jdw
+    integer                                :: m,mup,mdw
+    integer                                :: ms
+    integer                                :: iorb,jorb,ispin,jspin,ibath
+    integer                                :: kp,k1,k2,k3,k4
+    integer                                :: alfa,beta
+    real(8)                                :: sg1,sg2,sg3,sg4
+    complex(8)                             :: htmp,htmpup,htmpdw
+    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                                :: Jcondition
+    !
+    if(.not.Hstatus)stop "ed_buildh_orbs ERROR: Hsector NOT set"
+    isector=Hsector
+    !
+    if(present(Hmat))call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_orbs","Hmat")
+    !
+    !Get diagonal hybridization
+    diag_hybr=zero
+    if(bath_type/="replica")then
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
+             enddo
+          enddo
+       enddo
+    else
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+             enddo
+          enddo
+       enddo
+    endif
+    !
+    !
+    call sp_init_matrix(spH0d,Dim)
+    do iorb=1,Norb
+       call sp_init_matrix(spH0dws(iorb),DimDws(iorb))
+       call sp_init_matrix(spH0ups(iorb),DimUps(iorb))
+    enddo
+    !
+    !-----------------------------------------------!
+    !IMPURITY  HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/stored/Himp_orbs.f90"
+    !
+    !LOCAL INTERACTION
+    include "ED_HAMILTONIAN_MATVEC/stored/Hint_orbs.f90"
+    !
+    !BATH HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/stored/Hbath_orbs.f90"
+    !
+    !IMPURITY- BATH HYBRIDIZATION
+    include "ED_HAMILTONIAN_MATVEC/stored/Hhyb_orbs.f90"
+    !-----------------------------------------------!
+    !
+    if(present(Hmat))then
+       Hmat = zero
+       call sp_dump_matrix(spH0d,Hmat)
+
+       allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
+       allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
+       !
+       do iorb=1,Norb
+          allocate(Hrdx(DimUps(iorb),DimUps(iorb)));Hrdx=zero
+          call sp_dump_matrix(spH0ups(iorb),Hrdx)
+          call build_Htmp_up(iorb,Hrdx,DimUps(iorb),Htmp_up)
+          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))          
+          deallocate(Hrdx)
+
+          allocate(Hrdx(DimDws(iorb),DimDws(iorb)));Hrdx=zero
+          call sp_dump_matrix(spH0dws(iorb),Hrdx)
+          call build_Htmp_dw(iorb,Hrdx,DimDws(iorb),Htmp_dw)
+          Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
+          deallocate(Hrdx)
+       enddo
+       deallocate(Htmp_up,Htmp_dw)
+    endif
+    !
+  contains
+
+    subroutine build_Htmp_up(iorb,H,Dim,Hup)
+      integer                               :: iorb,Dim,i
+      complex(8),dimension(Dim,Dim)         :: H
+      complex(8),dimension(DimUp,DimUp)     :: Hup
+      if(dim/=DimUps(iorb))stop "error in build_Htmp_up"
+      if(iorb==1)then
+         Hup= kronecker_product(H,zeye(product(DimUps(2:))))
+      else if(iorb==Norb)then
+         Hup= kronecker_product(zeye(product(DimUps(1:Norb-1))),H)
+      else
+         Hup= kronecker_product( &
+              kronecker_product( &
+              zeye(product(DimUps(1:iorb-1))), H) , zeye(product(DimUps(iorb+1:Norb))) )
+      end if
+    end subroutine build_Htmp_up
+
+    subroutine build_Htmp_dw(iorb,H,Dim,Hdw)
+      integer                               :: iorb,Dim,i
+      complex(8),dimension(Dim,Dim)         :: H
+      complex(8),dimension(DimDw,DimDw)     :: Hdw
+      if(dim/=DimDws(iorb))stop "error in build_Htmp_dw"
+      if(iorb==1)then
+         Hdw= kronecker_product(H,zeye(product(DimDws(2:))))
+      else if(iorb==Norb)then
+         Hdw= kronecker_product(zeye(product(DimDws(1:Norb-1))),H)
+      else
+         Hdw= kronecker_product( &
+              kronecker_product( &
+              zeye(product(DimDws(1:iorb-1))), H) , zeye(product(DimDws(iorb+1:Norb))) )
+      end if
+    end subroutine build_Htmp_dw
+  end subroutine ed_buildh_orbs
+
+
+
+
+
+
+
+
+
+  subroutine ed_dryrunH_main(isector)
     integer                                :: isector   
     integer,dimension(Ns)                  :: nup,ndw
     integer                                :: i,iup,idw
@@ -441,7 +670,7 @@ contains
     complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
     logical                                :: Jcondition
     !
-    if(.not.Hstatus)stop "ed_buildH_c ERROR: Hsector NOT set"
+    if(.not.Hstatus)stop "ed_dryrun_main ERROR: Hsector NOT set"
     isector=Hsector
     !
     !Get diagonal hybridization
@@ -486,7 +715,7 @@ contains
     !IMPURITY- BATH HYBRIDIZATION
     include "ED_HAMILTONIAN_MATVEC/dryrun/Hhyb_dryrun.f90"
     !-----------------------------------------------!
-  end subroutine ed_dryrunH_c
+  end subroutine ed_dryrunH_main
 
 
 
@@ -509,7 +738,7 @@ contains
   ! - MPI
   !                     USE LL sparse format
   !+------------------------------------------------------------------+
-  subroutine spMatVec_cc(Nloc,v,Hv)
+  subroutine spMatVec_main(Nloc,v,Hv)
     integer                         :: Nloc
     complex(8),dimension(Nloc)      :: v
     complex(8),dimension(Nloc)      :: Hv
@@ -565,12 +794,64 @@ contains
        enddo
     enddo
     !
-  end subroutine spMatVec_cc
+  end subroutine spMatVec_main
+
+
+  subroutine spMatVec_orbs(Nloc,v,Hv)
+    integer                         :: Nloc
+    complex(8),dimension(Nloc)      :: v
+    complex(8),dimension(Nloc)      :: Hv
+    integer                         :: i,iup,idw,j,iorb
+    integer,dimension(2*Norb)       :: Indices,Jndices
+    type(sparse_element_ll),pointer :: c
+    !
+    !
+    Hv=zero
+    !
+    do i = 1,Nloc
+       c => spH0d%row(i)%root%next
+       do while(associated(c))
+          Hv(i) = Hv(i) + c%cval*V(c%col)    !<== V
+          c => c%next
+       enddo
+       nullify(c)
+    enddo
+    !
+    do i=1,Dim
+       call state2indices(i,[DimUps,DimDws],Indices)
+       do iorb=1,Norb
+          idw = Indices(iorb+Norb)
+          !
+          c => spH0dws(iorb)%row(idw)%root%next
+          do while(associated(c))
+             Jndices = Indices ; Jndices(iorb+Norb) = c%col
+             call indices2state(Jndices,[DimUps,DimDws],j)
+             Hv(i) = Hv(i) + c%cval*V(j)
+             c => c%next
+          enddo
+          nullify(c)
+          !
+          !
+          iup = Indices(iorb)
+          c => spH0ups(iorb)%row(iup)%root%next
+          do while(associated(c))
+             Jndices = Indices ; Jndices(iorb) = c%col
+             call indices2state(Jndices,[DimUps,DimDws],j)
+             Hv(i) = Hv(i) + c%cval*V(j)
+             c => c%next
+          enddo
+          nullify(c)
+          !
+       enddo
+    enddo
+    !
+  end subroutine spMatVec_orbs
+
 
 
 
 #ifdef _MPI
-  subroutine spMatVec_mpi_cc(Nloc,v,Hv)
+  subroutine spMatVec_mpi_main(Nloc,v,Hv)
     integer                             :: Nloc
     complex(8),dimension(Nloc)          :: v
     complex(8),dimension(Nloc)          :: Hv
@@ -663,7 +944,7 @@ contains
     do i=first_state,last_state
        Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
     end do
-  end subroutine spMatVec_mpi_cc
+  end subroutine spMatVec_mpi_main
 #endif
 
 
@@ -680,7 +961,7 @@ contains
   ! - MPI
   !                     USE ELL sparse format
   !+------------------------------------------------------------------+
-  subroutine dpMatVec_cc(Nloc,v,Hv)
+  subroutine dpMatVec_main(Nloc,v,Hv)
     integer                         :: Nloc
     complex(8),dimension(Nloc)      :: v
     complex(8),dimension(Nloc)      :: Hv
@@ -722,12 +1003,12 @@ contains
        enddo
     enddo
     !
-  end subroutine dpMatVec_cc
+  end subroutine dpMatVec_main
 
 
 
 #ifdef _MPI
-  subroutine dpMatVec_mpi_cc(Nloc,v,Hv)
+  subroutine dpMatVec_mpi_main(Nloc,v,Hv)
     integer                             :: Nloc
     complex(8),dimension(Nloc)          :: v
     complex(8),dimension(Nloc)          :: Hv
@@ -806,7 +1087,7 @@ contains
     do i=first_state,last_state
        Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
     end do
-  end subroutine dpMatVec_mpi_cc
+  end subroutine dpMatVec_mpi_main
 #endif
 
 
@@ -820,7 +1101,7 @@ contains
   !####################################################################
   !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
   !####################################################################
-  subroutine directMatVec_cc(Nloc,vin,Hv)
+  subroutine directMatVec_main(Nloc,vin,Hv)
     integer                                :: Nloc
     complex(8),dimension(Nloc)             :: vin
     complex(8),dimension(Nloc)             :: Hv
@@ -885,14 +1166,14 @@ contains
     !-----------------------------------------------!
     !
     Hv = Hv + Vout
-  end subroutine directMatVec_cc
+  end subroutine directMatVec_main
 
 
 
 
 
 #ifdef _MPI
-  subroutine directMatVec_MPI_cc(Nloc,v,Hv)
+  subroutine directMatVec_MPI_main(Nloc,v,Hv)
     integer                                :: Nloc
     complex(8),dimension(Nloc)             :: v
     complex(8),dimension(Nloc)             :: Hv
@@ -959,16 +1240,16 @@ contains
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVimp.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVimp.f90"
     !
     !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/HxVint.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVint.f90"
     !
     !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/HxVbath.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVbath.f90"
     !
     !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/HxVhyb.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxVhyb.f90"
     !-----------------------------------------------!
     !
     !
@@ -978,10 +1259,8 @@ contains
     do i=first_state,last_state
        Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
     end do
-  end subroutine directMatVec_MPI_cc
+  end subroutine directMatVec_MPI_main
 #endif
-
-
 
 
 

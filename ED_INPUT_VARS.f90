@@ -36,9 +36,10 @@ MODULE ED_INPUT_VARS
   integer              :: ed_verbose          !
   logical              :: ed_sparse_H         !flag to select  storage of sparse matrix H (mem--, cpu++) if TRUE, or direct on-the-fly H*v product (mem++, cpu--
   character(len=3)     :: ed_sparse_format    !pick the storage method for the sparse matrix: LL=Linked-List array, ELL=Ellpack-Itpack format, more to come...
-  logical              :: ed_print_Sigma   !flag to print impurity Self-energies
-  logical              :: ed_print_G       !flag to print impurity Green`s functions
-  logical              :: ed_print_G0      !flag to print impurity non-interacting Green`s functions
+  logical              :: ed_total_ud         !flag to select which type of quantum numbers have to be considered: T (default) total Nup-Ndw, F orbital based Nup-Ndw
+  logical              :: ed_print_Sigma      !flag to print impurity Self-energies
+  logical              :: ed_print_G          !flag to print impurity Green`s functions
+  logical              :: ed_print_G0         !flag to print impurity non-interacting Green`s functions
   logical              :: ed_twin             !flag to reduce (T) or not (F,default) the number of visited sector using twin symmetry.
   !
   real(8)              :: lanc_tolerance      !Tolerance for the Lanczos iterations as used in Arpack and plain lanczos. 
@@ -124,6 +125,7 @@ contains
     call parse_input_variable(ed_sparse_H,"ED_SPARSE_H",INPUTunit,default=.true.,comment="flag to select  storage of sparse matrix H (mem--, cpu++) if TRUE, or direct on-the-fly H*v product (mem++, cpu--) if FALSE ")
     call parse_input_variable(ed_sparse_format,"ED_SPARSE_FORMAT",INPUTunit,default="LL",comment="pick the storage method for the sparse matrix: LL=Linked-List array, ELL=Ellpack-Itpack format, more to come...")
     !
+    call parse_input_variable(ed_total_ud,"ED_TOTAL_UD",INPUTunit,default=.true.,comment="flag to select which type of quantum numbers have to be considered: T (default) total Nup-Ndw, F orbital based Nup-Ndw")
     call parse_input_variable(ed_print_Sigma,"ED_PRINT_SIGMA",INPUTunit,default=.true.,comment="flag to print impurity Self-energies")
     call parse_input_variable(ed_print_G,"ED_PRINT_G",INPUTunit,default=.true.,comment="flag to print impurity Greens function")
     call parse_input_variable(ed_print_G0,"ED_PRINT_G0",INPUTunit,default=.true.,comment="flag to print non-interacting impurity Greens function")

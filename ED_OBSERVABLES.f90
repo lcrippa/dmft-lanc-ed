@@ -63,11 +63,34 @@ contains
   end subroutine ed_observables_del_MPI
 
 
+  subroutine observables_impurity()
+    select case (ed_total_ud)
+    case(.true.)
+       call observables_impurity_main()
+    case(.false.)
+       call observables_impurity_orbs()
+    end select
+  end subroutine observables_impurity
+
+
+  subroutine local_energy_impurity()
+    select case (ed_total_ud)
+    case(.true.)
+       call local_energy_impurity_main()
+    case(.false.)
+       call local_energy_impurity_orbs()
+    end select
+  end subroutine local_energy_impurity
+
+
+
+
+
 
   !+-------------------------------------------------------------------+
   !PURPOSE  : Evaluate and print out many interesting physical qties
   !+-------------------------------------------------------------------+
-  subroutine observables_impurity()
+  subroutine observables_impurity_main()
     integer,dimension(Ns)           :: ibup,ibdw
     integer,dimension(Nlevels)      :: ib
     integer                         :: i,j
@@ -89,7 +112,6 @@ contains
     complex(8),dimension(:),pointer :: gscvec
     type(sector_map)                :: HI(2)
     complex(8),allocatable          :: vvinit(:)
-
     !
     !LOCAL OBSERVABLES:
     ! density, 
@@ -117,7 +139,6 @@ contains
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
        !
-       ! gscvec  => es_return_cvector(state_list,istate)
 #ifdef _MPI
        if(MpiStatus)then
           gscvec => es_return_cvector(MpiComm,state_list,istate)
@@ -133,8 +154,8 @@ contains
        peso = peso/zeta_function
        !
        idim  = getdim(isector)
-       idimUp  = getDimUp(isector)
-       idimDw  = getDimDw(isector)
+       call get_DimUp(isector,iDimUp)
+       call get_DimDw(isector,iDimDw)
        call build_sector(isector,HI)
        !
        !pdens=0d0
@@ -202,7 +223,11 @@ contains
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
        !
+       idim  = getdim(isector)
+       call get_DimUp(isector,iDimUp)
+       call get_DimDw(isector,iDimDw)
        call build_sector(isector,HI)
+       !
        do ispin=1,Nspin
           !
           !Diagonal densities
@@ -240,7 +265,7 @@ contains
                          jud = [iup,idw]
                          jud(ispin) = binary_search(HI(ispin)%map,k)
                          !
-                         j = jud(1) + (jud(2)-1)*jdimUP
+                         j = jud(1) + (jud(2)-1)*idimUP
                          !
                          imp_density_matrix(ispin,ispin,iorb,jorb) = imp_density_matrix(ispin,ispin,iorb,jorb) + &
                               peso*sgn1*gscvec(i)*sgn2*conjg(gscvec(j))
@@ -282,8 +307,231 @@ contains
     !
     deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2)
     deallocate(simp,zimp)    
-  end subroutine observables_impurity
+  end subroutine observables_impurity_main
 
+
+  subroutine observables_impurity_orbs()
+    integer,dimension(Ns_Orb)       :: ibup,ibdw
+    integer                         :: i,j
+    integer,dimension(2*Norb)       :: Indices,Jndices
+    integer,dimension(Norb)         :: iDimUps,iDimDws
+    integer,dimension(Norb)         :: jDimUps,jDimDws
+    integer                         :: istate,nud(2,Ns),iud(2),jud(2)
+    integer                         :: isector,jsector
+    integer                         :: idim,idimUP,idimDW
+    integer                         :: jdim,jdimUP,jdimDW
+    integer                         :: ialfa
+    integer                         :: iorb,jorb,ispin,jspin,isite,jsite,ibath
+    integer                         :: numstates
+    integer                         :: r,m,k
+    integer                         :: iup,idw,jup,jdw,mup,mdw
+    real(8)                         :: sgn,sgn1,sgn2
+    real(8)                         :: gs_weight
+    real(8)                         :: Ei
+    real(8)                         :: peso
+    real(8)                         :: norm
+    real(8),dimension(Norb)         :: nup,ndw,Sz,nt
+    complex(8),dimension(:),pointer :: gscvec
+    type(sector_map)                :: HI(2*Norb)
+    complex(8),allocatable          :: vvinit(:)
+    !
+    !LOCAL OBSERVABLES:
+    ! density, 
+    ! double occupancy, 
+    ! magnetization, 
+    ! orbital//spin correlations  
+    ! superconducting order parameter, etc..
+    allocate(dens(Norb),dens_up(Norb),dens_dw(Norb))
+    allocate(docc(Norb))
+    allocate(magz(Norb),sz2(Norb,Norb),n2(Norb,Norb))
+    allocate(simp(Norb,Nspin),zimp(Norb,Nspin))
+    !
+    Egs     = state_list%emin
+    dens    = 0.d0
+    dens_up = 0.d0
+    dens_dw = 0.d0
+    docc    = 0.d0
+    magz    = 0.d0
+    sz2     = 0.d0
+    n2      = 0.d0
+    s2tot   = 0.d0
+    !
+    numstates=state_list%size
+    do istate=1,numstates
+       isector = es_return_sector(state_list,istate)
+       Ei      = es_return_energy(state_list,istate)
+       !
+#ifdef _MPI
+       if(MpiStatus)then
+          gscvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          gscvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       gscvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       !
+       peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
+       peso = peso/zeta_function
+       !
+       idim  = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       call build_sector(isector,HI)
+       !
+       do i = 1,iDim
+          call state2indices(i,[iDimUps,iDimDws],Indices)
+          !
+          gs_weight=peso*abs(gscvec(i))**2
+          !
+          !Get operators:
+          do iorb=1,Norb
+             iup  = Indices(iorb)
+             mup  = HI(iorb)%map(iup)
+             ibup = bdecomp(mup,Ns_Orb)
+             !
+             idw  = Indices(iorb+Norb)
+             mdw  = HI(iorb+Norb)%map(idw)
+             ibdw = bdecomp(mdw,Ns_Orb)
+             !
+             nup(iorb)= ibup(1)
+             ndw(iorb)= ibdw(1)
+             sz(iorb) = (nup(iorb) - ndw(iorb))/2d0
+             nt(iorb) =  nup(iorb) + ndw(iorb)
+          enddo
+          !
+          !pdens     = pdens      +  nt(1)*gs_weight*zeta_function
+          !Evaluate averages of observables:
+          do iorb=1,Norb
+             dens(iorb)     = dens(iorb)      +  nt(iorb)*gs_weight
+             dens_up(iorb)  = dens_up(iorb)   +  nup(iorb)*gs_weight
+             dens_dw(iorb)  = dens_dw(iorb)   +  ndw(iorb)*gs_weight
+             docc(iorb)     = docc(iorb)      +  nup(iorb)*ndw(iorb)*gs_weight
+             magz(iorb)     = magz(iorb)      +  (nup(iorb)-ndw(iorb))*gs_weight
+             sz2(iorb,iorb) = sz2(iorb,iorb)  +  (sz(iorb)*sz(iorb))*gs_weight
+             n2(iorb,iorb)  = n2(iorb,iorb)   +  (nt(iorb)*nt(iorb))*gs_weight
+             do jorb=iorb+1,Norb
+                sz2(iorb,jorb) = sz2(iorb,jorb)  +  (sz(iorb)*sz(jorb))*gs_weight
+                sz2(jorb,iorb) = sz2(jorb,iorb)  +  (sz(jorb)*sz(iorb))*gs_weight
+                n2(iorb,jorb)  = n2(iorb,jorb)   +  (nt(iorb)*nt(jorb))*gs_weight
+                n2(jorb,iorb)  = n2(jorb,iorb)   +  (nt(jorb)*nt(iorb))*gs_weight
+             enddo
+          enddo
+          s2tot = s2tot  + (sum(sz))**2*gs_weight
+       enddo
+       if(associated(gscvec))nullify(gscvec)
+       call delete_sector(isector,HI)
+    enddo
+    !
+    !IMPURITY DENSITY MATRIX
+    if(allocated(imp_density_matrix)) deallocate(imp_density_matrix)
+    allocate(imp_density_matrix(Nspin,Nspin,Norb,Norb));imp_density_matrix=zero
+    do istate=1,state_list%size
+       isector = es_return_sector(state_list,istate)
+       Ei      = es_return_energy(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          gscvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          gscvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       gscvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
+       peso = peso/zeta_function
+       !
+       idim  = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       !
+       call build_sector(isector,HI)
+       !
+       !Get operators:
+       do ispin=1,Nspin
+          !
+          do iorb=1,Norb
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iup      = Indices(iorb)
+                iud(1)   = HI(iorb)%map(iup)
+                nud(1,:) = bdecomp(iud(1),Ns_Orb)
+                !
+                idw      = Indices(iorb+Norb)
+                iud(2)   = HI(iorb+Norb)%map(idw)
+                nud(2,:) = bdecomp(iud(2),Ns)
+                !
+                !Diagonal densities
+                imp_density_matrix(ispin,ispin,iorb,iorb) = imp_density_matrix(ispin,ispin,iorb,iorb) + &
+                     peso*nud(ispin,iorb)*conjg(gscvec(i))*gscvec(i)
+             enddo
+          enddo
+          !
+          !
+          do iorb=1,Norb
+             do jorb=1,Norb
+                do i=1,iDim
+                   call state2indices(i,[iDimUps,iDimDws],Indices)
+                   iup      = Indices(iorb)
+                   iud(1)   = HI(iorb)%map(iup)
+                   nud(1,:) = bdecomp(iud(1),Ns_Orb)
+                   !
+                   idw      = Indices(iorb+Norb)
+                   iud(2)   = HI(iorb+Norb)%map(idw)
+                   nud(2,:) = bdecomp(iud(2),Ns)
+                   !
+                   if((nud(ispin,jorb)==1).and.(nud(ispin,iorb)==0))then
+                      call c(jorb,iud(ispin),r,sgn1)
+                      call cdg(iorb,r,k,sgn2)
+                      !
+                      ialfa = iorb + (ispin-1)*Norb
+                      Jndices        = Indices
+                      Jndices(ialfa) = binary_search(HI(ialfa)%map,k)
+                      !
+                      call indices2state(Jndices,[iDimUps,iDimDws],j)
+                      !
+                      imp_density_matrix(ispin,ispin,iorb,jorb) = imp_density_matrix(ispin,ispin,iorb,jorb) + &
+                           peso*sgn1*gscvec(i)*sgn2*conjg(gscvec(j))
+                   endif
+                enddo
+             enddo
+          enddo
+          !
+          !
+       enddo
+       !
+       if(associated(gscvec))nullify(gscvec)
+       call delete_sector(isector,HI)
+    enddo
+    !
+    !
+    !
+    !
+    !
+    !
+    if(MPI_MASTER)then
+       call get_szr
+       if(iolegend)call write_legend
+       call write_observables()
+    endif
+    write(LOGfile,"(A,10f18.12,f18.12,A)")"dens"//reg(ed_file_suffix)//"=",(dens(iorb),iorb=1,Norb),sum(dens)
+    write(LOGfile,"(A,10f18.12,A)")    "docc"//reg(ed_file_suffix)//"=",(docc(iorb),iorb=1,Norb)
+    if(Nspin==2)then
+       write(LOGfile,"(A,10f18.12,A)") "mag "//reg(ed_file_suffix)//"=",(magz(iorb),iorb=1,Norb)
+    endif
+    !
+    do iorb=1,Norb
+       ed_dens_up(iorb)=dens_up(iorb)
+       ed_dens_dw(iorb)=dens_dw(iorb)
+       ed_dens(iorb)   =dens(iorb)
+       ed_docc(iorb)   =docc(iorb)
+    enddo
+    !
+    deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2)
+    deallocate(simp,zimp)    
+  end subroutine observables_impurity_orbs
 
 
 
@@ -294,7 +542,7 @@ contains
   !+-------------------------------------------------------------------+
   !PURPOSE  : Get internal energy from the Impurity problem.
   !+-------------------------------------------------------------------+
-  subroutine local_energy_impurity()
+  subroutine local_energy_impurity_main()
     integer                         :: i,j
     integer                         :: istate,nud(2,Ns),iud(2),jud(2)
     integer                         :: isector,jsector
@@ -349,8 +597,8 @@ contains
 #endif
        !
        idim  = getdim(isector)
-       idimUp  = getDimUp(isector)
-       idimDw  = getDimDw(isector)
+       call get_DimUp(isector,iDimUp)
+       call get_DimDw(isector,iDimDw)
        !
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
@@ -536,7 +784,200 @@ contains
     endif
     !
     !
-  end subroutine local_energy_impurity
+  end subroutine local_energy_impurity_main
+
+
+  subroutine local_energy_impurity_orbs()
+    integer                         :: i,j
+    integer                         :: istate,nud(2,Ns),iud(2),jud(2)
+    integer                         :: isector,jsector
+    integer,dimension(2*Norb)       :: Indices
+    integer,dimension(Norb)         :: iDimUps,iDimDws
+    integer                         :: idim,idimUP,idimDW
+    integer                         :: jdim,jdimUP,jdimDW
+    integer                         :: ialfa
+    integer                         :: iorb,jorb,ispin,jspin,isite,jsite,ibath
+    integer                         :: r,m,k
+    integer                         :: iup,idw,jup,jdw,mup,mdw
+    integer                         :: numstates
+    integer                         :: k1,k2,k3,k4
+    real(8)                         :: sg1,sg2,sg3,sg4
+    real(8)                         :: Egs,gs_weight
+    real(8)                         :: Ei
+    real(8)                         :: peso
+    real(8)                         :: norm
+    real(8),dimension(Norb)         :: nup,ndw
+    real(8),dimension(Nspin,Norb)   :: eloc
+    complex(8),dimension(:),pointer :: gscvec
+    type(sector_map)                :: H(2*Norb)
+    logical                         :: Jcondition
+    !
+    Egs     = state_list%emin
+    ed_Ehartree= 0.d0
+    ed_Eknot   = 0.d0
+    ed_Epot    = 0.d0
+    ed_Dust    = 0.d0
+    ed_Dund    = 0.d0
+    ed_Dse     = 0.d0
+    ed_Dph     = 0.d0
+    !
+    !Get diagonal part of Hloc
+    do ispin=1,Nspin
+       do iorb=1,Norb
+          Eloc(ispin,iorb)=impHloc(ispin,ispin,iorb,iorb)
+       enddo
+    enddo
+    !
+    numstates=state_list%size
+    do istate=1,numstates
+       isector = es_return_sector(state_list,istate)
+       Ei      = es_return_energy(state_list,istate)
+       ! gscvec  => es_return_cvector(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          gscvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          gscvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       gscvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       idim  = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       !
+       call build_sector(isector,H)
+       !
+       peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
+       peso = peso/zeta_function
+       !
+       do i = 1,iDim
+          call state2indices(i,[iDimUps,iDimDws],Indices)
+          !
+          gs_weight=peso*abs(gscvec(i))**2
+          !
+          !Get operators:
+          do iorb=1,Norb
+             iup = Indices(iorb)
+             idw = Indices(iorb+Norb)
+             !
+             iud(1)   = H(iorb)%map(iup)
+             nud(1,:) = bdecomp(iud(1),Ns_Orb)
+             !
+             iud(2)   = H(iorb+Norb)%map(idw)
+             nud(2,:) = bdecomp(iud(2),Ns_Orb)
+             !
+             nup(iorb)= nud(1,1)
+             ndw(iorb)= nud(2,1)
+          enddo
+          !
+          !start evaluating the Tr(H_loc) to estimate potential energy
+          !
+          !LOCAL ENERGY
+          ed_Eknot = ed_Eknot + dot_product(eloc(1,:),nup)*gs_weight + dot_product(eloc(Nspin,:),ndw)*gs_weight
+          !==> HYBRIDIZATION TERMS I: same or different orbitals, same spins.
+          do iorb=1,Norb
+             do jorb=1,Norb
+                !SPIN UP
+                ispin=1
+                if((nud(ispin,iorb)==0).AND.(nud(ispin,jorb)==1))then
+                   call c(jorb,iud(ispin),k1,sg1)
+                   call cdg(iorb,k1,k2,sg2)
+                   !
+                   jud        = [iup,idw]
+                   jud(ispin) = binary_search(H(ispin)%map,k2)
+                   !                      
+                   j = jud(1) + (jud(2)-1)*jdimUP
+                   ed_Eknot = ed_Eknot + impHloc(ispin,ispin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
+                endif
+                !SPIN DW
+                ispin=2
+                if((nud(ispin,iorb)==0).AND.(nud(ispin,jorb)==1))then
+                   call c(jorb,iud(ispin),k1,sg1)
+                   call cdg(iorb,k1,k2,sg2)
+                   !
+                   jud        = [iup,idw]
+                   jud(ispin) = binary_search(H(ispin)%map,k2)
+                   !                      
+                   j = jud(1) + (jud(2)-1)*jdimUP
+                   ed_Eknot = ed_Eknot + impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
+                endif
+             enddo
+          enddo
+          !
+          !DENSITY-DENSITY INTERACTION: SAME ORBITAL, OPPOSITE SPINS
+          !Euloc=\sum=i U_i*(n_u*n_d)_i
+          !ed_Epot = ed_Epot + dot_product(uloc,nup*ndw)*gs_weight
+          do iorb=1,Norb
+             ed_Epot = ed_Epot + Uloc(iorb)*nup(iorb)*ndw(iorb)*gs_weight
+          enddo
+          !
+          !DENSITY-DENSITY INTERACTION: DIFFERENT ORBITALS, OPPOSITE SPINS
+          !Eust=\sum_ij Ust*(n_up_i*n_dn_j + n_up_j*n_dn_i)
+          !    "="\sum_ij (Uloc - 2*Jh)*(n_up_i*n_dn_j + n_up_j*n_dn_i)
+          if(Norb>1)then
+             do iorb=1,Norb
+                do jorb=iorb+1,Norb
+                   ed_Epot = ed_Epot + Ust*(nup(iorb)*ndw(jorb) + nup(jorb)*ndw(iorb))*gs_weight
+                   ed_Dust = ed_Dust + (nup(iorb)*ndw(jorb) + nup(jorb)*ndw(iorb))*gs_weight
+                enddo
+             enddo
+          endif
+          !
+          !DENSITY-DENSITY INTERACTION: DIFFERENT ORBITALS, PARALLEL SPINS
+          !Eund = \sum_ij Und*(n_up_i*n_up_j + n_dn_i*n_dn_j)
+          !    "="\sum_ij (Ust-Jh)*(n_up_i*n_up_j + n_dn_i*n_dn_j)
+          !    "="\sum_ij (Uloc-3*Jh)*(n_up_i*n_up_j + n_dn_i*n_dn_j)
+          if(Norb>1)then
+             do iorb=1,Norb
+                do jorb=iorb+1,Norb
+                   ed_Epot = ed_Epot + (Ust-Jh)*(nup(iorb)*nup(jorb) + ndw(iorb)*ndw(jorb))*gs_weight
+                   ed_Dund = ed_Dund + (nup(iorb)*nup(jorb) + ndw(iorb)*ndw(jorb))*gs_weight
+                enddo
+             enddo
+          endif
+          !
+          !HARTREE-TERMS CONTRIBUTION:
+          if(hfmode)then
+             !ed_Ehartree=ed_Ehartree - 0.5d0*dot_product(uloc,nup+ndw)*gs_weight + 0.25d0*sum(uloc)*gs_weight
+             do iorb=1,Norb
+                ed_Ehartree=ed_Ehartree - 0.5d0*uloc(iorb)*(nup(iorb)+ndw(iorb))*gs_weight + 0.25d0*uloc(iorb)*gs_weight
+             enddo
+             if(Norb>1)then
+                do iorb=1,Norb
+                   do jorb=iorb+1,Norb
+                      ed_Ehartree=ed_Ehartree - 0.5d0*Ust*(nup(iorb)+ndw(iorb)+nup(jorb)+ndw(jorb))*gs_weight + 0.25d0*Ust*gs_weight
+                      ed_Ehartree=ed_Ehartree - 0.5d0*(Ust-Jh)*(nup(iorb)+ndw(iorb)+nup(jorb)+ndw(jorb))*gs_weight + 0.25d0*(Ust-Jh)*gs_weight
+                   enddo
+                enddo
+             endif
+          endif
+       enddo
+       if(associated(gscvec))nullify(gscvec)
+       call delete_sector(isector,H)
+    enddo
+    ed_Epot = ed_Epot + ed_Ehartree
+    !
+    if(MPI_MASTER)then
+       if(ed_verbose==3)then
+          write(LOGfile,"(A,10f18.12)")"<Hint>  =",ed_Epot
+          write(LOGfile,"(A,10f18.12)")"<V>     =",ed_Epot-ed_Ehartree
+          write(LOGfile,"(A,10f18.12)")"<E0>    =",ed_Eknot
+          write(LOGfile,"(A,10f18.12)")"<Ehf>   =",ed_Ehartree    
+          write(LOGfile,"(A,10f18.12)")"Dust    =",ed_Dust
+          write(LOGfile,"(A,10f18.12)")"Dund    =",ed_Dund
+          write(LOGfile,"(A,10f18.12)")"Dse     =",ed_Dse
+          write(LOGfile,"(A,10f18.12)")"Dph     =",ed_Dph
+       endif
+       call write_energy_info()
+       call write_energy()
+    endif
+    !
+    !
+  end subroutine local_energy_impurity_orbs
+
+
 
 
 

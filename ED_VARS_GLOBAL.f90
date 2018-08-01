@@ -58,6 +58,7 @@ MODULE ED_VARS_GLOBAL
   integer                                            :: Ns
   integer                                            :: Nlevels
   integer                                            :: Nsectors
+  integer                                            :: Ns_orb
 
   !local part of the Hamiltonian
   !INTERNAL USE (accessed thru functions)
@@ -67,13 +68,14 @@ MODULE ED_VARS_GLOBAL
   !Some maps between sectors and full Hilbert space (pointers)
   !PRIVATE:
   !=========================================================
-  integer,allocatable,dimension(:,:)                 :: getsector
-  integer,allocatable,dimension(:,:)                 :: getCsector
-  integer,allocatable,dimension(:,:)                 :: getCDGsector
+  ! integer,allocatable,dimension(:)                   :: getSector          ! [1/Norb;0:Ns;0:Ns]
+  ! integer,allocatable,dimension(:,:)                 :: getDimUp,getDimDw  ! [1/Norb,Nsectors]
+  ! integer,allocatable,dimension(:,:)                 :: getNup,getNdw      ! [1/Norb,Nsectors]
+  integer,allocatable,dimension(:)                   :: getDim             ! [Nsectors]
+  integer,allocatable,dimension(:,:,:)               :: getCsector         ! [1/Norb,2,NSectors]
+  integer,allocatable,dimension(:,:,:)               :: getCDGsector       ! [1/Norb,2,NSectors]
   integer,allocatable,dimension(:,:)                 :: getBathStride
   integer,allocatable,dimension(:,:)                 :: impIndex
-  integer,allocatable,dimension(:)                   :: getDim,getDimUp,getDimDw
-  integer,allocatable,dimension(:)                   :: getNup,getNdw
   logical,allocatable,dimension(:)                   :: twin_mask
 
   !Effective Bath used in the ED code (this is opaque to user)
@@ -88,6 +90,7 @@ MODULE ED_VARS_GLOBAL
   type(sparse_matrix_ll)                             :: spH0d !diagonal part
   type(sparse_matrix_ll)                             :: spH0nd !non-diagonal part
   type(sparse_matrix_ll)                             :: spH0up,spH0dw !reduced UP and DW parts
+  type(sparse_matrix_ll),dimension(:),allocatable    :: spH0ups,spH0dws !reduced UP and DW parts
   !
   type(sparse_matrix_ell)                            :: dpH0d !diagonal part
   type(sparse_matrix_ell)                            :: dpH0nd !non-diagonal part
@@ -199,6 +202,7 @@ MODULE ED_VARS_GLOBAL
   logical                                            :: Jhflag              !spin-exchange and pair-hopping flag.
 
 
+  
 contains
 
 

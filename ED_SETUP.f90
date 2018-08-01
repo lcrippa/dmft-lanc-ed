@@ -11,65 +11,73 @@ MODULE ED_SETUP
   implicit none
   private
 
+
   interface build_sector
-     module procedure :: build_sector_full
+     ! module procedure :: build_sector_full
      module procedure :: build_sector_sresolved
   end interface build_sector
 
   interface delete_sector
-     module procedure :: delete_sector_full
+     ! module procedure :: delete_sector_full
      module procedure :: delete_sector_sresolved
   end interface delete_sector
 
-  interface print_state_vector
-     module procedure print_state_vector_ivec
-     module procedure print_state_vector_ivec_ud
-     module procedure print_state_vector_int
-  end interface print_state_vector
+  interface get_Nup
+     module procedure :: get_Nup_Main
+     module procedure :: get_Nup_Orbs
+  end interface get_Nup
 
-  public :: get_Nsectors
+  interface get_Ndw
+     module procedure :: get_Ndw_Main
+     module procedure :: get_Ndw_Orbs
+  end interface get_Ndw
+
+  interface get_DimUp
+     module procedure :: get_DimUp_Main
+     module procedure :: get_DimUp_Orbs
+  end interface get_DimUp
+
+  interface get_DimDw
+     module procedure :: get_DimDw_Main
+     module procedure :: get_DimDw_Orbs
+  end interface get_DimDw
+
+
+
   public :: setup_ed_dimensions
   public :: init_ed_structure
-  public :: setup_pointers
+  public :: setup_global
+  !
   public :: build_sector
   public :: delete_sector
-  public :: bdecomp
-  public :: bjoin
+  !  
+  public :: get_Sector
+  public :: get_Indices
+  public :: get_Nup
+  public :: get_Ndw
+  public :: get_DimUp
+  public :: get_DimDw
+  public :: get_Dim
+  !
+  public :: indices2state
+  public :: state2indices
   public :: iup_index
   public :: idw_index
-  public :: flip_state
-  public :: print_state_vector
+  !
+  public :: bdecomp
+  public :: bjoin
+  !
   public :: c,cdg
-  public :: binary_search
+  !    
   public :: twin_sector_order
   public :: get_twin_sector
+  public :: flip_state
+  !
+  public :: binary_search
 
 
 
 contains
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : return the Number of sectors using local variables
-  ! This is similar to setup Dimensions but does only return Nsectors
-  ! It is used in initialization to allocate arrays which require 
-  ! to know Nsectors before really initializing ED
-  !+------------------------------------------------------------------+
-  function get_Nsectors() result(Nsectors)
-    integer :: Nsectors
-    integer :: Ns
-    !
-    select case(bath_type)
-    case default
-       Ns = (Nbath+1)*Norb
-    case ('hybrid')
-       Ns = Nbath+Norb
-    case ('replica')
-       Ns = Norb*(Nbath+1)
-    end select
-    !
-    Nsectors = (Ns+1)*(Ns+1) !nup=0:Ns;ndw=0:Ns
-  end function get_Nsectors
 
 
 
@@ -88,12 +96,20 @@ contains
        Ns = (Nbath+1)*Norb
     case ('hybrid')
        Ns = Nbath+Norb
+       if(.not.ed_total_ud)stop "setup_ed_dimension: bath_type==hybrid AND .NOT.ed_total_ud"
     case ('replica')
        Ns = Norb*(Nbath+1)
     end select
     Nlevels  = 2*Ns
     !
-    Nsectors = (Ns+1)*(Ns+1) !nup=0:Ns;ndw=0:Ns
+    Ns_Orb   = Ns/Norb
+    !
+    select case (ed_total_ud)
+    case (.true.)
+       Nsectors = (Ns+1)*(Ns+1) !nup=0:Ns;ndw=0:Ns
+    case (.false.)
+       Nsectors = ((Ns_Orb+1)*(Ns_Orb+1))**Norb !prod_{a=1,Norb}nup(a)=0:Ns;ndw(a)=0:Ns
+    end select
   end subroutine setup_ed_dimensions
 
 
@@ -106,7 +122,8 @@ contains
     logical                                           :: control
     real(8),dimension(Nspin,Nspin,Norb,Norb)          :: reHloc         !local hamiltonian, real part 
     real(8),dimension(Nspin,Nspin,Norb,Norb)          :: imHloc         !local hamiltonian, imag part
-    integer                                           :: i,dim_sector_max(2),iorb,jorb,ispin,jspin
+    integer                                           :: i,iorb,jorb,ispin,jspin
+    integer,allocatable,dimension(:,:)                :: dim_sector_max
     logical                                           :: MPI_MASTER=.true.
     !
 #ifdef _MPI
@@ -115,9 +132,18 @@ contains
     !
     call setup_ed_dimensions()
     !
-    dim_sector_max=0
-    dim_sector_max(1)=get_normal_sector_dimension(Ns/2)
-    dim_sector_max(2)=get_normal_sector_dimension(Ns-Ns/2)
+    select case(ed_total_ud)
+    case (.true.)
+       allocate(dim_sector_max(2,1))
+       dim_sector_max(1,1)=get_sector_dimension(Ns,Ns/2)
+       dim_sector_max(2,1)=get_sector_dimension(Ns,Ns-Ns/2)
+    case (.false.)
+       allocate(dim_sector_max(2,Norb))
+       do iorb=1,Norb
+          dim_sector_max(1,iorb) = get_sector_dimension(Ns_Orb,Ns_Orb/2)
+          dim_sector_max(2,iorb) = get_sector_dimension(Ns_Orb,Ns_Orb-Ns_Orb/2)
+       enddo
+    end select
     !
     write(LOGfile,"(A)")"Summary:"
     write(LOGfile,"(A)")"--------------------------------------------"
@@ -126,28 +152,29 @@ contains
     write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
     write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
     write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
-    write(LOGfile,"(A,2I15)")'Largest Sector(s)    = ',dim_sector_max
     write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
+    write(LOGfile,"(A,10I15)")'Largest Sector(s)     = ',dim_sector_max,product(dim_sector_max)
     write(LOGfile,"(A)")"--------------------------------------------"
     !
     allocate(impHloc(Nspin,Nspin,Norb,Norb))
     impHloc=zero
     !
     !Allocate indexing arrays
+    select case (ed_total_ud)
+    case (.true.)
+       allocate(getCsector(1,2,Nsectors));getCsector=0
+       allocate(getCDGsector(1,2,Nsectors));getCDGsector=0
+    case (.false.)
+       allocate(getCsector(Norb,2,Nsectors));getCsector=0
+       allocate(getCDGsector(Norb,2,Nsectors));getCDGsector=0
+    end select
+    !
     allocate(impIndex(Norb,2));impIndex=0
+    !
     allocate(getDim(Nsectors));getDim=0
     !
-    allocate(getDimUp(Nsectors),getDimDw(Nsectors));getDimUp=0;getDimDw=0
-    allocate(getNup(Nsectors),getNdw(Nsectors));getNup=0;getNdw=0
-    !
-    allocate(getSector(0:Ns,0:Ns))
-    getSector=0
-    !
-    allocate(getCsector(2,Nsectors));getCsector=0
-    allocate(getCDGsector(2,Nsectors));getCDGsector=0
-    !
     allocate(getBathStride(Norb,Nbath));getBathStride=0
-    allocate(twin_mask(Nsectors));
+    allocate(twin_mask(Nsectors))
     allocate(neigen_sector(Nsectors))
     !
     !
@@ -186,23 +213,26 @@ contains
     !CHECKS:
     if(Lfit>Lmats)Lfit=Lmats
     if(Nspin>2)stop "ED ERROR: Nspin > 2 is currently not supported"
-    if(Norb>3)stop "ED ERROR: Norb > 3 is currently not supported" 
-    !
+    if(Norb>3)stop "ED ERROR: Norb > 3 is currently not supported"
     !
     Jhflag=.FALSE.
     if(Norb>1.AND.(Jx/=0d0.OR.Jp/=0d0))Jhflag=.TRUE.
     !
+    if(.not.ed_total_ud)then
+       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid" 
+       if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
+       if(ed_sparse_H.AND.ed_sparse_format=="ELL")stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=T AND ed_sparse_format=ELL"
+       if(.not.ed_sparse_H)stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=F"
+    endif
+    !
     if(nread/=0.d0)then
        i=abs(floor(log10(abs(nerr)))) !modulus of the order of magnitude of nerror
        niter=nloop/3
-       !nloop=(i-1)*niter                !increase the max number of dmft loop allowed so to do threshold loop
-       !write(LOGfile,"(A,I10)")"Increased Nloop to:",nloop
     endif
     if(Nspin>1.AND.ed_twin.eqv..true.)then
        write(LOGfile,"(A)")"WARNING: using twin_sector with Nspin>1"
        call sleep(1)
     end if
-    !
     !
     !
     !allocate functions
@@ -233,19 +263,19 @@ contains
        allocate(spinChi_w(Norb+1,Lreal))
        allocate(spinChi_iv(Norb+1,0:Lmats))
        !
-       allocate(densChi_tau(Norb,Norb,0:Ltau))
-       allocate(densChi_w(Norb,Norb,Lreal))
-       allocate(densChi_iv(Norb,Norb,0:Lmats))
-       allocate(densChi_mix_tau(Norb,Norb,0:Ltau))
-       allocate(densChi_mix_w(Norb,Norb,Lreal))
-       allocate(densChi_mix_iv(Norb,Norb,0:Lmats))
-       allocate(densChi_tot_tau(0:Ltau))
-       allocate(densChi_tot_w(Lreal))
-       allocate(densChi_tot_iv(0:Lmats))
-       !
-       allocate(pairChi_tau(Norb,0:Ltau))
-       allocate(pairChi_w(Norb,Lreal))
-       allocate(pairChi_iv(Norb,0:Lmats))
+       ! allocate(densChi_tau(Norb,Norb,0:Ltau))
+       ! allocate(densChi_w(Norb,Norb,Lreal))
+       ! allocate(densChi_iv(Norb,Norb,0:Lmats))
+       ! allocate(densChi_mix_tau(Norb,Norb,0:Ltau))
+       ! allocate(densChi_mix_w(Norb,Norb,Lreal))
+       ! allocate(densChi_mix_iv(Norb,Norb,0:Lmats))
+       ! allocate(densChi_tot_tau(0:Ltau))
+       ! allocate(densChi_tot_w(Lreal))
+       ! allocate(densChi_tot_iv(0:Lmats))
+       ! !
+       ! allocate(pairChi_tau(Norb,0:Ltau))
+       ! allocate(pairChi_w(Norb,Lreal))
+       ! allocate(pairChi_iv(Norb,0:Lmats))
     endif
     !
   end subroutine init_ed_structure
@@ -257,73 +287,108 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE: SETUP THE GLOBAL POINTERS FOR THE ED CALCULAIONS.
   !+------------------------------------------------------------------+
-  !
-  !NORMAL CASE
-  !
-  subroutine setup_pointers
-    integer                                           :: i,in,dim,isector,jsector
-    integer                                           :: nup,ndw,jup,jdw,iorb
-    integer                                           :: unit,status,istate
-    logical                                           :: IOfile
-    integer                                           :: anint
-    real(8)                                           :: adouble
-    integer                                           :: list_len
-    integer,dimension(:),allocatable                  :: list_sector
-    isector=0
-    do nup=0,Ns
-       do ndw=0,Ns
-          isector=isector+1
-          getSector(nup,ndw)=isector
-          getNup(isector)=nup
-          getNdw(isector)=ndw
-          dim = get_normal_sector_dimension(nup,ndw)
-          getDim(isector)=dim
-          getDimUp(isector)=get_normal_sector_dimension(nup)
-          getDimDw(isector)=get_normal_sector_dimension(ndw)
-       enddo
-    enddo
+  subroutine setup_global
+    integer                          :: DimUp,DimDw
+    integer                          :: DimUps(Norb),DimDws(Norb)
+    integer                          :: Nup,Ndw
+    integer                          :: Nups(Norb),Ndws(Norb)
+    integer                          :: Jups(Norb),Jdws(Norb)
+    integer                          :: Indices(2*Norb)
+    integer                          :: Iup,Idw
+    integer                          :: Jup,Jdw
+    integer                          :: i,iorb
+    integer                          :: isector,jsector
+    integer                          :: unit,status,istate
+    logical                          :: IOfile
+    integer                          :: list_len
+    integer,dimension(:),allocatable :: list_sector
     !
+    !Store full dimension of the sectors:
+    select case(ed_total_ud)
+    case (.true.)
+       do isector=1,Nsectors
+          call get_DimUp(isector,DimUp)
+          call get_DimDw(isector,DimDw)
+          getDim(isector)  = DimUp*DimDw
+       enddo
+       !
+    case (.false.)
+       do isector=1,Nsectors
+          call get_DimUp(isector,DimUps)
+          call get_DimDw(isector,DimDws)
+          DimUp = product(DimUps)
+          DimDw = product(DimDws)       
+          getDim(isector)  = DimUp*DimDw
+       enddo
+       !
+    end select
     !
     inquire(file="state_list"//reg(ed_file_suffix)//".restart",exist=IOfile)
     if(IOfile)then
        write(LOGfile,"(A)")"Restarting from a state_list file:"
        list_len=file_length("state_list"//reg(ed_file_suffix)//".restart")
        allocate(list_sector(list_len))
+       !
        open(free_unit(unit),file="state_list"//reg(ed_file_suffix)//".restart",status="old")
-       read(unit,*)!read comment line
        status=0
-       do while(status>=0)
-          read(unit,"(i6,f18.12,2x,ES19.12,1x,2i3,3x,i3,i10)",iostat=status)istate,adouble,adouble,nup,ndw,isector,anint
-          list_sector(istate)=isector
-          if(nup/=getnup(isector).OR.ndw/=getndw(isector))&
-               stop "setup_pointers_normal error: nup!=getnup(isector).OR.ndw!=getndw(isector) "
-       enddo
+       select case(ed_total_ud)
+       case (.true.)
+          do while(status>=0)
+             read(unit,*,iostat=status)istate,isector,nup,ndw
+             list_sector(istate)=isector
+             call get_Nup(isector,Iup)
+             call get_Ndw(isector,Idw)
+             if(nup/=iup.OR.ndw/=idw)&
+                  stop "setup_global error: nup!=nup(isector).OR.ndw!=ndw(isector)"
+          enddo
+          !
+       case (.false.)
+          do while(status>=0)
+             read(unit,*,iostat=status)istate,isector,indices
+             list_sector(istate)=isector
+             call get_Nup(isector,Nups)
+             call get_Ndw(isector,Ndws)
+             if(any(Indices /= [Nups,Ndws]))&
+                  stop "setup_global error: nups!=nups(isector).OR.ndws!=ndws(isector)"
+          enddo
+          close(unit)
+          !
+       end select
        close(unit)
+       !
        lanc_nstates_total = list_len
        do isector=1,Nsectors
           neigen_sector(isector) = max(1,count(list_sector==isector))
        enddo
     else
        do isector=1,Nsectors
-          neigen_sector(isector) = min(getdim(isector),lanc_nstates_sector)   !init every sector to required eigenstates
+          !init every sector to required eigenstates
+          neigen_sector(isector) = min(getDim(isector),lanc_nstates_sector)
        enddo
     endif
     !
-
     twin_mask=.true.
     if(ed_twin)then
-       ! stop "WARNING: In this updated version with Nup-Ndw factorization the twin-sectors have not been tested!!"
-       do isector=1,Nsectors
-          nup=getnup(isector)
-          ndw=getndw(isector)
-          if(nup<ndw)twin_mask(isector)=.false.
-       enddo
-       write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
+       select case(ed_total_ud)
+       case (.true.)
+          do isector=1,Nsectors
+             call get_Nup(isector,Nup)
+             call get_Ndw(isector,Ndw)
+             if(nup<ndw)twin_mask(isector)=.false.
+          enddo
+          write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
+          !
+       case (.false.)
+          write(LOGfile,"(A)")"Warning: ed_twin=T AND ed_total_ud=F are incompatible at the moment. set to F"
+          ed_twin=.false.
+          call sleep(2)
+          !
+       end select
     endif
     !
-    do in=1,Norb
-       impIndex(in,1)=in
-       impIndex(in,2)=in+Ns
+    do iorb=1,Norb
+       impIndex(iorb,1)=iorb
+       impIndex(iorb,2)=iorb+Ns
     enddo
     !
     select case(bath_type)
@@ -345,142 +410,359 @@ contains
        enddo
     end select
     !
-    getCsector=0
-    do isector=1,Nsectors
-       nup=getnup(isector);ndw=getndw(isector)
-       jup=nup-1;jdw=ndw;if(jup < 0)cycle
-       jsector=getsector(jup,jdw)
-       getCsector(1,isector)=jsector
-    enddo
-    !
-    do isector=1,Nsectors
-       nup=getnup(isector);ndw=getndw(isector)
-       jup=nup;jdw=ndw-1;if(jdw < 0)cycle
-       jsector=getsector(jup,jdw)
-       getCsector(2,isector)=jsector
-    enddo
-    !
-    getCDGsector=0
-    do isector=1,Nsectors
-       nup=getnup(isector);ndw=getndw(isector)
-       jup=nup+1;jdw=ndw;if(jup > Ns)cycle
-       jsector=getsector(jup,jdw)
-       getCDGsector(1,isector)=jsector
-    enddo
-    !
-    do isector=1,Nsectors
-       nup=getnup(isector);ndw=getndw(isector)
-       jup=nup;jdw=ndw+1;if(jdw > Ns)cycle
-       jsector=getsector(jup,jdw)
-       getCDGsector(2,isector)=jsector
-    enddo
-  end subroutine setup_pointers
-
-  ! 
-
-
-
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : return the dimension of a sector
-  !+------------------------------------------------------------------+
-  !NORMAL
-  function get_normal_sector_dimension(nup,ndw) result(dim)
-    integer          :: nup
-    integer,optional :: ndw
-    integer          :: dim,dimup,dimdw
-    if(present(ndw))then
-       dimup = binomial(Ns,nup)    !this ensures better evaluation of the dimension
-       dimdw = binomial(Ns,ndw)    !as it avoids large numbers
-    else
-       dimup = binomial(Ns,nup)
-       dimdw = 1
-    endif
-    dim=dimup*dimdw
-  end function get_normal_sector_dimension
-
-
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : constructs the sectors by storing the map to the 
-  !states i\in Hilbert_space from the states count in H_sector.
-  !|ImpUP,BathUP>|ImpDW,BathDW >
-  !+------------------------------------------------------------------+
-  subroutine build_sector_full(isector,H)
-    integer                                      :: isector
-    type(sector_map)                             :: H
-    integer                                      :: nup,ndw
-    integer                                      :: nup_,ndw_
-    integer                                      :: idw,iup
-    integer                                      :: dim
-    integer                                      :: ivec(Ns),jvec(Ns)
-    !
-    nup = getNup(isector)
-    ndw = getNdw(isector)
-    !
-    call map_allocate(H,getDim(isector))    
-    dim=0
-    do idw=0,2**Ns-1
-       ndw_ = popcnt(idw)
-       if(ndw_ /= ndw)cycle
+    getCsector  = 0
+    getCDGsector= 0
+    select case (ed_total_ud)
+    case (.true.)
+       do isector=1,Nsectors
+          call get_Nup(isector,Nup)
+          call get_Ndw(isector,Ndw)
+          !
+          jup=nup-1; jdw=ndw; if(jup < 0)cycle
+          call get_Sector([jup,jdw],Ns,jsector)
+          getCsector(1,1,isector)=jsector
+          !
+          jup=nup; jdw=ndw-1; if(jdw < 0)cycle
+          call get_Sector([jup,jdw],Ns,jsector)
+          getCsector(1,2,isector)=jsector
+          !
+          jup=nup+1; jdw=ndw; if(jup > Ns)cycle
+          call get_Sector([jup,jdw],Ns,jsector)
+          getCDGsector(1,1,isector)=jsector
+          !
+          jup=nup; jdw=ndw+1; if(jdw > Ns)cycle
+          call get_Sector([jup,jdw],Ns,jsector)
+          getCDGsector(1,2,isector)=jsector
+       enddo
        !
+    case (.false.)
+       do isector=1,Nsectors
+          call get_Nup(isector,Nups)
+          call get_Ndw(isector,Ndws)
+          !
+          do iorb=1,Norb
+             !UPs:
+             Jups=Nups
+             Jdws=Ndws 
+             Jups(iorb)=Jups(iorb)-1; if(Jups(iorb) < 0)cycle
+             call get_Sector([Jups,Jdws],Ns_Orb,jsector)
+             getCsector(iorb,1,isector)=jsector
+             !
+             Jups=Nups
+             Jdws=Ndws 
+             Jups(iorb)=Jups(iorb)+1; if(Jups(iorb) > Ns)cycle
+             call get_Sector([Jups,Jdws],Ns_Orb,jsector)
+             getCDGsector(iorb,1,isector)=jsector
+             !
+             !
+             !DWs:
+             Jups=Nups
+             Jdws=Ndws 
+             Jdws(iorb)=Jdws(iorb)-1; if(Jdws(iorb) < 0)cycle
+             call get_Sector([Jups,Jdws],Ns_Orb,jsector)
+             getCsector(iorb,2,isector)=jsector
+             !
+             Jups=Nups
+             Jdws=Ndws 
+             Jdws(iorb)=Jdws(iorb)+1; if(Jdws(iorb) > Ns)cycle
+             call get_Sector([Jups,Jdws],Ns_Orb,jsector)
+             getCDGsector(iorb,2,isector)=jsector
+          enddo
+       enddo
+       !
+    end select
+    return
+  end subroutine setup_global
+
+
+
+
+
+
+
+
+
+
+  !##################################################################
+  !##################################################################
+  !AUXILIARY PROCEDURES - Sectors,Nup,Ndw,DimUp,DimDw,...
+  !##################################################################
+  !##################################################################
+  elemental function get_sector_dimension(n,np) result(dim)
+    integer,intent(in) :: n,np
+    integer            :: dim
+    dim = binomial(n,np)
+  end function get_sector_dimension
+
+
+  subroutine get_Sector(indices,Ns,isector)
+    integer,dimension(:) :: indices
+    integer              :: isector
+    integer              :: i,Ns,N,factor
+    N = size(indices)
+    Factor = Ns+1
+    isector = 1
+    do i=N,1,-1
+       isector = isector + indices(i)*(Factor)**(N-i)
+    enddo
+  end subroutine get_Sector
+
+
+  subroutine get_Indices(isector,Ns,indices)
+    integer                          :: isector,Ns
+    integer,dimension(:)             :: indices
+    integer                          :: i,count,Dim
+    integer,dimension(size(indices)) :: indices_
+    !
+    Dim = size(indices)
+    if(mod(Dim,2)/=0)stop "get_Indices_main error: Dim%2 != 0"
+    count=isector-1
+    do i=1,Dim
+       indices_(i) = mod(count,Ns+1)
+       count      = count/(Ns+1)
+    enddo
+    indices = indices_(Dim:1:-1)
+  end subroutine get_Indices
+
+
+  subroutine get_Nup_Main(isector,Nup)
+    integer              :: isector,Nup
+    integer              :: i,count
+    integer,dimension(2) :: indices_
+    count=isector-1
+    do i=1,2
+       indices_(i) = mod(count,Ns+1)
+       count      = count/(Ns+1)
+    enddo
+    Nup     = indices_(2)
+  end subroutine get_Nup_Main
+  subroutine get_Nup_Orbs(isector,Nup)
+    integer                   :: isector,Nup(Norb)
+    integer                   :: i,count
+    integer,dimension(2*Norb) :: indices_
+    count=isector-1
+    do i=1,2*Norb
+       indices_(i) = mod(count,Ns_Orb+1)
+       count      = count/(Ns_Orb+1)
+    enddo
+    Nup = indices_(2*Norb:Norb+1:-1)
+  end subroutine get_Nup_Orbs
+
+
+  subroutine get_Ndw_Main(isector,Ndw)
+    integer              :: isector,Ndw
+    integer              :: i,count
+    integer,dimension(2) :: indices_
+    count=isector-1
+    do i=1,2
+       indices_(i) = mod(count,Ns+1)
+       count      = count/(Ns+1)
+    enddo
+    Ndw     = indices_(1)
+  end subroutine get_Ndw_Main
+  subroutine get_Ndw_Orbs(isector,Ndw)
+    integer                   :: isector,Ndw(Norb)
+    integer                   :: i,count
+    integer,dimension(2*Norb) :: indices_
+    count=isector-1
+    do i=1,2*Norb
+       indices_(i) = mod(count,Ns_Orb+1)
+       count      = count/(Ns_Orb+1)
+    enddo
+    Ndw = indices_(Norb:1:-1)
+  end subroutine get_Ndw_Orbs
+
+
+
+  subroutine get_DimUp_main(isector,DimUp)
+    integer                :: isector,DimUp
+    integer                :: Nup
+    call get_Nup_Main(isector,Nup)
+    DimUp = binomial(Ns,Nup)
+  end subroutine get_DimUp_main
+  subroutine  get_DimUp_Orbs(isector,DimUps)
+    integer                :: isector,DimUps(Norb)
+    integer                :: Nups(Norb),iorb
+    call get_Nup_Orbs(isector,Nups)
+    do iorb=1,Norb
+       DimUps(iorb) = binomial(Ns_Orb,Nups(iorb))
+    enddo
+  end subroutine get_DimUp_Orbs
+
+
+  subroutine get_DimDw_main(isector,DimDw)
+    integer                :: isector,DimDw
+    integer                :: Ndw
+    call get_Ndw_Main(isector,Ndw)
+    DimDw = binomial(Ns,Ndw)
+  end subroutine get_DimDw_main
+  subroutine get_DimDw_Orbs(isector,DimDws)
+    integer                :: isector,DimDws(Norb)
+    integer                :: Ndws(Norb),iorb
+    call get_Ndw_Orbs(isector,Ndws)
+    do iorb=1,Norb
+       DimDws(iorb) = binomial(Ns_Orb,Ndws(iorb))
+    enddo
+  end subroutine get_DimDw_Orbs
+
+
+  subroutine get_Dim(isector,Dim)
+    integer                  :: isector,Dim
+    integer,dimension(Norb)  :: Nups,Ndws,DimUps,DimDws
+    integer                  :: Nup,Ndw,DimUp,DimDw
+    integer                  :: iorb
+    select case(ed_total_ud)
+    case (.true.)
+       call get_Indices(isector,Ns,[Nup,Ndw])
+       Dim = binomial(Ns,Nup)*binomial(Ns,Ndw)
+    case (.false.)
+       call get_Indices(isector,Ns_Orb,[Nups,Ndws])
+       Dim=1
+       do iorb=1,Norb
+          Dim = Dim*binomial(Ns_Orb,Nups(iorb))*binomial(Ns_Orb,Ndws(iorb))
+       end do
+    end select
+  end subroutine get_Dim
+
+
+
+
+  subroutine indices2state(ivec,Nvec,istate)
+    integer,dimension(:)          :: ivec
+    integer,dimension(size(ivec)) :: Nvec
+    integer                       :: istate,i
+    istate=ivec(1)
+    do i=2,size(ivec)
+       istate = istate + (ivec(i)-1)*product(Nvec(1:i-1))
+    enddo
+  end subroutine indices2state
+
+  subroutine state2indices(istate,Nvec,ivec)
+    integer                       :: istate
+    integer,dimension(:)          :: Nvec
+    integer,dimension(size(Nvec)) :: Ivec
+    integer                       :: i,count,N
+    count = istate-1
+    N     = size(Nvec)
+    do i=1,N
+       Ivec(i) = mod(count,Nvec(i))+1
+       count   = count/Nvec(i)
+    enddo
+  end subroutine state2indices
+
+
+  function iup_index(i,DimUp) result(iup)
+    integer :: i
+    integer :: DimUp
+    integer :: iup
+    iup = mod(i,DimUp);if(iup==0)iup=DimUp
+  end function iup_index
+
+
+  function idw_index(i,DimUp) result(idw)
+    integer :: i
+    integer :: DimUp
+    integer :: idw
+    idw = (i-1)/DimUp+1
+  end function idw_index
+
+
+
+  !##################################################################
+  !##################################################################
+  !BUILD SECTORS
+  !##################################################################
+  !##################################################################
+  subroutine build_sector_sresolved(isector,H)
+    integer                       :: isector
+    type(sector_map),dimension(:) :: H
+    integer                       :: Nup,Ndw
+    integer                       :: Nup_,Ndw_
+    integer                       :: DimUp,DimDw
+    integer                       :: Nups(Norb),Ndws(Norb)
+    integer                       :: Nups_(Norb),Ndws_(Norb)
+    integer                       :: DimUps(Norb),DimDws(Norb)
+    integer                       :: iup,idw
+    integer                       :: dim,N,Nh,iorb
+    !
+    N = size(H)
+    !
+    select case(ed_total_ud)
+    case (.true.)
+       if(N/=2)stop "build_sector_sresolved error: size(H) != 2"
+       call get_Nup(isector,Nup)
+       call get_Ndw(isector,Ndw)
+       call get_DimUp(isector,DimUp)
+       call get_DimDw(isector,DimDw)
+       !
+       call map_allocate(H,[DimUp,DimDw])
+       !
+       !UP    
+       dim=0
        do iup=0,2**Ns-1
           nup_ = popcnt(iup)
           if(nup_ /= nup)cycle
-          !
-          dim      = dim+1
-          H%map(dim) = iup + idw*2**Ns
+          dim  = dim+1
+          H(1)%map(dim) = iup
        enddo
-    enddo
-  end subroutine build_sector_full
-
-  subroutine delete_sector_full(isector,H)
-    integer                   :: isector
-    type(sector_map)          :: H
-    call map_deallocate(H)
-  end subroutine delete_sector_full
-
-  subroutine build_sector_sresolved(isector,H)
-    integer                       :: isector
-    type(sector_map),dimension(2) :: H
-    integer                       :: nup,ndw
-    integer                       :: nup_,ndw_
-    integer                       :: iup,idw
-    integer                       :: dim
-    !
-    nup = getNup(isector)
-    ndw = getNdw(isector)
-    !
-    call map_allocate(H,[getDimUp(isector),getDimDw(isector)])
-    !
-    !UP    
-    dim=0
-    do iup=0,2**Ns-1
-       nup_ = popcnt(iup)
-       if(nup_ /= nup)cycle
-       dim           = dim+1
-       H(1)%map(dim) = iup
-    enddo
-    !DW
-    dim=0
-    do idw=0,2**Ns-1
-       ndw_=popcnt(idw)
-       if(ndw_ /= ndw)cycle
-       dim           = dim+1
-       H(2)%map(dim) = idw
-    enddo
+       !DW
+       dim=0
+       do idw=0,2**Ns-1
+          ndw_ = popcnt(idw)
+          if(ndw_ /= ndw)cycle
+          dim  = dim+1
+          H(2)%map(dim) = idw
+       enddo
+       !
+    case (.false.)
+       if( N/=2*Norb )stop "build_sector_sresolved error: size(H) != 2*Norb"
+       !
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       call get_DimUp(isector,DimUps)
+       call get_DimDw(isector,DimDws)
+       !
+       call map_allocate(H,[DimUps,DimDws])
+       do iorb=1,Norb
+          !UP    
+          dim=0
+          do iup=0,2**Ns-1
+             nup_ = popcnt(iup)
+             if(nup_ /= Nups(iorb))cycle
+             dim  = dim+1
+             H(iorb)%map(dim) = iup
+          enddo
+          !DW
+          dim=0
+          do idw=0,2**Ns-1
+             ndw_= popcnt(idw)
+             if(ndw_ /= Ndws(iorb))cycle
+             dim = dim+1
+             H(iorb+Norb)%map(dim) = idw
+          enddo
+       enddo
+    end select
     !
   end subroutine build_sector_sresolved
 
   subroutine delete_sector_sresolved(isector,H)
     integer                   :: isector
-    type(sector_map)          :: H(2)
+    type(sector_map)          :: H(:)
     call map_deallocate(H)
   end subroutine delete_sector_sresolved
 
 
+
+
+
+
+
+
+  !##################################################################
+  !##################################################################
+  !CREATION / DESTRUCTION OPERATORS
+  !##################################################################
+  !##################################################################
   !+-------------------------------------------------------------------+
   !PURPOSE: input state |in> of the basis and calculates 
   !   |out>=C_pos|in>  OR  |out>=C^+_pos|in> ; 
@@ -515,46 +797,6 @@ contains
   end subroutine cdg
 
 
-  function iup_index(i,DimUp) result(iup)
-    integer :: i
-    integer :: DimUp
-    integer :: iup
-    iup = mod(i,DimUp);if(iup==0)iup=DimUp
-  end function iup_index
-
-  function idw_index(i,DimUp) result(idw)
-    integer :: i
-    integer :: DimUp
-    integer :: idw
-    idw = (i-1)/DimUp+1
-  end function idw_index
-  
-  ! subroutine get_ud_from_i(nup,ndw)
-  !   integer :: nup,ndw
-  !   integer :: DimUp,DimDw,Dim
-  !   integer :: isector
-  !   integer :: i,iup,idw,iup_,idw_
-  !   ! nup=2
-  !   ! ndw=3
-  !   isector = getSector(nup,ndw)
-  !   print*,isector
-  !   DimUp=getDimUp(isector)
-  !   DimDw=getDimDw(isector)
-  !   print*,DimUp,DimDw
-  !   Dim=getDim(isector)
-  !   print*,Dim,DimUp*DimDw
-  !   !
-  !   do idw=1,DimDw
-  !      do iup=1,DimUp
-  !         i = iup + (idw-1)*DimUp
-  !         iup_ = iup_index(i,DimUp)
-  !         if(iup_/=iup)stop "iup!=iup_"
-  !         idw_ = idw_index(i,DimUp)
-  !         if(idw_/=idw)stop "idw!=idw_"
-  !         print*,iup,iup_,"-",idw,idw_
-  !      enddo
-  !   enddo
-  ! end subroutine get_ud_from_i
 
 
 
@@ -567,24 +809,51 @@ contains
 
   !+------------------------------------------------------------------+
   !PURPOSE  : Build the re-ordering map to go from sector A(nup,ndw)
-  ! to its twin sector B(ndw,nup), with nup!=ndw. 
+  ! to its twin sector B(ndw,nup), with nup!=ndw.
+  !
+  !- build the map from the A-sector to \HHH
+  !- get the list of states in \HHH corresponding to sector B twin of A
+  !- return the ordering of B-states in \HHH with respect to those of A
   !+------------------------------------------------------------------+
   subroutine twin_sector_order(isector,order)
-    integer                          :: isector
-    integer,dimension(:)             :: order
-    type(sector_map)                 :: H,Hup,Hdw
-    integer                          :: i,dim
+    integer                   :: isector
+    integer,dimension(:)      :: order
+    integer                   :: Dim
+    integer                   :: DimUp,DimDw
+    integer,dimension(Norb)   :: DimUps,DimDws
+    type(sector_map)          :: H(2),HI(2*Norb)
+    integer                   :: i,iorb
+    integer,dimension(2*Norb) :: Indices,Istates
+    integer                   :: iup,idw
+    !
     dim = getdim(isector)
     if(size(Order)/=dim)stop "twin_sector_order error: wrong dimensions of *order* array"
-    !- build the map from the A-sector to \HHH
-    !- get the list of states in \HHH corresponding to sector B twin of A
-    !- return the ordering of B-states in \HHH with respect to those of A
-    call build_sector(isector,H)!up,Hdw)
-    do i=1,dim
-       Order(i)=flip_state(H%map(i))!flip_state(Hup%map(i),Hdw%map(i))
-    enddo
+    select case(ed_total_ud)
+    case (.true.)
+       call get_DimUp(isector,DimUp)
+       call get_DimDw(isector,DimDw)
+       call build_sector(isector,H)
+       do idw=1,DimDw
+          do iup=1,DimUp
+             i = iup + (idw-1)*DimUp
+             Order(i) = flip_state( [H(1)%map(iup), H(2)%map(idw)] )
+          enddo
+       enddo
+       call delete_sector(isector,H)
+       !
+    case (.false.)
+       call get_DimUp(isector,DimUps)
+       call get_DimDw(isector,DimDws)
+       call build_sector(isector,HI)
+       do i=1,Dim
+          call state2indices(i,[DimUps,DimDws],Indices)
+          forall(iorb=1:2*Norb)Istates(iorb) = HI(iorb)%map(Indices(iorb))
+          Order(i) = flip_state( Istates )
+       enddo
+       call delete_sector(isector,HI)
+    end select
+    !
     call sort_array(Order)
-    deallocate(H%map)!deallocate(Hup%map,Hdw%map)
     !
   end subroutine twin_sector_order
 
@@ -595,18 +864,27 @@ contains
   !
   ! normal: j=|{dw}>|{up}>  , nup --> ndw
   !+------------------------------------------------------------------+
-  function flip_state(m,n) result(j)
-    integer          :: m
-    integer,optional :: n
-    integer          :: j
-    integer          :: ivec(2*Ns),foo(2*Ns),ivup(Ns),ivdw(Ns)
-    ! Ivup = bdecomp(m,Ns)
-    ! Ivdw = bdecomp(n,Ns)
-    Ivec = bdecomp(m,2*Ns)
-    foo(1:Ns)     =Ivec(Ns+1:2*Ns)!Ivdw
-    foo(Ns+1:2*Ns)=Ivec(1:Ns)     !Ivup
+  function flip_state(istate) result(j)
+    integer,dimension(:)      :: istate
+    integer                   :: j
+    integer,dimension(Norb)   :: jups,jdws
+    integer,dimension(2*Norb) :: dims
+    integer                   :: iup,idw
+    integer                   :: jup,jdw
     !
-    j = bjoin(foo,2*Ns)
+    select case (ed_total_ud)
+    case (.true.)
+       if(size(istate)/=2)stop "flip_state error: size(istate)!=2"
+       jup = istate(2)!idw
+       jdw = istate(1)!iup
+       j   = jup + (jdw-1)*2**Ns
+    case (.false.)
+       if(size(istate)/=2*Norb)stop "flip_state error: size(istate)!= 2*Norb"
+       jups = istate(Norb+1:2*Norb)
+       jdws = istate(1:Norb)
+       dims = 2**Ns_Orb
+       call indices2state([jups,jdws],Dims,j)
+    end select
     !
   end function flip_state
 
@@ -615,16 +893,22 @@ contains
   !PURPOSE  : get the twin of a given sector (the one with opposite 
   ! quantum numbers): 
   ! nup,ndw ==> ndw,nup (spin-exchange)
-  ! sz      ==> -sz     (total spin flip)
-  ! n       ==> 2*Ns-n  (particle hole)
   !+------------------------------------------------------------------+
   function get_twin_sector(isector) result(jsector)
     integer,intent(in) :: isector
-    integer :: jsector
-    integer :: iup,idw,in,isz
-    iup=getnup(isector)
-    idw=getndw(isector)
-    jsector=getsector(idw,iup)
+    integer            :: jsector
+    integer            :: iup,idw
+    integer,dimension(Norb) :: Iups,Idws
+    select case(ed_total_ud)
+    case (.true.)
+       call get_Nup(isector,iup)
+       call get_Ndw(isector,idw)
+       call get_Sector([idw,iup],Ns,jsector)
+    case (.false.)
+       call get_Nup(isector,iups)
+       call get_Ndw(isector,idws)
+       call get_Sector([idws,iups],Ns_Orb,jsector)
+    end select
   end function get_twin_sector
 
 
@@ -696,9 +980,10 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE  : calculate the binomial factor n1 over n2
   !+------------------------------------------------------------------+
-  function binomial(n1,n2) result(nchoos)
-    real(8) :: xh
-    integer :: n1,n2,i
+  elemental function binomial(n1,n2) result(nchoos)
+    integer,intent(in) :: n1,n2
+    real(8)            :: xh
+    integer            :: i
     integer nchoos
     xh = 1.d0
     if(n2<0) then
@@ -738,6 +1023,10 @@ contains
        bsresult = mid      ! SUCCESS!!
     end if
   end function binary_search
+
+
+
+
 
 
 
@@ -801,66 +1090,133 @@ contains
 
 
 
-  !+------------------------------------------------------------------+
-  !PURPOSE  : print a state vector |{up}>|{dw}>
-  !+------------------------------------------------------------------+
-  subroutine print_state_vector_ivec(ivec,unit)
-    integer,intent(in) :: ivec(:)
-    integer,optional   :: unit
-    integer            :: unit_
-    integer            :: i,j,Ntot
-    character(len=2)   :: fbt
-    character(len=16)  :: fmt
-    unit_=6;if(present(unit))unit_=unit
-    Ntot = size(ivec)
-    write(fbt,'(I2.2)')Ntot
-    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-    i= bjoin(ivec,Ntot)
-    write(unit_,"(I9,1x,A1)",advance="no")i,"|"
-    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-    write(unit_,"(A4)",advance="no")"> - "
-    write(unit_,fmt,advance="yes")i
-  end subroutine print_state_vector_ivec
-  !
-  subroutine  print_state_vector_ivec_ud(ivec,jvec,unit)
-    integer,intent(in) :: ivec(:),jvec(size(ivec))
-    integer,optional   :: unit
-    integer            :: unit_
-    integer            :: i,j,iup,idw,Ntot
-    character(len=2)   :: fbt
-    character(len=20)  :: fmt
-    unit_=6;if(present(unit))unit_=unit
-    Ntot = size(ivec)
-    write(fbt,'(I2.2)')Ntot
-    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//",1x,B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-    iup = bjoin(ivec,Ntot)
-    idw = bjoin(jvec,Ntot)
-    i = bjoin([ivec,jvec],2*Ntot)
-    write(unit_,"(I9,1x,I4,1x,A1)",advance="no")i,iup,"|"
-    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-    write(unit_,"(A1,I4,A2)",advance="no")">",idw," |"
-    write(unit_,"(10I1)",advance="no")(jvec(j),j=1,Ntot)
-    write(unit_,"(A4)",advance="no")"> - "
-    write(unit_,fmt,advance="yes")ibits(i,0,Ntot),ibits(i,Ntot,2*Ntot)
-  end subroutine print_state_vector_ivec_ud
-  !
-  subroutine print_state_vector_int(i,Ntot,unit)
-    integer,intent(in) :: i
-    integer,intent(in) :: Ntot
-    integer,optional   :: unit
-    integer            :: unit_
-    integer            :: j
-    integer            :: ivec(Ntot)
-    character(len=2)   :: fbt
-    character(len=16)  :: fmt
-    unit_=6;if(present(unit))unit_=unit
-    write(fbt,'(I2.2)')Ntot
-    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-    ivec = bdecomp(i,Ntot)
-    write(unit_,"(I9,1x,A1)",advance="no")i,"|"
-    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-    write(unit_,"(A4)",advance="no")"> - "
-    write(unit_,fmt,advance="yes")i
-  end subroutine print_state_vector_int
-
 end MODULE ED_SETUP
+
+
+
+
+
+
+
+! interface print_state_vector
+!    module procedure print_state_vector_ivec
+!    module procedure print_state_vector_ivec_ud
+!    module procedure print_state_vector_int
+! end interface print_state_vector
+
+
+! !+------------------------------------------------------------------+
+! !PURPOSE  : print a state vector |{up}>|{dw}>
+! !+------------------------------------------------------------------+
+! subroutine print_state_vector_ivec(ivec,unit)
+!   integer,intent(in) :: ivec(:)
+!   integer,optional   :: unit
+!   integer            :: unit_
+!   integer            :: i,j,Ntot
+!   character(len=2)   :: fbt
+!   character(len=16)  :: fmt
+!   unit_=6;if(present(unit))unit_=unit
+!   Ntot = size(ivec)
+!   write(fbt,'(I2.2)')Ntot
+!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+!   i= bjoin(ivec,Ntot)
+!   write(unit_,"(I9,1x,A1)",advance="no")i,"|"
+!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+!   write(unit_,"(A4)",advance="no")"> - "
+!   write(unit_,fmt,advance="yes")i
+! end subroutine print_state_vector_ivec
+! !
+! subroutine  print_state_vector_ivec_ud(ivec,jvec,unit)
+!   integer,intent(in) :: ivec(:),jvec(size(ivec))
+!   integer,optional   :: unit
+!   integer            :: unit_
+!   integer            :: i,j,iup,idw,Ntot
+!   character(len=2)   :: fbt
+!   character(len=20)  :: fmt
+!   unit_=6;if(present(unit))unit_=unit
+!   Ntot = size(ivec)
+!   write(fbt,'(I2.2)')Ntot
+!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//",1x,B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+!   iup = bjoin(ivec,Ntot)
+!   idw = bjoin(jvec,Ntot)
+!   i = bjoin([ivec,jvec],2*Ntot)
+!   write(unit_,"(I9,1x,I4,1x,A1)",advance="no")i,iup,"|"
+!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+!   write(unit_,"(A1,I4,A2)",advance="no")">",idw," |"
+!   write(unit_,"(10I1)",advance="no")(jvec(j),j=1,Ntot)
+!   write(unit_,"(A4)",advance="no")"> - "
+!   write(unit_,fmt,advance="yes")ibits(i,0,Ntot),ibits(i,Ntot,2*Ntot)
+! end subroutine print_state_vector_ivec_ud
+! !
+! subroutine print_state_vector_int(i,Ntot,unit)
+!   integer,intent(in) :: i
+!   integer,intent(in) :: Ntot
+!   integer,optional   :: unit
+!   integer            :: unit_
+!   integer            :: j
+!   integer            :: ivec(Ntot)
+!   character(len=2)   :: fbt
+!   character(len=16)  :: fmt
+!   unit_=6;if(present(unit))unit_=unit
+!   write(fbt,'(I2.2)')Ntot
+!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+!   ivec = bdecomp(i,Ntot)
+!   write(unit_,"(I9,1x,A1)",advance="no")i,"|"
+!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+!   write(unit_,"(A4)",advance="no")"> - "
+!   write(unit_,fmt,advance="yes")i
+! end subroutine print_state_vector_int
+
+
+
+
+
+
+
+! getCsector=0
+! do isector=1,Nsectors
+!    call get_Nup(isector,Nup)
+!    call get_Ndw(isector,Ndw)
+!    !
+!    jup=nup-1; jdw=ndw; if(jup < 0)cycle
+!    !
+!    call get_Sector([jup,jdw],Ns,jsector)
+!    getCsector(1,1,isector)=jsector
+! enddo
+! !
+! !
+! !
+! do isector=1,Nsectors
+!    call get_Nup(isector,Nup)
+!    call get_Ndw(isector,Ndw)
+!    !
+!    jup=nup;jdw=ndw-1;if(jdw < 0)cycle
+!    !
+!    call get_Sector([jup,jdw],Ns,jsector)
+!    getCsector(1,2,isector)=jsector
+! enddo
+! !
+! !
+! !
+! getCDGsector=0
+! do isector=1,Nsectors
+!    call get_Nup(isector,Nup)
+!    call get_Ndw(isector,Ndw)
+!    !
+!    jup=nup+1;jdw=ndw;if(jup > Ns)cycle
+!    !
+!    call get_Sector([jup,jdw],Ns,jsector)
+!    getCDGsector(1,1,isector)=jsector
+! enddo
+! !
+! !
+! !
+! do isector=1,Nsectors
+!    call get_Nup(isector,Nup)
+!    call get_Ndw(isector,Ndw)
+!    !
+!    jup=nup;jdw=ndw+1;if(jdw > Ns)cycle
+!    !
+!    call get_Sector([jup,jdw],Ns,jsector)
+!    getCDGsector(1,2,isector)=jsector
+! enddo

@@ -23,13 +23,23 @@ contains
     do iorb=1,Norb
        write(LOGfile,"(A)")"Get Chi_spin_l"//reg(txtfy(iorb))
        if(MPI_MASTER)call start_timer()
-       call lanc_ed_build_spinChi_c(iorb)
+       select case (ed_total_ud)
+       case (.true.)
+          call lanc_ed_build_spinChi_main(iorb)
+       case (.false.)
+          call lanc_ed_build_spinChi_orbs(iorb)
+       end select
        if(MPI_MASTER)call stop_timer(LOGfile)
     enddo
     if(Norb>1)then
        write(LOGfile,"(A)")"Get Chi_spin_tot"
        if(MPI_MASTER)call start_timer()
-       call lanc_ed_build_spinChi_tot_c()
+       select case (ed_total_ud)
+       case (.true.)
+          call lanc_ed_build_spinChi_tot_main()
+       case (.false.)
+          call lanc_ed_build_spinChi_tot_orbs()
+       end select
        if(MPI_MASTER)call stop_timer(LOGfile)
     endif
     spinChi_tau = SpinChi_tau/zeta_function
@@ -52,13 +62,12 @@ contains
 
 
 
-  subroutine lanc_ed_build_spinChi_c(iorb)
+  subroutine lanc_ed_build_spinChi_main(iorb)
     integer                :: iorb,isite,isector,istate
     integer                :: numstates
     integer                :: nlanc
     integer                :: isign
     integer                :: idim,idimUP,idimDW
-    integer                :: jdim,jdimUP,jdimDW
     integer                :: nup(Ns),ndw(Ns)
     integer                :: m,i,j,r
     integer                :: iup,idw,jup,jdw,mup,mdw
@@ -71,9 +80,8 @@ contains
     !
     !
     do istate=1,state_list%size
-       isector     =  es_return_sector(state_list,istate)
+       isector    =  es_return_sector(state_list,istate)
        state_e    =  es_return_energy(state_list,istate)
-       ! state_cvec => es_return_cvector(state_list,istate)
 #ifdef _MPI
        if(MpiStatus)then
           state_cvec => es_return_cvector(MpiComm,state_list,istate)
@@ -85,12 +93,12 @@ contains
 #endif
        !
        !
-       idim    = getdim(isector)
-       idimUp  = getDimUp(isector)
-       idimDw  = getDimDw(isector)
+       idim = getdim(isector)
+       call get_DimUp(isector,iDimUp)
+       call get_DimDw(isector,iDimDw)
        call build_sector(isector,HI)
        !
-       if(ed_verbose==3)write(LOGfile,"(A,2I3)")'Apply Sz:',getnup(isector),getndw(isector)
+       if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply Sz:',isector
        !
        allocate(vvinit(idim));vvinit=0.d0
        do iup=1,idimUP
@@ -113,7 +121,7 @@ contains
        norm2=dot_product(vvinit,vvinit)
        vvinit=vvinit/sqrt(norm2)
        !
-       nlanc=min(jdim,lanc_nGFiter)
+       nlanc=min(idim,lanc_nGFiter)
        allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
@@ -137,7 +145,95 @@ contains
        nullify(state_cvec)
     enddo
     return
-  end subroutine lanc_ed_build_spinChi_c
+  end subroutine lanc_ed_build_spinChi_main
+
+
+  subroutine lanc_ed_build_spinChi_orbs(iorb)
+    integer                        :: iorb,isite,isector,istate
+    integer                        :: numstates
+    integer                        :: nlanc
+    integer                        :: isign
+    integer,dimension(2*Norb)      :: Indices
+    integer,dimension(Norb)        :: iDimUps,iDimDws
+    integer                        :: idim
+    integer                        :: nup(Ns_Orb),ndw(Ns_Orb)
+    integer                        :: m,i,j,r
+    integer                        :: iup,idw,jup,jdw,mup,mdw
+    real(8)                        :: norm2,sgn
+    real(8),allocatable            :: alfa_(:),beta_(:)
+    complex(8),allocatable         :: vvinit(:)
+    integer                        :: Nitermax
+    type(sector_map)               :: HI(2*Norb)    !map of the Sector S to Hilbert space H
+    !
+    !
+    !
+    do istate=1,state_list%size
+       isector    =  es_return_sector(state_list,istate)
+       state_e    =  es_return_energy(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          state_cvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       state_cvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       !
+       idim = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       call build_sector(isector,HI)
+       !
+       if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply Sz:',isector
+       !
+       allocate(vvinit(idim));vvinit=0.d0
+       do i=1,iDim
+          call state2indices(i,[iDimUps,iDimDws],Indices)
+          iup = Indices(iorb)
+          idw = Indices(Norb+iorb)
+          !
+          mup = HI(iorb)%map(iup)
+          nup = bdecomp(mup,Ns_Orb)
+          !
+          mdw = HI(Norb+iorb)%map(idw)
+          ndw = bdecomp(mdw,Ns_Orb)
+          !
+          sgn = nup(1)-ndw(1)
+          !
+          vvinit(i) = 0.5d0*sgn*state_cvec(i)   !build the cdg_up|gs> state
+       enddo
+       call delete_sector(isector,HI)
+       !
+       norm2=dot_product(vvinit,vvinit)
+       vvinit=vvinit/sqrt(norm2)
+       !
+       nlanc=min(idim,lanc_nGFiter)
+       allocate(alfa_(nlanc),beta_(nlanc))
+       !
+       call build_Hv_sector(isector)
+#ifdef _MPI
+       if(MpiStatus)then
+          call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
+       else
+          call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+       endif
+#else
+       call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+#endif
+       !particles
+       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
+       !holes
+       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,-1,iorb)
+       !
+       call delete_Hv_sector()
+       !
+       deallocate(vvinit,alfa_,beta_)
+       nullify(state_cvec)
+    enddo
+    return
+  end subroutine lanc_ed_build_spinChi_orbs
 
 
 
@@ -149,13 +245,12 @@ contains
 
 
 
-  subroutine lanc_ed_build_spinChi_tot_c()
+  subroutine lanc_ed_build_spinChi_tot_main()
     integer                :: iorb,isite,isector,istate
     integer                :: numstates
     integer                :: nlanc
     integer                :: isign
     integer                :: idim,idimUP,idimDW
-    integer                :: jdim,jdimUP,jdimDW
     integer                :: nup(Ns),ndw(Ns)
     integer                :: m,i,j,r
     integer                :: iup,idw,jup,jdw,mup,mdw
@@ -182,11 +277,11 @@ contains
        !
        !
        idim  = getdim(isector)
-       idimUp  = getDimUp(isector)
-       idimDw  = getDimDw(isector)
+       call get_DimUp(isector,iDimUp)
+       call get_DimDw(isector,iDimDw)
        call build_sector(isector,HI)
        !
-       if(ed_verbose==3)write(LOGfile,"(A,2I3)")'Apply Sz:',getnup(isector),getndw(isector)
+       if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Sz:',isector
        !
        allocate(vvinit(idim));vvinit=0.d0
        do iup=1,idimUP
@@ -210,7 +305,7 @@ contains
        norm2=dot_product(vvinit,vvinit)
        vvinit=vvinit/sqrt(norm2)
        !
-       nlanc=min(jdim,lanc_nGFiter)
+       nlanc=min(idim,lanc_nGFiter)
        allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
@@ -234,8 +329,91 @@ contains
        nullify(state_cvec)
     enddo
     return
-  end subroutine lanc_ed_build_spinChi_tot_c
+  end subroutine lanc_ed_build_spinChi_tot_main
 
+  subroutine lanc_ed_build_spinChi_tot_orbs()
+    integer                          :: iorb,isite,isector,istate
+    integer                          :: numstates
+    integer                          :: nlanc
+    integer                          :: isign
+    integer,dimension(2*Norb)        :: Indices,Mstates
+    integer,dimension(2*Norb,Ns_Orb) :: Nstates
+    integer,dimension(Norb)          :: iDimUps,iDimDws
+    integer                          :: idim,idimUP,idimDW
+    integer                          :: nup(Norb),ndw(Norb)
+    integer                          :: m,i,j,r
+    integer                          :: iup,idw,jup,jdw,mup,mdw
+    real(8)                          :: norm2,sgn,Sup,Sdw
+    real(8),allocatable              :: alfa_(:),beta_(:)
+    complex(8),allocatable           :: vvinit(:)
+    integer                          :: Nitermax
+    type(sector_map)                 :: HI(2*Norb)    !map of the Sector S to Hilbert space H
+    !
+    !
+    do istate=1,state_list%size
+       isector     =  es_return_sector(state_list,istate)
+       state_e    =  es_return_energy(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          state_cvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       state_cvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       !
+       idim  = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       call build_sector(isector,HI)
+       !
+       if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Sz:',isector
+       !
+       allocate(vvinit(idim));vvinit=0.d0
+       do i=1,iDim
+          call state2indices(i,[iDimUps,iDimDws],Indices)
+          do iorb=1,2*Norb
+             Mstates(iorb)   = HI(iorb)%map(Indices(iorb))
+             Nstates(iorb,:) = bdecomp(Mstates(iorb),Ns_Orb)
+          enddo
+          !
+          Sup = sum(Nstates(1:Norb,1))
+          Sdw = sum(Nstates(Norb+1:2*Norb,1))
+          sgn = Sup - Sdw
+          vvinit(m) = 0.5d0*sgn*state_cvec(m) 
+       enddo
+       call delete_sector(isector,HI)
+       !
+       norm2=dot_product(vvinit,vvinit)
+       vvinit=vvinit/sqrt(norm2)
+       !
+       nlanc=min(idim,lanc_nGFiter)
+       allocate(alfa_(nlanc),beta_(nlanc))
+       !
+       call build_Hv_sector(isector)
+#ifdef _MP
+       if(MpiStatus)then
+          call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
+       else
+          call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+       endif
+#else
+       call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+#endif
+       !particles
+       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,Norb+1)
+       !holes
+       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,-1,Norb+1)
+       !
+       call delete_Hv_sector()
+       !
+       deallocate(vvinit,alfa_,beta_)
+       nullify(state_cvec)
+    enddo
+    return
+  end subroutine lanc_ed_build_spinChi_tot_orbs
 
 
 

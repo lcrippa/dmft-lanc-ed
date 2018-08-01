@@ -93,7 +93,7 @@ contains
     call get_dmft_bath(dmft_bath,bath)
     !
     if(isetup)then
-       call setup_pointers
+       call setup_global
     endif
     call deallocate_dmft_bath(dmft_bath)
     isetup=.false.
@@ -135,7 +135,7 @@ contains
     call get_dmft_bath(dmft_bath,bath)
     !
     if(isetup)then
-       call setup_pointers
+       call setup_global
     endif
     call deallocate_dmft_bath(dmft_bath)
     isetup=.false.
@@ -265,12 +265,16 @@ contains
     case (.true.)
        select case (ed_sparse_format)
        case default
-          spHtimesV_cc => spMatVec_cc
+          if(ed_total_ud)then
+             spHtimesV_cc => spMatVec_main
+          else
+             spHtimesV_cc => spMatVec_orbs
+          end if
        case ("ELL")
-          spHtimesV_cc => dpMatVec_cc
+          spHtimesV_cc => dpMatVec_main
        end select
     case (.false.)
-       spHtimesV_cc => directMatVec_cc
+       spHtimesV_cc => directMatVec_main
     end select
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
@@ -316,12 +320,17 @@ contains
     case (.true.)
        select case (ed_sparse_format)
        case default
-          spHtimesV_cc => spMatVec_MPI_cc
+          if(ed_total_ud)then
+             spHtimesV_cc => spMatVec_MPI_main
+          else
+             stop "ed_solve_single_mpi error: ed_total_ud=F and MPI=T is not supported"
+             ! spHtimesV_cc => spMatVec_MPI_orbs
+          end if
        case ("ELL")
-          spHtimesV_cc => dpMatVec_MPI_cc
+          spHtimesV_cc => dpMatVec_MPI_main
        end select
     case (.false.)
-       spHtimesV_cc => directMatVec_MPI_cc
+       spHtimesV_cc => directMatVec_MPI_main
     end select
     !
     !SET THE LOCAL COMMUNICATORS IN ALL THE RELEVANT PARTS OF THE CODE:
