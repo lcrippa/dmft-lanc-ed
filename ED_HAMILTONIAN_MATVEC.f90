@@ -527,7 +527,6 @@ contains
     complex(8),dimension(:,:),optional     :: Hmat
     complex(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
     integer,dimension(2*Norb)              :: Indices
-    integer,dimension(Norb)                :: Mups,Mdws
     integer,dimension(Norb,Ns_Orb)         :: Nups,Ndws
     integer,dimension(Norb)                :: Nup,Ndw
     integer,dimension(Ns_Orb)              :: Ibup,Ibdw

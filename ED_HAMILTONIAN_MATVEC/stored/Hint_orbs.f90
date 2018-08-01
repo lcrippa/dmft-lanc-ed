@@ -1,11 +1,11 @@
   do i=1,Dim
      call state2indices(i,[DimUps,DimDws],Indices)
      do iorb=1,Norb
-        Mups(iorb) = Hs(iorb)%map(Indices(iorb))
-        Mdws(iorb) = Hs(Norb+iorb)%map(Indices(Norb+iorb))
+        mup = Hs(iorb)%map(Indices(iorb))
+        mdw = Hs(Norb+iorb)%map(Indices(Norb+iorb))
         !
-        Nups(iorb,:) = Bdecomp(Mups(iorb),Ns_Orb)
-        Ndws(iorb,:) = Bdecomp(Mdws(iorb),Ns_Orb)
+        Nups(iorb,:) = Bdecomp(mup,Ns_Orb)
+        Ndws(iorb,:) = Bdecomp(mdw,Ns_Orb)
         !
         Nup(iorb) = Nups(iorb,1)
         Ndw(iorb) = Ndws(iorb,1)

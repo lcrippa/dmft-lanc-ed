@@ -323,7 +323,8 @@ contains
           if(ed_total_ud)then
              spHtimesV_cc => spMatVec_MPI_main
           else
-             stop "ed_solve_single_mpi error: ed_total_ud=F and MPI=T is not supported"
+             spHtimesV_cc => spMatVec_orbs
+             ! stop "ed_solve_single_mpi error: ed_total_ud=F and MPI=T is not supported"
              ! spHtimesV_cc => spMatVec_MPI_orbs
           end if
        case ("ELL")

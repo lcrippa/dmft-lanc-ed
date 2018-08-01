@@ -110,7 +110,7 @@ contains
     real(8)                :: oldzero,enemin,Ei
     real(8),allocatable    :: eig_values(:)
     complex(8),allocatable :: eig_basis(:,:)
-    logical                :: lanc_solve,Tflag,lanc_verbose
+    logical                :: lanc_solve,Tflag,lanc_verbose,bool
     !
     if(state_list%status)call es_delete_espace(state_list)
     state_list=es_init_espace()
@@ -134,6 +134,13 @@ contains
           call get_Ndw(isector,ndw)
           Tflag = Tflag.AND.(nup/=ndw)
        case (.false.)
+          call get_Nup(isector,nups)
+          call get_Ndw(isector,ndws)
+          bool=.true.
+          do i=1,Norb
+             Bool=Bool.AND.(nups(i)/=ndws(i))
+          enddo
+          Tflag=Tflag.AND.Bool
           !no nothing for the time being
        end select
        Dim      = getdim(isector)
@@ -326,7 +333,7 @@ contains
              Egs     = es_return_energy(state_list,istate)
              call get_Nup(isector,Nups)
              call get_Ndw(isector,Ndws)
-             write(LOGfile,"(A,F20.12,2I4)")'Egs =',Egs,nups,ndws
+             write(LOGfile,"(A,F20.12,"//str(Norb)//"I4,"//str(Norb)//"I4)")'Egs =',Egs,nups,ndws
           enddo
        end select
        write(LOGfile,"(A,F20.12)")'Z   =',zeta_function
@@ -432,7 +439,7 @@ contains
              write(unit,"(2I4)")Indices(1:2)
           else
              call get_Indices(isector,Ns_Orb,Indices)
-             write(unit,"(10I4)")Indices
+             write(unit,"("//str(2*Norb)//"I4)")Indices
           endif
        enddo
     endif
@@ -474,7 +481,7 @@ contains
           write(unit,"(I9,2I6)")isector,Indices(1:2)
        else
           call get_Indices(isector,Ns_Orb,Indices)
-          write(unit,"(I9,10I6)")isector,Indices
+          write(unit,"(I9,"//str(2*Norb)//"I6)")isector,Indices
        endif
        do i=1,size(eig_values)
           write(unit,*)eig_values(i)

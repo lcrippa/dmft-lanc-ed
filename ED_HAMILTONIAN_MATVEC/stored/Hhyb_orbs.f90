@@ -7,8 +7,8 @@
         !
         do kp=1,Nbath
            alfa=1+kp
-           if( (diag_hybr(1,iorb,kp)/=0d0) .AND. (ibup(iorb)==1) .AND. (ibup(alfa)==0) )then              
-              call c(iorb,mup,k1,sg1)
+           if( (diag_hybr(1,iorb,kp)/=0d0) .AND. (ibup(1)==1) .AND. (ibup(alfa)==0) )then              
+              call c(1,mup,k1,sg1)
               call cdg(alfa,k1,k2,sg2)
               jup = binary_search(Hs(iorb)%map,k2)
               htmp = diag_hybr(1,iorb,kp)*sg1*sg2
@@ -17,9 +17,9 @@
               !
            endif
            !
-           if( (diag_hybr(1,iorb,kp)/=0d0) .AND. (ibup(iorb)==0) .AND. (ibup(alfa)==1) )then
+           if( (diag_hybr(1,iorb,kp)/=0d0) .AND. (ibup(1)==0) .AND. (ibup(alfa)==1) )then
               call c(alfa,mup,k1,sg1)
-              call cdg(iorb,k1,k2,sg2)
+              call cdg(1,k1,k2,sg2)
               jup=binary_search(Hs(iorb)%map,k2)
               htmp = diag_hybr(1,iorb,kp)*sg1*sg2
               !
@@ -37,8 +37,8 @@
         !
         do kp=1,Nbath
            alfa=1+kp
-           if( (diag_hybr(Nspin,iorb,kp)/=0d0) .AND. (ibdw(iorb)==1) .AND. (ibdw(alfa)==0) )then
-              call c(iorb,mdw,k1,sg1)
+           if( (diag_hybr(Nspin,iorb,kp)/=0d0) .AND. (ibdw(1)==1) .AND. (ibdw(alfa)==0) )then
+              call c(1,mdw,k1,sg1)
               call cdg(alfa,k1,k2,sg2)
               jdw=binary_search(Hs(iorb+Norb)%map,k2)
               htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
@@ -46,9 +46,9 @@
               call sp_insert_element(spH0dws(iorb),htmp,idw,jdw)
               !
            endif
-           if( (diag_hybr(Nspin,iorb,kp)/=0d0) .AND. (ibdw(iorb)==0) .AND. (ibdw(alfa)==1) )then
+           if( (diag_hybr(Nspin,iorb,kp)/=0d0) .AND. (ibdw(1)==0) .AND. (ibdw(alfa)==1) )then
               call c(alfa,mdw,k1,sg1)
-              call cdg(iorb,k1,k2,sg2)
+              call cdg(1,k1,k2,sg2)
               jdw=binary_search(Hs(Norb+iorb)%map,k2)
               htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !

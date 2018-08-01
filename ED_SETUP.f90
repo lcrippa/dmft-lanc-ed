@@ -299,7 +299,7 @@ contains
     integer                          :: i,iorb
     integer                          :: isector,jsector
     integer                          :: unit,status,istate
-    logical                          :: IOfile
+    logical                          :: IOfile,Bool
     integer                          :: list_len
     integer,dimension(:),allocatable :: list_sector
     !
@@ -376,14 +376,23 @@ contains
              call get_Ndw(isector,Ndw)
              if(nup<ndw)twin_mask(isector)=.false.
           enddo
-          write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
           !
        case (.false.)
-          write(LOGfile,"(A)")"Warning: ed_twin=T AND ed_total_ud=F are incompatible at the moment. set to F"
-          ed_twin=.false.
-          call sleep(2)
+          do isector=1,Nsectors
+             call get_Nup(isector,Nups)
+             call get_Ndw(isector,Ndws)
+             Bool=.true.
+             do iorb=1,Norb
+                Bool=Bool.AND.(Nups(iorb)<Ndws(iorb))                
+             enddo
+             if(Bool)twin_mask(isector)=.false.
+          enddo
+          ! write(LOGfile,"(A)")"Warning: ed_twin=T AND ed_total_ud=F are incompatible at the moment. set to F"
+          ! ed_twin=.false.
+          ! call sleep(2)
           !
        end select
+       write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
     endif
     !
     do iorb=1,Norb
@@ -726,7 +735,7 @@ contains
        do iorb=1,Norb
           !UP    
           dim=0
-          do iup=0,2**Ns-1
+          do iup=0,2**Ns_Orb-1
              nup_ = popcnt(iup)
              if(nup_ /= Nups(iorb))cycle
              dim  = dim+1
@@ -734,7 +743,7 @@ contains
           enddo
           !DW
           dim=0
-          do idw=0,2**Ns-1
+          do idw=0,2**Ns_Orb-1
              ndw_= popcnt(idw)
              if(ndw_ /= Ndws(iorb))cycle
              dim = dim+1
