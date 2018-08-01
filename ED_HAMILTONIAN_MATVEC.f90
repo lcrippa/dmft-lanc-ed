@@ -133,38 +133,6 @@ contains
   !####################################################################
   subroutine build_Hv_sector(isector,Hmat)
     integer                            :: isector,SectorDim
-    complex(8),dimension(:,:),optional :: Hmat
-    select case (ed_total_ud)
-    case (.true.)
-       if(present(Hmat))then
-          call build_Hv_sector_main(isector,Hmat)
-       else
-          call build_Hv_sector_main(isector)
-       endif
-    case (.false.)
-       if(present(Hmat))then
-          call build_Hv_sector_orbs(isector,Hmat)
-       else
-          call build_Hv_sector_orbs(isector)
-       endif
-    end select
-  end subroutine build_Hv_sector
-
-
-  subroutine delete_Hv_sector()
-    select case (ed_total_ud)
-    case (.true.)
-       call delete_Hv_sector_main()
-    case (.false.)
-       call delete_Hv_sector_orbs()
-    end select
-  end subroutine delete_Hv_sector
-
-
-
-
-  subroutine build_Hv_sector_main(isector,Hmat)
-    integer                            :: isector,SectorDim
     complex(8),dimension(:,:),optional :: Hmat   
     integer                            :: irank
     integer                            :: i,iup,idw
@@ -174,11 +142,15 @@ contains
     Hstatus=.true.
     !
     !
-    allocate(Hs(2))
+    allocate(Hs(2*Ns_Ud))
+    allocate(DimUps(Ns_Ud))
+    allocate(DimDws(Ns_Ud))
     call build_sector(isector,Hs)
     !
-    call get_DimUp(isector,DimUp)
-    call get_DimDw(isector,DimDw)
+    call get_DimUp(isector,DimUps)
+    call get_DimDw(isector,DimDws)
+    DimUp = product(DimUps)
+    DimDw = product(DimDws)
     Dim = getDim(isector)
     !
     !FULL:
@@ -263,115 +235,107 @@ contains
        if(iup > map_last_state_up(idw) ) map_last_state_up(idw)  = iup
     enddo
     !
-    if(present(Hmat))then
-       if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
-       if(ed_sparse_format=="ELL")call ed_dryrunH_main(isector)
-       call ed_buildh_main(isector,Hmat)
-       return
-    endif
     !
-    select case (ed_sparse_H)
+    !
+    select case (ed_total_ud)
     case (.true.)
-       if(ed_sparse_format=="ELL")call ed_dryrunH_main(isector)
-       call ed_buildh_main(isector)
+       if(present(Hmat))then
+          if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
+          if(ed_sparse_format=="ELL")call ed_dryrunH_main(isector)
+          call ed_buildh_main(isector,Hmat)
+          return
+       endif
+       !
+       select case (ed_sparse_H)
+       case (.true.)
+          if(ed_sparse_format=="ELL")call ed_dryrunH_main(isector)
+          call ed_buildh_main(isector)
+       case (.false.)
+          !nothing to be done
+       end select
+       !
     case (.false.)
-       !nothing to be done
-    end select
-    !
-  end subroutine build_Hv_sector_main
-
-
-
-  subroutine build_Hv_sector_orbs(isector,Hmat)
-    integer                            :: isector,SectorDim
-    complex(8),dimension(:,:),optional :: Hmat   
-    integer                            :: irank
-    integer                            :: i,iup,idw
-    integer                            :: j,jup,jdw
-    !
-    Hsector=isector
-    Hstatus=.true.
-    !
-    allocate(Hs(2*Norb))
-    allocate(DimUps(Norb))
-    allocate(DimDws(Norb))
-    allocate(spH0ups(Norb))
-    allocate(spH0dws(Norb))
-    call build_sector(isector,Hs)
-    !
-    call get_DimUp(isector,DimUps)
-    call get_DimDw(isector,DimDws)
-    DimUp = product(DimUps)
-    DimDw = product(DimDws)
-    Dim = getDim(isector)
-    !
-    if(present(Hmat))then
-       if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
-       call ed_buildh_orbs(isector,Hmat)
-       return
-    endif
-    !
-    call ed_buildh_orbs(isector)
-    !
-  end subroutine build_Hv_sector_orbs
-
-
-
-
-  subroutine delete_Hv_sector_main()
-    call delete_sector(Hsector,Hs)
-    deallocate(Hs)
-    Hsector=0
-    Hstatus=.false.
-    !There is no difference here between Mpi and serial version, as Local part was removed.
-    select case(ed_sparse_format)
-    case default
-       if(MpiStatus)then
-          call sp_delete_matrix(MpiComm,spH0d)
-          call sp_delete_matrix(MpiComm,spH0up)
-          call sp_delete_matrix(MpiComm,spH0dw)
-          call sp_delete_matrix(MpiComm,spH0nd)
-       else
-          call sp_delete_matrix(spH0d)
-          call sp_delete_matrix(spH0up)
-          call sp_delete_matrix(spH0dw)
-          call sp_delete_matrix(spH0nd)
+       allocate(spH0ups(Ns_Ud))
+       allocate(spH0dws(Ns_Ud))
+       if(present(Hmat))then
+          if(any( shape(Hmat) /= [Dim,Dim]))stop "setup_Hv_sector ERROR: size(Hmat) != SectorDim**2"
+          call ed_buildh_orbs(isector,Hmat)
+          return
        endif
-    case ("ELL")
-       if(MpiStatus)then
-          call sp_delete_matrix(MpiComm,dpH0d)
-          call sp_delete_matrix(MpiComm,dpH0up)
-          call sp_delete_matrix(MpiComm,dpH0dw)
-          call sp_delete_matrix(MpiComm,dpH0nd)
-       else
-          call sp_delete_matrix(dpH0d)
-          call sp_delete_matrix(dpH0up)
-          call sp_delete_matrix(dpH0dw)
-          call sp_delete_matrix(dpH0nd)
-       endif
+       !
+       call ed_buildh_orbs(isector)
+       !
     end select
-    !
-  end subroutine delete_Hv_sector_main
+  end subroutine build_Hv_sector
 
-  subroutine delete_Hv_sector_orbs()
-    integer :: iorb
+
+
+
+  subroutine delete_Hv_sector()
+    integer :: iud
     call delete_sector(Hsector,Hs)
     deallocate(Hs)
     deallocate(DimUps)
     deallocate(DimDws)    
     Hsector=0
     Hstatus=.false.
-    !There is no difference here between Mpi and serial version, as Local part was removed.
-    call sp_delete_matrix(spH0d)
-    call sp_delete_matrix(spH0nd)
-    do iorb=1,Norb
-       call sp_delete_matrix(spH0ups(iorb))
-       call sp_delete_matrix(spH0dws(iorb))
-    enddo
-    deallocate(spH0ups)
-    deallocate(spH0dws)
     !
-  end subroutine delete_Hv_sector_orbs
+    select case (ed_total_ud)
+    case (.true.)
+       !There is no difference here between Mpi and serial version, as Local part was removed.
+#ifdef _MPI
+       select case(ed_sparse_format)
+       case default
+          if(MpiStatus)then
+             call sp_delete_matrix(MpiComm,spH0d)
+             call sp_delete_matrix(MpiComm,spH0up)
+             call sp_delete_matrix(MpiComm,spH0dw)
+             call sp_delete_matrix(MpiComm,spH0nd)
+          else
+             call sp_delete_matrix(spH0d)
+             call sp_delete_matrix(spH0up)
+             call sp_delete_matrix(spH0dw)
+             call sp_delete_matrix(spH0nd)
+          endif
+       case ("ELL")
+          if(MpiStatus)then
+             call sp_delete_matrix(MpiComm,dpH0d)
+             call sp_delete_matrix(MpiComm,dpH0up)
+             call sp_delete_matrix(MpiComm,dpH0dw)
+             call sp_delete_matrix(MpiComm,dpH0nd)
+          else
+             call sp_delete_matrix(dpH0d)
+             call sp_delete_matrix(dpH0up)
+             call sp_delete_matrix(dpH0dw)
+             call sp_delete_matrix(dpH0nd)
+          endif
+       end select
+#else
+       select case(ed_sparse_format)
+       case default
+          call sp_delete_matrix(spH0d)
+          call sp_delete_matrix(spH0up)
+          call sp_delete_matrix(spH0dw)
+          call sp_delete_matrix(spH0nd)
+       case ("ELL")
+          call sp_delete_matrix(dpH0d)
+          call sp_delete_matrix(dpH0up)
+          call sp_delete_matrix(dpH0dw)
+          call sp_delete_matrix(dpH0nd)
+       end select
+#endif
+       !
+    case (.false.)
+       !There is no difference here between Mpi and serial version, as Local part was removed.
+       call sp_delete_matrix(spH0d)      
+       do iud=1,Ns_Ud
+          call sp_delete_matrix(spH0ups(iud))
+          call sp_delete_matrix(spH0dws(iud))
+       enddo
+       deallocate(spH0ups)
+       deallocate(spH0dws)
+    end select
+  end subroutine delete_Hv_sector
 
 
 
@@ -431,6 +395,7 @@ contains
     !
     !The MPI version can allocate directly from the total dimension,
     !evaluating the chunks independently.
+#ifdef _MPI
     select case(ed_sparse_format)
     case default
        if(MpiStatus)then
@@ -462,6 +427,26 @@ contains
        if(allocated(vecNnz_up))deallocate(vecNnz_up)
        if(allocated(vecNnz_nd))deallocate(vecNnz_nd)
     end select
+#else
+    select case(ed_sparse_format)
+    case default
+       call sp_init_matrix(spH0d,Dim)
+       call sp_init_matrix(spH0dw,DimDw)
+       call sp_init_matrix(spH0up,DimUp)
+       if(Jhflag)call sp_init_matrix(spH0nd,Dim)
+       !
+    case ("ELL")
+       call sp_init_matrix(dpH0d,vecNnz_d,Dim)
+       call sp_init_matrix(dpH0dw,vecNnz_dw,DimDw)
+       call sp_init_matrix(dpH0up,vecNnz_up,DimUp)
+       if(Jhflag)call sp_init_matrix(dpH0nd,vecNnz_nd,Dim)
+       if(allocated(vecNnz_d))deallocate(vecNnz_d)
+       if(allocated(vecNnz_dw))deallocate(vecNnz_dw)
+       if(allocated(vecNnz_up))deallocate(vecNnz_up)
+       if(allocated(vecNnz_nd))deallocate(vecNnz_nd)
+    end select
+#endif
+
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -482,6 +467,7 @@ contains
        allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
        allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
        !
+#ifdef _MPI
        select case (ed_sparse_format)
        case default
           if(MpiStatus)then
@@ -511,6 +497,20 @@ contains
              if(Jhflag)call sp_dump_matrix(MpiComm,dpH0nd,Hmat)
           endif
        end select
+#else
+       select case (ed_sparse_format)
+       case default
+          call sp_dump_matrix(spH0d,Hmat)
+          call sp_dump_matrix(spH0up,Htmp_up)
+          call sp_dump_matrix(spH0dw,Htmp_dw)
+          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
+       case ("ELL")
+          call sp_dump_matrix(dpH0d,Hmat)
+          call sp_dump_matrix(dpH0up,Htmp_up)
+          call sp_dump_matrix(dpH0dw,Htmp_dw)
+          if(Jhflag)call sp_dump_matrix(MpiComm,dpH0nd,Hmat)
+       end select
+#endif
        !
        Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
        Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
@@ -526,14 +526,14 @@ contains
     integer                                :: isector   
     complex(8),dimension(:,:),optional     :: Hmat
     complex(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
-    integer,dimension(2*Norb)              :: Indices
-    integer,dimension(Norb,Ns_Orb)         :: Nups,Ndws
-    integer,dimension(Norb)                :: Nup,Ndw
+    integer,dimension(2*Ns_Ud)               :: Indices
+    integer,dimension(Ns_Ud,Ns_Orb)          :: Nups,Ndws
+    integer,dimension(Ns_Ud)                 :: Nup,Ndw
     integer,dimension(Ns_Orb)              :: Ibup,Ibdw
     integer                                :: i,iup,idw
     integer                                :: j,jup,jdw
     integer                                :: m,mup,mdw
-    integer                                :: ms
+    integer                                :: ms,iud
     integer                                :: iorb,jorb,ispin,jspin,ibath
     integer                                :: kp,k1,k2,k3,k4
     integer                                :: alfa,beta
@@ -569,9 +569,9 @@ contains
     !
     !
     call sp_init_matrix(spH0d,Dim)
-    do iorb=1,Norb
-       call sp_init_matrix(spH0dws(iorb),DimDws(iorb))
-       call sp_init_matrix(spH0ups(iorb),DimUps(iorb))
+    do iud=1,Ns_Ud
+       call sp_init_matrix(spH0dws(iud),DimDws(iud))
+       call sp_init_matrix(spH0ups(iud),DimUps(iud))
     enddo
     !
     !-----------------------------------------------!
@@ -595,16 +595,16 @@ contains
        allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
        allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
        !
-       do iorb=1,Norb
-          allocate(Hrdx(DimUps(iorb),DimUps(iorb)));Hrdx=zero
-          call sp_dump_matrix(spH0ups(iorb),Hrdx)
-          call build_Htmp_up(iorb,Hrdx,DimUps(iorb),Htmp_up)
+       do iud=1,Ns_Ud
+          allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=zero
+          call sp_dump_matrix(spH0ups(iud),Hrdx)
+          call build_Htmp_up(iorb,Hrdx,DimUps(iud),Htmp_up)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))          
           deallocate(Hrdx)
 
-          allocate(Hrdx(DimDws(iorb),DimDws(iorb)));Hrdx=zero
-          call sp_dump_matrix(spH0dws(iorb),Hrdx)
-          call build_Htmp_dw(iorb,Hrdx,DimDws(iorb),Htmp_dw)
+          allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=zero
+          call sp_dump_matrix(spH0dws(iud),Hrdx)
+          call build_Htmp_dw(iorb,Hrdx,DimDws(iud),Htmp_dw)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
           deallocate(Hrdx)
        enddo
@@ -613,35 +613,35 @@ contains
     !
   contains
 
-    subroutine build_Htmp_up(iorb,H,Dim,Hup)
-      integer                               :: iorb,Dim,i
+    subroutine build_Htmp_up(iud,H,Dim,Hup)
+      integer                               :: iud,Dim,i
       complex(8),dimension(Dim,Dim)         :: H
       complex(8),dimension(DimUp,DimUp)     :: Hup
-      if(dim/=DimUps(iorb))stop "error in build_Htmp_up"
-      if(iorb==1)then
+      if(dim/=DimUps(iud))stop "error in build_Htmp_up"
+      if(iud==1)then
          Hup= kronecker_product(H,zeye(product(DimUps(2:))))
-      else if(iorb==Norb)then
-         Hup= kronecker_product(zeye(product(DimUps(1:Norb-1))),H)
+      else if(iud==Ns_Ud)then
+         Hup= kronecker_product(zeye(product(DimUps(1:Ns_Ud-1))),H)
       else
          Hup= kronecker_product( &
               kronecker_product( &
-              zeye(product(DimUps(1:iorb-1))), H) , zeye(product(DimUps(iorb+1:Norb))) )
+              zeye(product(DimUps(1:iud-1))), H) , zeye(product(DimUps(iud+1:Ns_Ud))) )
       end if
     end subroutine build_Htmp_up
 
-    subroutine build_Htmp_dw(iorb,H,Dim,Hdw)
-      integer                               :: iorb,Dim,i
+    subroutine build_Htmp_dw(iud,H,Dim,Hdw)
+      integer                               :: iud,Dim,i
       complex(8),dimension(Dim,Dim)         :: H
       complex(8),dimension(DimDw,DimDw)     :: Hdw
-      if(dim/=DimDws(iorb))stop "error in build_Htmp_dw"
-      if(iorb==1)then
+      if(dim/=DimDws(iud))stop "error in build_Htmp_dw"
+      if(iud==1)then
          Hdw= kronecker_product(H,zeye(product(DimDws(2:))))
-      else if(iorb==Norb)then
-         Hdw= kronecker_product(zeye(product(DimDws(1:Norb-1))),H)
+      else if(iud==Ns_Ud)then
+         Hdw= kronecker_product(zeye(product(DimDws(1:Ns_Ud-1))),H)
       else
          Hdw= kronecker_product( &
               kronecker_product( &
-              zeye(product(DimDws(1:iorb-1))), H) , zeye(product(DimDws(iorb+1:Norb))) )
+              zeye(product(DimDws(1:iud-1))), H) , zeye(product(DimDws(iud+1:Ns_Ud))) )
       end if
     end subroutine build_Htmp_dw
   end subroutine ed_buildh_orbs

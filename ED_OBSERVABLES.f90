@@ -92,13 +92,13 @@ contains
   !+-------------------------------------------------------------------+
   subroutine observables_impurity_main()
     integer,dimension(Ns)           :: ibup,ibdw
-    integer,dimension(Nlevels)      :: ib
     integer                         :: i,j
     integer                         :: istate,nud(2,Ns),iud(2),jud(2)
     integer                         :: isector,jsector
     integer                         :: idim,idimUP,idimDW
     integer                         :: jdim,jdimUP,jdimDW
-    integer                         :: isz,jsz
+    integer,dimension(Norb)         :: iDimUps,iDimDws
+    integer,dimension(Norb)         :: jDimUps,jDimDws
     integer                         :: iorb,jorb,ispin,jspin,isite,jsite,ibath
     integer                         :: numstates
     integer                         :: r,m,k
@@ -154,8 +154,10 @@ contains
        peso = peso/zeta_function
        !
        idim  = getdim(isector)
-       call get_DimUp(isector,iDimUp)
-       call get_DimDw(isector,iDimDw)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
        call build_sector(isector,HI)
        !
        !pdens=0d0
@@ -224,8 +226,10 @@ contains
        peso = peso/zeta_function
        !
        idim  = getdim(isector)
-       call get_DimUp(isector,iDimUp)
-       call get_DimDw(isector,iDimDw)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
        call build_sector(isector,HI)
        !
        do ispin=1,Nspin
@@ -313,9 +317,9 @@ contains
   subroutine observables_impurity_orbs()
     integer,dimension(Ns_Orb)       :: ibup,ibdw
     integer                         :: i,j
-    integer,dimension(2*Norb)       :: Indices,Jndices
-    integer,dimension(Norb)         :: iDimUps,iDimDws
-    integer,dimension(Norb)         :: jDimUps,jDimDws
+    integer,dimension(2*Ns_Ud)        :: Indices,Jndices
+    integer,dimension(Ns_Ud)          :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)          :: jDimUps,jDimDws
     integer                         :: istate,nud(2,Ns),iud(2),jud(2)
     integer                         :: isector,jsector
     integer                         :: idim,idimUP,idimDW
@@ -332,7 +336,7 @@ contains
     real(8)                         :: norm
     real(8),dimension(Norb)         :: nup,ndw,Sz,nt
     complex(8),dimension(:),pointer :: gscvec
-    type(sector_map)                :: HI(2*Norb)
+    type(sector_map)                :: HI(2*Ns_Ud)
     complex(8),allocatable          :: vvinit(:)
     !
     !LOCAL OBSERVABLES:
@@ -546,6 +550,7 @@ contains
     integer                         :: i,j
     integer                         :: istate,nud(2,Ns),iud(2),jud(2)
     integer                         :: isector,jsector
+    integer,dimension(Ns_Ud)          :: iDimUps,iDimDws
     integer                         :: idim,idimUP,idimDW
     integer                         :: jdim,jdimUP,jdimDW
     integer                         :: isz,jsz
@@ -597,8 +602,10 @@ contains
 #endif
        !
        idim  = getdim(isector)
-       call get_DimUp(isector,iDimUp)
-       call get_DimDw(isector,iDimDw)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
        !
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
@@ -791,8 +798,8 @@ contains
     integer                         :: i,j
     integer                         :: istate,nud(2,Ns),iud(2),jud(2)
     integer                         :: isector,jsector
-    integer,dimension(2*Norb)       :: Indices
-    integer,dimension(Norb)         :: iDimUps,iDimDws
+    integer,dimension(2*Ns_Ud)        :: Indices
+    integer,dimension(Ns_Ud)          :: iDimUps,iDimDws
     integer                         :: idim,idimUP,idimDW
     integer                         :: jdim,jdimUP,jdimDW
     integer                         :: ialfa
@@ -809,7 +816,7 @@ contains
     real(8),dimension(Norb)         :: nup,ndw
     real(8),dimension(Nspin,Norb)   :: eloc
     complex(8),dimension(:),pointer :: gscvec
-    type(sector_map)                :: H(2*Norb)
+    type(sector_map)                :: H(2*Ns_Ud)
     logical                         :: Jcondition
     !
     Egs     = state_list%emin
@@ -858,7 +865,7 @@ contains
           gs_weight=peso*abs(gscvec(i))**2
           !
           !Get operators:
-          do iorb=1,Norb
+          do iorb=1,Ns_Ud
              iup = Indices(iorb)
              idw = Indices(iorb+Norb)
              !
