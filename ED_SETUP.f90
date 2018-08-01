@@ -44,7 +44,6 @@ MODULE ED_SETUP
 
 
 
-  public :: setup_ed_dimensions
   public :: init_ed_structure
   public :: setup_global
   !
@@ -57,7 +56,6 @@ MODULE ED_SETUP
   public :: get_Ndw
   public :: get_DimUp
   public :: get_DimDw
-  public :: get_Dim
   !
   public :: indices2state
   public :: state2indices
@@ -80,7 +78,22 @@ MODULE ED_SETUP
 contains
 
 
+  
+  subroutine check_ed_global
+    if(Lfit>Lmats)Lfit=Lmats
+    if(Nspin>2)stop "ED ERROR: Nspin > 2 is currently not supported"
+    if(Norb>3)stop "ED ERROR: Norb > 3 is currently not supported"
+    !
+    if(.not.ed_total_ud)then
+       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid" 
+       if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
+       if(ed_sparse_H.AND.ed_sparse_format=="ELL")stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=T AND ed_sparse_format=ELL"
+       if(.not.ed_sparse_H)stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=F"
+    endif
+  end subroutine check_ed_global
+  
 
+  
   !+------------------------------------------------------------------+
   !PURPOSE  : Setup Dimensions of the problem
   ! Norb    = # of impurity orbitals
@@ -130,6 +143,7 @@ contains
     if(present(MpiComm))MPI_MASTER=get_Master_MPI(MpiComm)
 #endif
     !
+    call check_ed_global()
     call setup_ed_dimensions()
     !
     select case(ed_total_ud)
@@ -196,11 +210,8 @@ contains
           lanc_nstates_total=lanc_nstates_total+1
           write(LOGfile,"(A,I10)")"Increased Lanc_nstates_total:",lanc_nstates_total
        endif
-    endif
-    !
-    !
-    if(finiteT)then
        write(LOGfile,"(A)")"Lanczos FINITE temperature calculation:"
+       !
        write(LOGfile,"(A,I3)")"Nstates x Sector = ", lanc_nstates_sector
        write(LOGfile,"(A,I3)")"Nstates   Total  = ", lanc_nstates_total
        call sleep(1)
@@ -210,20 +221,9 @@ contains
     endif
     !
     !
-    !CHECKS:
-    if(Lfit>Lmats)Lfit=Lmats
-    if(Nspin>2)stop "ED ERROR: Nspin > 2 is currently not supported"
-    if(Norb>3)stop "ED ERROR: Norb > 3 is currently not supported"
-    !
     Jhflag=.FALSE.
     if(Norb>1.AND.(Jx/=0d0.OR.Jp/=0d0))Jhflag=.TRUE.
     !
-    if(.not.ed_total_ud)then
-       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid" 
-       if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
-       if(ed_sparse_H.AND.ed_sparse_format=="ELL")stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=T AND ed_sparse_format=ELL"
-       if(.not.ed_sparse_H)stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=F"
-    endif
     !
     if(nread/=0.d0)then
        i=abs(floor(log10(abs(nerr)))) !modulus of the order of magnitude of nerror
@@ -299,7 +299,7 @@ contains
     integer                          :: i,iorb
     integer                          :: isector,jsector
     integer                          :: unit,status,istate
-    logical                          :: IOfile,Bool
+    logical                          :: IOfile
     integer                          :: list_len
     integer,dimension(:),allocatable :: list_sector
     !
@@ -381,18 +381,11 @@ contains
           do isector=1,Nsectors
              call get_Nup(isector,Nups)
              call get_Ndw(isector,Ndws)
-             Bool=.true.
-             do iorb=1,Norb
-                Bool=Bool.AND.(Nups(iorb)<Ndws(iorb))                
-             enddo
-             if(Bool)twin_mask(isector)=.false.
+             if(any(Nups < Ndws))twin_mask(isector)=.false.
           enddo
-          ! write(LOGfile,"(A)")"Warning: ed_twin=T AND ed_total_ud=F are incompatible at the moment. set to F"
-          ! ed_twin=.false.
-          ! call sleep(2)
-          !
        end select
        write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
+       call sleep(1)
     endif
     !
     do iorb=1,Norb
@@ -615,27 +608,6 @@ contains
   end subroutine get_DimDw_Orbs
 
 
-  subroutine get_Dim(isector,Dim)
-    integer                  :: isector,Dim
-    integer,dimension(Norb)  :: Nups,Ndws,DimUps,DimDws
-    integer                  :: Nup,Ndw,DimUp,DimDw
-    integer                  :: iorb
-    select case(ed_total_ud)
-    case (.true.)
-       call get_Indices(isector,Ns,[Nup,Ndw])
-       Dim = binomial(Ns,Nup)*binomial(Ns,Ndw)
-    case (.false.)
-       call get_Indices(isector,Ns_Orb,[Nups,Ndws])
-       Dim=1
-       do iorb=1,Norb
-          Dim = Dim*binomial(Ns_Orb,Nups(iorb))*binomial(Ns_Orb,Ndws(iorb))
-       end do
-    end select
-  end subroutine get_Dim
-
-
-
-
   subroutine indices2state(ivec,Nvec,istate)
     integer,dimension(:)          :: ivec
     integer,dimension(size(ivec)) :: Nvec
@@ -677,6 +649,10 @@ contains
 
 
 
+
+
+
+  
   !##################################################################
   !##################################################################
   !BUILD SECTORS
