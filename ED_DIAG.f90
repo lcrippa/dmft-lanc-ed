@@ -103,8 +103,7 @@ contains
   !+------------------------------------------------------------------+
   subroutine ed_diag_c
     integer                :: isector,dim
-    integer                :: nup,ndw
-    integer                :: nups(Norb),ndws(Norb)
+    integer                :: nups(Ns_Ud),ndws(Ns_Ud)
     integer                :: i,j,iter,unit
     integer                :: Nitermax,Neigen,Nblock
     real(8)                :: oldzero,enemin,Ei
@@ -128,21 +127,13 @@ contains
        if(.not.twin_mask(isector))cycle sector !cycle loop if this sector should not be investigated
        iter=iter+1
        Tflag    = twin_mask(isector).AND.ed_twin
-       select case(ed_total_ud)
-       case (.true.)
-          call get_Nup(isector,nup)
-          call get_Ndw(isector,ndw)
-          Tflag = Tflag.AND.(nup/=ndw)
-       case (.false.)
-          call get_Nup(isector,nups)
-          call get_Ndw(isector,ndws)
-          bool=.true.
-          do i=1,Norb
-             Bool=Bool.AND.(nups(i)/=ndws(i))
-          enddo
-          Tflag=Tflag.AND.Bool
-          !no nothing for the time being
-       end select
+       call get_Nup(isector,nups)
+       call get_Ndw(isector,ndws)
+       bool=.true.
+       do i=1,Ns_ud
+          Bool=Bool.AND.(nups(i)/=ndws(i))
+       enddo
+       Tflag=Tflag.AND.Bool
        Dim      = getdim(isector)
        Neigen   = min(dim,neigen_sector(isector))
        Nitermax = min(dim,lanc_niter)
@@ -161,32 +152,17 @@ contains
        !
        if(MPI_MASTER)then
           if(ed_verbose>=3)then
-             select case(ed_total_ud)
-             case (.true.)
-                call get_Nup(isector,nup)
-                call get_Ndw(isector,ndw)
-                if(lanc_solve)then
-                   write(LOGfile,"(1X,I4,A,I4,A6,I2,A6,I2,A6,I15,A12,3I6)")&
-                        iter,"-Solving sector:",isector,", nup:",nup,", ndw:",ndw,", dim=",&
-                        getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
-                else
-                   write(LOGfile,"(1X,I4,A,I4,A6,I2,A6,I2,A6,I15)")&
-                        iter,"-Solving sector:",isector,", nup:",nup,", ndw:",ndw,", dim=",&
-                        getdim(isector)
-                endif
-             case (.false.)
-                call get_Nup(isector,nups)
-                call get_Ndw(isector,ndws)
-                if(lanc_solve)then
-                   write(LOGfile,"(1X,I4,A,I4,A6,"//str(Norb)//"I3,A6,"//str(Norb)//"I3,A6,I15,A12,3I6)")&
-                        iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
-                        getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
-                else
-                   write(LOGfile,"(1X,I4,A,I4,A6,"//str(Norb)//"I3,A6,"//str(Norb)//"I3,A6,I15)")&
-                        iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
-                        getdim(isector)
-                endif
-             end select
+             call get_Nup(isector,nups)
+             call get_Ndw(isector,ndws)
+             if(lanc_solve)then
+                write(LOGfile,"(1X,I4,A,I4,A6,"//str(Ns_Ud)//"I3,A6,"//str(Ns_Ud)//"I3,A6,I15,A12,3I6)")&
+                     iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
+                     getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
+             else
+                write(LOGfile,"(1X,I4,A,I4,A6,"//str(Ns_Ud)//"I3,A6,"//str(Ns_Ud)//"I3,A6,I15)")&
+                     iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
+                     getdim(isector)
+             endif
           elseif(ed_verbose==1.OR.ed_verbose==2)then
              call eta(iter,count(twin_mask),LOGfile)
           endif
@@ -287,7 +263,7 @@ contains
     integer             :: nup,ndw,sz,n,isector,dim
     integer             :: istate
     integer             :: i,unit
-    integer             :: nups(Norb),ndws(Norb)
+    integer             :: nups(Ns_Ud),ndws(Ns_Ud)
     integer             :: Nsize,NtoBremoved,nstates_below_cutoff
     integer             :: numgs
     real(8)             :: Egs,Ei,Ec,Etmp
@@ -318,24 +294,13 @@ contains
     numgs=es_return_gs_degeneracy(state_list,gs_threshold)
     if(numgs>Nsectors)stop "ed_diag: too many gs"
     if(MPI_MASTER.AND.ed_verbose>=2)then
-       select case (ed_total_ud)
-       case (.true.)
-          do istate=1,numgs
-             isector = es_return_sector(state_list,istate)
-             Egs     = es_return_energy(state_list,istate)
-             call get_Nup(isector,Nup)
-             call get_Ndw(isector,Ndw)
-             write(LOGfile,"(A,F20.12,2I4)")'Egs =',Egs,nup,ndw
-          enddo
-       case (.false.)
-          do istate=1,numgs
-             isector = es_return_sector(state_list,istate)
-             Egs     = es_return_energy(state_list,istate)
-             call get_Nup(isector,Nups)
-             call get_Ndw(isector,Ndws)
-             write(LOGfile,"(A,F20.12,"//str(Norb)//"I4,"//str(Norb)//"I4)")'Egs =',Egs,nups,ndws
-          enddo
-       end select
+       do istate=1,numgs
+          isector = es_return_sector(state_list,istate)
+          Egs     = es_return_energy(state_list,istate)
+          call get_Nup(isector,Nups)
+          call get_Ndw(isector,Ndws)
+          write(LOGfile,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',Egs,nups,ndws
+       enddo
        write(LOGfile,"(A,F20.12)")'Z   =',zeta_function
     endif
     !
@@ -423,7 +388,7 @@ contains
 
 
   subroutine print_state_list(unit)
-    integer :: indices(2*Norb),isector
+    integer :: indices(2*Ns_Ud),isector
     integer :: istate
     integer :: unit
     real(8) :: Estate
@@ -434,32 +399,22 @@ contains
           isector = es_return_sector(state_list,istate)
           write(unit,"(i6,f18.12,2x,ES19.12,1x,2I10)",advance='no')&
                istate,Estate,exp(-beta*(Estate-state_list%emin)),isector,getdim(isector)
-          if(ed_total_ud)then
-             call get_Indices(isector,Ns,Indices(1:2))
-             write(unit,"(2I4)")Indices(1:2)
-          else
-             call get_Indices(isector,Ns_Orb,Indices)
-             write(unit,"("//str(2*Norb)//"I4)")Indices
-          endif
+          call get_Indices(isector,Ns_Orb,Indices)
+          write(unit,"("//str(2*Ns_Ud)//"I4)")Indices
        enddo
     endif
   end subroutine print_state_list
 
 
   subroutine save_state_list(unit)
-    integer :: indices(2*Norb),isector
+    integer :: indices(2*Ns_Ud),isector
     integer :: istate
     integer :: unit
     if(MPI_MASTER)then
        do istate=1,state_list%size
           isector = es_return_sector(state_list,istate)
-          if(ed_total_ud)then
-             call get_Indices(isector,Ns,Indices(1:2))
-             write(unit,"(2i8,2i8)")istate,isector,Indices(1:2)
-          else
-             call get_Indices(isector,Ns_Orb,Indices)
-             write(unit,"(2i8,10i8)")istate,isector,Indices
-          endif
+          call get_Indices(isector,Ns_Orb,Indices)
+          write(unit,"(i8,i12,"//str(2*Ns_Ud)//"i8)")istate,isector,Indices
        enddo
     endif
   end subroutine save_state_list
@@ -468,7 +423,7 @@ contains
   subroutine print_eigenvalues_list(isector,eig_values,unit,bool)
     integer              :: isector
     real(8),dimension(:) :: eig_values
-    integer              :: unit,i,indices(2*Norb)
+    integer              :: unit,i,indices(2*Ns_Ud)
     logical              :: bool
     if(MPI_MASTER)then
        if(bool)then
@@ -476,13 +431,8 @@ contains
        else
           write(unit,"(A10,A15)")" #X Sector","Indices"
        endif
-       if(ed_total_ud)then
-          call get_Indices(isector,Ns,Indices(1:2))
-          write(unit,"(I9,2I6)")isector,Indices(1:2)
-       else
-          call get_Indices(isector,Ns_Orb,Indices)
-          write(unit,"(I9,"//str(2*Norb)//"I6)")isector,Indices
-       endif
+       call get_Indices(isector,Ns_Orb,Indices)
+       write(unit,"(I9,"//str(2*Ns_Ud)//"I6)")isector,Indices
        do i=1,size(eig_values)
           write(unit,*)eig_values(i)
        enddo

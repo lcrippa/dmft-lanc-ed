@@ -67,7 +67,7 @@ contains
     integer                :: numstates
     integer                :: nlanc
     integer                :: isign
-    integer                :: idim,idimUP,idimDW
+    integer                :: idim,idimUP,idimDW,iDimUPs(Ns_Ud),iDimDws(Ns_Ud)
     integer                :: nup(Ns),ndw(Ns)
     integer                :: m,i,j,r
     integer                :: iup,idw,jup,jdw,mup,mdw
@@ -94,8 +94,10 @@ contains
        !
        !
        idim = getdim(isector)
-       call get_DimUp(isector,iDimUp)
-       call get_DimDw(isector,iDimDw)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
        call build_sector(isector,HI)
        !
        if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply Sz:',isector
@@ -149,21 +151,21 @@ contains
 
 
   subroutine lanc_ed_build_spinChi_orbs(iorb)
-    integer                        :: iorb,isite,isector,istate
-    integer                        :: numstates
-    integer                        :: nlanc
-    integer                        :: isign
-    integer,dimension(2*Norb)      :: Indices
-    integer,dimension(Norb)        :: iDimUps,iDimDws
-    integer                        :: idim
-    integer                        :: nup(Ns_Orb),ndw(Ns_Orb)
-    integer                        :: m,i,j,r
-    integer                        :: iup,idw,jup,jdw,mup,mdw
-    real(8)                        :: norm2,sgn
-    real(8),allocatable            :: alfa_(:),beta_(:)
-    complex(8),allocatable         :: vvinit(:)
-    integer                        :: Nitermax
-    type(sector_map)               :: HI(2*Norb)    !map of the Sector S to Hilbert space H
+    integer                  :: iorb,isite,isector,istate
+    integer                  :: numstates
+    integer                  :: nlanc
+    integer                  :: isign
+    integer,dimension(2*Ns_Ud) :: Indices
+    integer,dimension(Ns_Ud)   :: iDimUps,iDimDws
+    integer                  :: idim
+    integer                  :: nup(Ns_Orb),ndw(Ns_Orb)
+    integer                  :: m,i,j,r
+    integer                  :: iup,idw,jup,jdw,mup,mdw
+    real(8)                  :: norm2,sgn
+    real(8),allocatable      :: alfa_(:),beta_(:)
+    complex(8),allocatable   :: vvinit(:)
+    integer                  :: Nitermax
+    type(sector_map)         :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
     !
     !
     !
@@ -251,6 +253,8 @@ contains
     integer                :: nlanc
     integer                :: isign
     integer                :: idim,idimUP,idimDW
+    integer,dimension(Ns_Ud) :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud) :: Jdimups,jDimDws
     integer                :: nup(Ns),ndw(Ns)
     integer                :: m,i,j,r
     integer                :: iup,idw,jup,jdw,mup,mdw
@@ -264,7 +268,6 @@ contains
     do istate=1,state_list%size
        isector     =  es_return_sector(state_list,istate)
        state_e    =  es_return_energy(state_list,istate)
-       ! state_cvec => es_return_cvector(state_list,istate)
 #ifdef _MPI
        if(MpiStatus)then
           state_cvec => es_return_cvector(MpiComm,state_list,istate)
@@ -277,8 +280,10 @@ contains
        !
        !
        idim  = getdim(isector)
-       call get_DimUp(isector,iDimUp)
-       call get_DimDw(isector,iDimDw)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
        call build_sector(isector,HI)
        !
        if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Sz:',isector

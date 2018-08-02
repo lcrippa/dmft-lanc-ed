@@ -50,15 +50,13 @@ MODULE ED_VARS_GLOBAL
 
 
   !-------------------------- ED  VARIABLES --------------------------!
+
   !SIZE OF THE PROBLEM
-  !Ns       =              Number of levels per spin
-  !Nlevels  = 2*Ns       = Total Number  of levels
-  !Nsectors =              Number of sectors
   !=========================================================
-  integer                                            :: Ns
-  integer                                            :: Nlevels
-  integer                                            :: Nsectors
-  integer                                            :: Ns_orb
+  integer,save                                       :: Ns       !Number of levels per spin
+  integer,save                                       :: Nsectors !Number of sectors
+  integer,save                                       :: Ns_orb
+  integer,save                                       :: Ns_ud
 
   !local part of the Hamiltonian
   !INTERNAL USE (accessed thru functions)
@@ -68,9 +66,6 @@ MODULE ED_VARS_GLOBAL
   !Some maps between sectors and full Hilbert space (pointers)
   !PRIVATE:
   !=========================================================
-  ! integer,allocatable,dimension(:)                   :: getSector          ! [1/Norb;0:Ns;0:Ns]
-  ! integer,allocatable,dimension(:,:)                 :: getDimUp,getDimDw  ! [1/Norb,Nsectors]
-  ! integer,allocatable,dimension(:,:)                 :: getNup,getNdw      ! [1/Norb,Nsectors]
   integer,allocatable,dimension(:)                   :: getDim             ! [Nsectors]
   integer,allocatable,dimension(:,:,:)               :: getCsector         ! [1/Norb,2,NSectors]
   integer,allocatable,dimension(:,:,:)               :: getCDGsector       ! [1/Norb,2,NSectors]
@@ -202,7 +197,7 @@ MODULE ED_VARS_GLOBAL
   logical                                            :: Jhflag              !spin-exchange and pair-hopping flag.
 
 
-  
+
 contains
 
 
