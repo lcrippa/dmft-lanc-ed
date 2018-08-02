@@ -75,8 +75,6 @@ contains
   ! Nlevels = 2*Ns = Total # of levels (counting spin degeneracy 2) 
   !+------------------------------------------------------------------+
   subroutine ed_setup_dimensions()
-    integer                                           :: maxtwoJz,inJz,dimJz
-    integer                                           :: isector,in,shift
     select case(bath_type)
     case default
        Ns = (Nbath+1)*Norb
@@ -87,21 +85,16 @@ contains
        Ns = Norb*(Nbath+1)
     end select
     !
-    Ns_Orb = Ns
-    Ns_Ud    = 1
-    if(.not.ed_total_ud)then
+    select case(ed_total_ud)
+    case (.true.)
+       Ns_Orb = Ns
+       Ns_Ud  = 1
+    case (.false.)
        Ns_Orb = Ns/Norb
        Ns_Ud  = Norb
-    end if
-
+    end select
+    !
     Nsectors = ((Ns_Orb+1)*(Ns_Orb+1))**Ns_Ud
-    !
-    ! Nsectors = (Ns_Orb+1)*(Ns_Orb+1) !nup=0:Ns;ndw=0:Ns
-    ! Nsectors = ((Ns_Orb+1)*(Ns_Orb+1))**Norb !prod_{a=1,Norb}nup(a)=0:Ns;ndw(a)=0:Ns
-    !
-    print*,"Ns",Ns
-    print*,"Ns_Orb",Ns_Orb
-    print*,"Ns_ud",Ns_ud
   end subroutine ed_setup_dimensions
 
 
@@ -110,10 +103,11 @@ contains
   !PURPOSE  : Init ED structure and calculation
   !+------------------------------------------------------------------+
   subroutine init_ed_structure(MpiComm)
-    integer,optional :: MpiComm
-    logical          :: control
-    integer          :: i,iud,iorb,jorb,ispin,jspin
-    logical          :: MPI_MASTER=.true.
+    integer,optional         :: MpiComm
+    logical                  :: control
+    integer                  :: i,iud,iorb,jorb,ispin,jspin
+    logical                  :: MPI_MASTER=.true.
+    integer,dimension(:),allocatable :: DimUps,DimDws
     !
 #ifdef _MPI
     if(present(MpiComm))MPI_MASTER=get_Master_MPI(MpiComm)
@@ -124,6 +118,12 @@ contains
     call ed_setup_dimensions
     !
     !
+    allocate(DimUps(Ns_Ud))
+    allocate(DimDws(Ns_Ud))
+    do iud=1,Ns_Ud
+       DimUps(iud) = get_sector_dimension(Ns_Orb,Ns_Orb/2)
+       DimDws(iud) = get_sector_dimension(Ns_Orb,Ns_Orb-Ns_Orb/2)
+    enddo
     write(LOGfile,"(A)")"Summary:"
     write(LOGfile,"(A)")"--------------------------------------------"
     write(LOGfile,"(A,I15)")'# of levels/spin      = ',Ns
@@ -132,6 +132,10 @@ contains
     write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
     write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
     write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
+    write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
+    write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
+    write(LOGfile,"(A,"//str(Ns_Ud)//"I6,2X,"//str(Ns_Ud)//"I6,I15)")&
+         'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
     write(LOGfile,"(A)")"--------------------------------------------"
     call sleep(1)
     !
@@ -242,8 +246,8 @@ contains
     integer                          :: DimUp,DimDw
     integer                          :: DimUps(Ns_Ud),DimDws(Ns_Ud)
     integer                          :: Indices(2*Ns_Ud)
-    integer                          :: Nups(Norb),Ndws(Norb)
-    integer                          :: Jups(Norb),Jdws(Norb)
+    integer                          :: Nups(Ns_ud),Ndws(Ns_ud)
+    integer                          :: Jups(Ns_ud),Jdws(Ns_ud)
     integer                          :: i,iud,iorb
     integer                          :: isector,jsector
     integer                          :: unit,status,istate
@@ -293,13 +297,14 @@ contains
        do isector=1,Nsectors
           call get_Nup(isector,Nups)
           call get_Ndw(isector,Ndws)
-          Bool=.true.
-          do iud=1,Ns_Ud
-             Bool=Bool.AND.(Nups(iud)<Ndws(iud))                
-          enddo
-          if(Bool)twin_mask(isector)=.false.
+          ! Bool=.true.
+          ! do iud=1,Ns_Ud
+          !    Bool=Bool.AND.(Nups(iud)<Ndws(iud))                
+          ! enddo
+          if(any(Nups < Ndws))twin_mask(isector)=.false.
        enddo
        write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
+       call sleep(1)
     endif
     !
     do iorb=1,Norb
@@ -361,7 +366,6 @@ contains
           getCDGsector(iud,2,isector)=jsector
        enddo
     enddo
-    !
     return
   end subroutine setup_global
 

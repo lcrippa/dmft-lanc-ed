@@ -97,8 +97,8 @@ contains
     integer                         :: isector,jsector
     integer                         :: idim,idimUP,idimDW
     integer                         :: jdim,jdimUP,jdimDW
-    integer,dimension(Norb)         :: iDimUps,iDimDws
-    integer,dimension(Norb)         :: jDimUps,jDimDws
+    integer,dimension(Ns_Ud)        :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)        :: jDimUps,jDimDws
     integer                         :: iorb,jorb,ispin,jspin,isite,jsite,ibath
     integer                         :: numstates
     integer                         :: r,m,k

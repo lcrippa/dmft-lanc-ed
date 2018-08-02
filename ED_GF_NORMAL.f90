@@ -134,10 +134,7 @@ contains
        !
        !
        !ADD ONE PARTICLE:
-       print*,getCDGsector
        jsector = getCDGsector(1,ispin,isector)
-       print*,jsector
-       stop
        if(jsector/=0)then 
           if(ed_verbose==3)write(LOGfile,"(A,I6)")' add particle:',jsector
           !

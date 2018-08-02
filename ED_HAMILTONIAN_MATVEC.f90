@@ -598,13 +598,13 @@ contains
        do iud=1,Ns_Ud
           allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=zero
           call sp_dump_matrix(spH0ups(iud),Hrdx)
-          call build_Htmp_up(iorb,Hrdx,DimUps(iud),Htmp_up)
+          call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))          
           deallocate(Hrdx)
 
           allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=zero
           call sp_dump_matrix(spH0dws(iud),Hrdx)
-          call build_Htmp_dw(iorb,Hrdx,DimDws(iud),Htmp_dw)
+          call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
           deallocate(Hrdx)
        enddo
