@@ -48,7 +48,6 @@ MODULE ED_VARS_GLOBAL
 
 
 
-
   !-------------------------- ED  VARIABLES --------------------------!
 
   !SIZE OF THE PROBLEM
