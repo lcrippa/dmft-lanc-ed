@@ -8,8 +8,8 @@ MODULE ED_VARS_GLOBAL
   type effective_bath
      real(8),dimension(:,:,:),allocatable        :: e     !local energies [Nspin][Norb][Nbath]/[Nspin][1][Nbath]
      real(8),dimension(:,:,:),allocatable        :: v     !spin-keep hyb. [Nspin][Norb][Nbath]
-     complex(8),dimension(:),allocatable         :: vr    !diagonal hyb.  [Nbath]
-     complex(8),dimension(:,:,:,:,:),allocatable :: h     !Replica hamilt [Nspin][Nspin][Norb][Norb][Nbath]
+     real(8),dimension(:),allocatable            :: vr    !diagonal hyb.  [Nbath]
+     real(8),dimension(:,:,:,:,:),allocatable    :: h     !Replica hamilt [Nspin][Nspin][Norb][Norb][Nbath]
      logical(8),dimension(:,:,:,:,:),allocatable :: mask  !impHloc mask   [Nspin][Nspin][Norb][Norb][Re,Im]
      logical                                     :: status=.false.
   end type effective_bath
@@ -37,13 +37,13 @@ MODULE ED_VARS_GLOBAL
 
   !------------------ ABTRACT INTERFACES PROCEDURES ------------------!
   !SPARSE MATRIX-VECTOR PRODUCTS USED IN ED_MATVEC
-  !cmplxMat*cmplxVec
+  !dbleMat*dbleVec
   abstract interface
-     subroutine cc_sparse_HxV(Nloc,v,Hv)
-       integer                    :: Nloc
-       complex(8),dimension(Nloc) :: v
-       complex(8),dimension(Nloc) :: Hv
-     end subroutine cc_sparse_HxV
+     subroutine dd_sparse_HxV(Nloc,v,Hv)
+       integer                 :: Nloc
+       real(8),dimension(Nloc) :: v
+       real(8),dimension(Nloc) :: Hv
+     end subroutine dd_sparse_HxV
   end interface
 
 
@@ -60,7 +60,7 @@ MODULE ED_VARS_GLOBAL
   !local part of the Hamiltonian
   !INTERNAL USE (accessed thru functions)
   !=========================================================
-  complex(8),dimension(:,:,:,:),allocatable          :: impHloc           !local hamiltonian
+  real(8),dimension(:,:,:,:),allocatable             :: impHloc           !local hamiltonian
 
   !Some maps between sectors and full Hilbert space (pointers)
   !PRIVATE:
@@ -90,7 +90,7 @@ MODULE ED_VARS_GLOBAL
   type(sparse_matrix_ell)                            :: dpH0nd !non-diagonal part
   type(sparse_matrix_ell)                            :: dpH0up,dpH0dw !reduced UP and DW parts 
   !
-  procedure(cc_sparse_HxV),pointer                   :: spHtimesV_cc=>null()
+  procedure(dd_sparse_HxV),pointer                   :: spHtimesV_p=>null()
 
 
   !Variables for DIAGONALIZATION

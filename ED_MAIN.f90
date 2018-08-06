@@ -266,15 +266,15 @@ contains
        select case (ed_sparse_format)
        case default
           if(ed_total_ud)then
-             spHtimesV_cc => spMatVec_main
+             spHtimesV_p => spMatVec_main
           else
-             spHtimesV_cc => spMatVec_orbs
+             spHtimesV_p => spMatVec_orbs
           end if
        case ("ELL")
-          spHtimesV_cc => dpMatVec_main
+          spHtimesV_p => dpMatVec_main
        end select
     case (.false.)
-       spHtimesV_cc => directMatVec_main
+       spHtimesV_p => directMatVec_main
     end select
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
@@ -287,7 +287,7 @@ contains
     call deallocate_dmft_bath(dmft_bath)   
     call es_delete_espace(state_list)
     !
-    nullify(spHtimesV_cc)
+    nullify(spHtimesV_p)
   end subroutine ed_solve_single
 
 
@@ -321,17 +321,17 @@ contains
        select case (ed_sparse_format)
        case default
           if(ed_total_ud)then
-             spHtimesV_cc => spMatVec_MPI_main
+             spHtimesV_p => spMatVec_MPI_main
           else
-             spHtimesV_cc => spMatVec_orbs
+             spHtimesV_p => spMatVec_orbs
              ! stop "ed_solve_single_mpi error: ed_total_ud=F and MPI=T is not supported"
-             ! spHtimesV_cc => spMatVec_MPI_orbs
+             ! spHtimesV_p => spMatVec_MPI_orbs
           end if
        case ("ELL")
-          spHtimesV_cc => dpMatVec_MPI_main
+          spHtimesV_p => dpMatVec_MPI_main
        end select
     case (.false.)
-       spHtimesV_cc => directMatVec_MPI_main
+       spHtimesV_p => directMatVec_MPI_main
     end select
     !
     !SET THE LOCAL COMMUNICATORS IN ALL THE RELEVANT PARTS OF THE CODE:
@@ -355,7 +355,7 @@ contains
     call ed_diag_del_MPI()
     call ed_greens_functions_del_MPI()
     call ed_observables_del_MPI()
-    nullify(spHtimesV_cc)
+    nullify(spHtimesV_p)
   end subroutine ed_solve_single_mpi
 #endif
 

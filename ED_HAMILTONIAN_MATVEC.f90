@@ -4,7 +4,6 @@
 ! |1,2;3...Ns>_UP * |Ns+1,Ns+2;Ns+3,...,2*Ns>_DOWN
 !########################################################################
 MODULE ED_HAMILTONIAN_MATVEC
-  USE SF_CONSTANTS,only:zero
   USE SF_MISC,    only: assert_shape
   USE SF_LINALG, only: kronecker_product,zeye
   USE ED_INPUT_VARS
@@ -132,11 +131,11 @@ contains
   !                 MAIN ROUTINES: BUILD/DELETE SECTOR
   !####################################################################
   subroutine build_Hv_sector(isector,Hmat)
-    integer                            :: isector,SectorDim
-    complex(8),dimension(:,:),optional :: Hmat   
-    integer                            :: irank
-    integer                            :: i,iup,idw
-    integer                            :: j,jup,jdw
+    integer                         :: isector,SectorDim
+    real(8),dimension(:,:),optional :: Hmat   
+    integer                         :: irank
+    integer                         :: i,iup,idw
+    integer                         :: j,jup,jdw
     !
     Hsector=isector
     Hstatus=.true.
@@ -350,22 +349,22 @@ contains
   !             BUILD SPARSE HAMILTONIAN of the SECTOR
   !####################################################################
   subroutine ed_buildh_main(isector,Hmat)
-    integer                                :: isector   
-    complex(8),dimension(:,:),optional     :: Hmat
-    complex(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
-    integer,dimension(Ns)                  :: nup,ndw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ms
-    integer                                :: impi,impi_up,impi_dw
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8)                             :: htmp,htmpup,htmpdw
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition,dryrun_
+    integer                             :: isector   
+    real(8),dimension(:,:),optional     :: Hmat
+    real(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
+    integer,dimension(Ns)               :: nup,ndw
+    integer                             :: i,iup,idw
+    integer                             :: j,jup,jdw
+    integer                             :: m,mup,mdw
+    integer                             :: ms
+    integer                             :: impi,impi_up,impi_dw
+    integer                             :: iorb,jorb,ispin,jspin,ibath
+    integer                             :: kp,k1,k2,k3,k4
+    integer                             :: alfa,beta
+    real(8)                             :: sg1,sg2,sg3,sg4
+    real(8)                             :: htmp,htmpup,htmpdw
+    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                             :: Jcondition,dryrun_
     !
     if(.not.Hstatus)stop "ed_buildh_main ERROR: Hsector NOT set"
     isector=Hsector
@@ -373,24 +372,18 @@ contains
     if(present(Hmat))call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_main","Hmat")
     !
     !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
+    diag_hybr=0d0
+    do ibath=1,Nbath
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             if(bath_type/="replica")then
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             else
                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
+             end if
           enddo
        enddo
-    endif
+    enddo
     !
     !
     !The MPI version can allocate directly from the total dimension,
@@ -463,9 +456,9 @@ contains
     !-----------------------------------------------!
     !
     if(present(Hmat))then
-       Hmat = zero
-       allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
-       allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
+       Hmat = 0d0
+       allocate(Htmp_up(DimUp,DimUp));Htmp_up=0d0
+       allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=0d0
        !
 #ifdef _MPI
        select case (ed_sparse_format)
@@ -523,24 +516,24 @@ contains
 
 
   subroutine ed_buildh_orbs(isector,Hmat)
-    integer                                :: isector   
-    complex(8),dimension(:,:),optional     :: Hmat
-    complex(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
-    integer,dimension(2*Ns_Ud)               :: Indices
-    integer,dimension(Ns_Ud,Ns_Orb)          :: Nups,Ndws
-    integer,dimension(Ns_Ud)                 :: Nup,Ndw
-    integer,dimension(Ns_Orb)              :: Ibup,Ibdw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ms,iud
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8)                             :: htmp,htmpup,htmpdw
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition
+    integer                             :: isector   
+    real(8),dimension(:,:),optional     :: Hmat
+    real(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
+    integer,dimension(2*Ns_Ud)          :: Indices
+    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws
+    integer,dimension(Ns_Ud)            :: Nup,Ndw
+    integer,dimension(Ns_Orb)           :: Ibup,Ibdw
+    integer                             :: i,iup,idw
+    integer                             :: j,jup,jdw
+    integer                             :: m,mup,mdw
+    integer                             :: ms,iud
+    integer                             :: iorb,jorb,ispin,jspin,ibath
+    integer                             :: kp,k1,k2,k3,k4
+    integer                             :: alfa,beta
+    real(8)                             :: sg1,sg2,sg3,sg4
+    real(8)                             :: htmp,htmpup,htmpdw
+    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                             :: Jcondition
     !
     if(.not.Hstatus)stop "ed_buildh_orbs ERROR: Hsector NOT set"
     isector=Hsector
@@ -548,24 +541,18 @@ contains
     if(present(Hmat))call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_orbs","Hmat")
     !
     !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
+    diag_hybr=0d0
+    do ibath=1,Nbath
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             if(bath_type/="replica")then
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             else
                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
+             end if
           enddo
        enddo
-    endif
+    enddo
     !
     !
     call sp_init_matrix(spH0d,Dim)
@@ -589,20 +576,20 @@ contains
     !-----------------------------------------------!
     !
     if(present(Hmat))then
-       Hmat = zero
+       Hmat = 0d0
        call sp_dump_matrix(spH0d,Hmat)
 
-       allocate(Htmp_up(DimUp,DimUp));Htmp_up=zero
-       allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=zero
+       allocate(Htmp_up(DimUp,DimUp));Htmp_up=0d0
+       allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=0d0
        !
        do iud=1,Ns_Ud
-          allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=zero
+          allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0ups(iud),Hrdx)
           call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
           Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))          
           deallocate(Hrdx)
 
-          allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=zero
+          allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0dws(iud),Hrdx)
           call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
           Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
@@ -614,9 +601,9 @@ contains
   contains
 
     subroutine build_Htmp_up(iud,H,Dim,Hup)
-      integer                               :: iud,Dim,i
-      complex(8),dimension(Dim,Dim)         :: H
-      complex(8),dimension(DimUp,DimUp)     :: Hup
+      integer                        :: iud,Dim,i
+      real(8),dimension(Dim,Dim)     :: H
+      real(8),dimension(DimUp,DimUp) :: Hup
       if(dim/=DimUps(iud))stop "error in build_Htmp_up"
       if(iud==1)then
          Hup= kronecker_product(H,zeye(product(DimUps(2:))))
@@ -625,14 +612,14 @@ contains
       else
          Hup= kronecker_product( &
               kronecker_product( &
-              zeye(product(DimUps(1:iud-1))), H) , zeye(product(DimUps(iud+1:Ns_Ud))) )
+              zeye(product(DimUps(1:iud-1))), H) , eye(product(DimUps(iud+1:Ns_Ud))) )
       end if
     end subroutine build_Htmp_up
 
     subroutine build_Htmp_dw(iud,H,Dim,Hdw)
-      integer                               :: iud,Dim,i
-      complex(8),dimension(Dim,Dim)         :: H
-      complex(8),dimension(DimDw,DimDw)     :: Hdw
+      integer                        :: iud,Dim,i
+      real(8),dimension(Dim,Dim)     :: H
+      real(8),dimension(DimDw,DimDw) :: Hdw
       if(dim/=DimDws(iud))stop "error in build_Htmp_dw"
       if(iud==1)then
          Hdw= kronecker_product(H,zeye(product(DimDws(2:))))
@@ -655,42 +642,36 @@ contains
 
 
   subroutine ed_dryrunH_main(isector)
-    integer                                :: isector   
-    integer,dimension(Ns)                  :: nup,ndw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ms
-    integer                                :: impi,impi_up,impi_dw
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition
+    integer                             :: isector   
+    integer,dimension(Ns)               :: nup,ndw
+    integer                             :: i,iup,idw
+    integer                             :: j,jup,jdw
+    integer                             :: m,mup,mdw
+    integer                             :: ms
+    integer                             :: impi,impi_up,impi_dw
+    integer                             :: iorb,jorb,ispin,jspin,ibath
+    integer                             :: kp,k1,k2,k3,k4
+    integer                             :: alfa,beta
+    real(8)                             :: sg1,sg2,sg3,sg4
+    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                             :: Jcondition
     !
     if(.not.Hstatus)stop "ed_dryrun_main ERROR: Hsector NOT set"
     isector=Hsector
     !
     !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
+    diag_hybr=0d0
+    do ibath=1,Nbath
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             if(bath_type/="replica")then
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             else
                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
+             end if
           enddo
        enddo
-    endif
+    enddo
     !
     allocate(vecNnz_d(MpiQ+mpiR))
     allocate(vecNnz_dw(MpiQdw+MpiRdw))
@@ -739,13 +720,13 @@ contains
   !+------------------------------------------------------------------+
   subroutine spMatVec_main(Nloc,v,Hv)
     integer                         :: Nloc
-    complex(8),dimension(Nloc)      :: v
-    complex(8),dimension(Nloc)      :: Hv
+    real(8),dimension(Nloc)         :: v
+    real(8),dimension(Nloc)         :: Hv
     integer                         :: i,iup,idw,j
     type(sparse_element_ll),pointer :: c
     !
     !
-    Hv=zero
+    Hv=0d0
     !
     do i = 1,Nloc
        c => spH0d%row(i)%root%next
@@ -798,14 +779,14 @@ contains
 
   subroutine spMatVec_orbs(Nloc,v,Hv)
     integer                         :: Nloc
-    complex(8),dimension(Nloc)      :: v
-    complex(8),dimension(Nloc)      :: Hv
+    real(8),dimension(Nloc)         :: v
+    real(8),dimension(Nloc)         :: Hv
     integer                         :: i,iup,idw,j,iorb
     integer,dimension(2*Norb)       :: Indices,Jndices
     type(sparse_element_ll),pointer :: c
     !
     !
-    Hv=zero
+    Hv=0d0
     !
     do i = 1,Nloc
        c => spH0d%row(i)%root%next
@@ -851,16 +832,16 @@ contains
 
 #ifdef _MPI
   subroutine spMatVec_mpi_main(Nloc,v,Hv)
-    integer                             :: Nloc
-    complex(8),dimension(Nloc)          :: v
-    complex(8),dimension(Nloc)          :: Hv
-    integer                             :: i
-    integer                             :: N
-    complex(8),dimension(:),allocatable :: Vin,Vout
-    integer,allocatable,dimension(:)    :: Counts,Displs
-    type(sparse_element_ll),pointer     :: c
-    integer                             :: iup,idw,j
-    integer                             :: impi_up,impi_dw,impi
+    integer                          :: Nloc
+    real(8),dimension(Nloc)          :: v
+    real(8),dimension(Nloc)          :: Hv
+    integer                          :: i
+    integer                          :: N
+    real(8),dimension(:),allocatable :: Vin,Vout
+    integer,allocatable,dimension(:) :: Counts,Displs
+    type(sparse_element_ll),pointer  :: c
+    integer                          :: iup,idw,j
+    integer                          :: impi_up,impi_dw,impi
     !
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     MpiSize = get_Size_MPI(MpiComm)
@@ -871,7 +852,7 @@ contains
     if(N/=Dim)stop "spMatVec_mpi_cc ERROR: N != Dim"
     !
     !
-    Hv=zero
+    Hv=0d0
     !
     !DIAGONAL PART:
     do i=1,Nloc
@@ -891,8 +872,8 @@ contains
     allocate(Displs(0:MpiSize-1))
     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
     !
-    allocate(vin(N)) ; vin = zero
-    call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+    allocate(vin(N)) ; vin = 0d0
+    call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Precision,Vin,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
     !
     !NON-DIAGONAL PART: including S-E and P-H terms.
     if(jhflag)then
@@ -908,7 +889,7 @@ contains
     !
     !
     !DW PART: this is local and contiguous in memory, i.e. index i corresponds to consecutive states.
-    allocate(Vout(N)) ; Vout = zero
+    allocate(Vout(N)) ; Vout = 0d0
     !
     do idw=first_state_dw,last_state_dw
        do iup=1,DimUp
@@ -938,7 +919,7 @@ contains
     enddo
     !
     !Now we pack back the Vout content to Hv vectors:
-    Vin=zero
+    Vin=0d0
     call AllReduce_MPI(MpiComm,Vout,Vin)
     do i=first_state,last_state
        Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
@@ -961,12 +942,12 @@ contains
   !                     USE ELL sparse format
   !+------------------------------------------------------------------+
   subroutine dpMatVec_main(Nloc,v,Hv)
-    integer                         :: Nloc
-    complex(8),dimension(Nloc)      :: v
-    complex(8),dimension(Nloc)      :: Hv
-    integer                         :: i,iup,idw,j,ij
+    integer                 :: Nloc
+    real(8),dimension(Nloc) :: v
+    real(8),dimension(Nloc) :: Hv
+    integer                 :: i,iup,idw,j,ij
     !
-    Hv=zero
+    Hv=0d0
     !
     do i=1,Nloc
        do j=1,dpH0d%row(i)%Size
@@ -1008,15 +989,15 @@ contains
 
 #ifdef _MPI
   subroutine dpMatVec_mpi_main(Nloc,v,Hv)
-    integer                             :: Nloc
-    complex(8),dimension(Nloc)          :: v
-    complex(8),dimension(Nloc)          :: Hv
-    integer                             :: i
-    integer                             :: N
-    complex(8),dimension(:),allocatable :: Vin,Vout
-    integer,allocatable,dimension(:)    :: Counts,Displs
-    integer                             :: iup,idw,j,ij
-    integer                             :: impi_up,impi_dw,impi
+    integer                          :: Nloc
+    real(8),dimension(Nloc)          :: v
+    real(8),dimension(Nloc)          :: Hv
+    integer                          :: i
+    integer                          :: N
+    real(8),dimension(:),allocatable :: Vin,Vout
+    integer,allocatable,dimension(:) :: Counts,Displs
+    integer                          :: iup,idw,j,ij
+    integer                          :: impi_up,impi_dw,impi
     !
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     MpiSize = get_Size_MPI(MpiComm)
@@ -1027,7 +1008,7 @@ contains
     if(N/=Dim)stop "spMatVec_mpi_cc ERROR: N != Dim"
     !
     !
-    Hv=zero
+    Hv=0d0
     !
     !DIAGONAL PART:
     do i=1,Nloc
@@ -1043,8 +1024,8 @@ contains
     allocate(Displs(0:MpiSize-1))
     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
     !
-    allocate(Vin(N)) ; Vin = zero
-    call MPI_Allgatherv(V(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+    allocate(Vin(N)) ; Vin = 0d0
+    call MPI_Allgatherv(V(1:Nloc),Nloc,MPI_Double_Precision,Vin,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
     !
     !NON-DIAGONAL PART: including S-E and P-H terms.
     if(jhflag)then
@@ -1057,7 +1038,7 @@ contains
     !
     !
     !DW PART: this is local and contiguous in memory, i.e. index i corresponds to consecutive states.
-    allocate(Vout(N)) ; Vout = zero
+    allocate(Vout(N)) ; Vout = 0d0
     !
     do idw=first_state_dw,last_state_dw
        do iup=1,DimUp
@@ -1081,7 +1062,7 @@ contains
     enddo
     !
     !Now we pack back the Vout content to Hv vectors:
-    Vin=zero
+    Vin=0d0
     call AllReduce_MPI(MpiComm,Vout,Vin)
     do i=first_state,last_state
        Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)
@@ -1101,24 +1082,24 @@ contains
   !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
   !####################################################################
   subroutine directMatVec_main(Nloc,vin,Hv)
-    integer                                :: Nloc
-    complex(8),dimension(Nloc)             :: vin
-    complex(8),dimension(Nloc)             :: Hv
-    complex(8),dimension(Nloc)             :: Vout
-    integer                                :: isector
-    integer,dimension(Ns)                  :: nup,ndw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ishift
-    integer                                :: ms
-    integer                                :: impi
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8)                             :: htmp,htmpup,htmpdw
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    integer                             :: Nloc
+    real(8),dimension(Nloc)             :: vin
+    real(8),dimension(Nloc)             :: Hv
+    real(8),dimension(Nloc)             :: Vout
+    integer                             :: isector
+    integer,dimension(Ns)               :: nup,ndw
+    integer                             :: i,iup,idw
+    integer                             :: j,jup,jdw
+    integer                             :: m,mup,mdw
+    integer                             :: ishift
+    integer                             :: ms
+    integer                             :: impi
+    integer                             :: iorb,jorb,ispin,jspin,ibath
+    integer                             :: kp,k1,k2,k3,k4
+    integer                             :: alfa,beta
+    real(8)                             :: sg1,sg2,sg3,sg4
+    real(8)                             :: htmp,htmpup,htmpdw
+    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
     logical                                :: Jcondition
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
@@ -1127,28 +1108,22 @@ contains
     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
     !
     !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
+    diag_hybr=0d0
+    do ibath=1,Nbath
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             if(bath_type/="replica")then
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             else
                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
+             end if
           enddo
        enddo
-    endif
+    enddo
     !
     !
-    Hv=zero
-    Vout=zero
+    Hv=0d0
+    Vout=0d0
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -1173,49 +1148,43 @@ contains
 
 #ifdef _MPI
   subroutine directMatVec_MPI_main(Nloc,v,Hv)
-    integer                                :: Nloc
-    complex(8),dimension(Nloc)             :: v
-    complex(8),dimension(Nloc)             :: Hv
-    integer                                :: N
-    complex(8),dimension(:),allocatable    :: vin,vout
-    integer,allocatable,dimension(:)       :: Counts,Displs
-    integer                                :: isector
-    integer,dimension(Ns)                  :: nup,ndw
-    integer                                :: i,iup,idw
-    integer                                :: j,jup,jdw
-    integer                                :: m,mup,mdw
-    integer                                :: ms
-    integer                                :: impi
-    integer                                :: iorb,jorb,ispin,jspin,ibath
-    integer                                :: kp,k1,k2,k3,k4
-    integer                                :: alfa,beta
-    real(8)                                :: sg1,sg2,sg3,sg4
-    complex(8)                             :: htmp,htmpup,htmpdw
-    complex(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                                :: Jcondition
+    integer                             :: Nloc
+    real(8),dimension(Nloc)             :: v
+    real(8),dimension(Nloc)             :: Hv
+    integer                             :: N
+    real(8),dimension(:),allocatable    :: vin,vout
+    integer,allocatable,dimension(:)    :: Counts,Displs
+    integer                             :: isector
+    integer,dimension(Ns)               :: nup,ndw
+    integer                             :: i,iup,idw
+    integer                             :: j,jup,jdw
+    integer                             :: m,mup,mdw
+    integer                             :: ms
+    integer                             :: impi
+    integer                             :: iorb,jorb,ispin,jspin,ibath
+    integer                             :: kp,k1,k2,k3,k4
+    integer                             :: alfa,beta
+    real(8)                             :: sg1,sg2,sg3,sg4
+    real(8)                             :: htmp,htmpup,htmpdw
+    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                             :: Jcondition
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
     !
     !Get diagonal hybridization
-    diag_hybr=zero
-    if(bath_type/="replica")then
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                diag_hybr(ispin,iorb,ibath)=dcmplx(dmft_bath%v(ispin,iorb,ibath),00d0)
-             enddo
-          enddo
-       enddo
-    else
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
+    diag_hybr=0d0
+    do ibath=1,Nbath
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             if(bath_type/="replica")then
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             else
                 diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             enddo
+             end if
           enddo
        enddo
-    endif
+    enddo
     !
     if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
     !
@@ -1231,11 +1200,11 @@ contains
     allocate(Displs(0:MpiSize-1))
     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
     !
-    allocate(vin(N)) ; vin = zero
-    allocate(vout(N)); vout= zero
-    call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Complex,Vin,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+    allocate(vin(N)) ; vin = 0d0
+    allocate(vout(N)); vout= 0d0
+    call MPI_Allgatherv(v(1:Nloc),Nloc,MPI_Double_Precision,Vin,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
     !
-    Hv=zero
+    Hv=0d0
     !
     !-----------------------------------------------!
     !IMPURITY  HAMILTONIAN
@@ -1253,7 +1222,7 @@ contains
     !
     !
     !Now we pack back the Vout content to Hv vectors:
-    Vin=zero
+    Vin=0d0
     call AllReduce_MPI(MpiComm,Vout,Vin)
     do i=first_state,last_state
        Hv(i-Ishift) = Hv(i-Ishift) + Vin(i)

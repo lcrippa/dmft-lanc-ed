@@ -99,17 +99,17 @@ contains
 
   !+-------------------------------------------------------------------+
   !PURPOSE  : diagonalize the Hamiltonian in each sector and find the 
-  ! spectrum DOUBLE COMPLEX
+  ! spectrum DOUBLE PRECISION
   !+------------------------------------------------------------------+
   subroutine ed_diag_c
-    integer                :: isector,dim
-    integer                :: nups(Ns_Ud),ndws(Ns_Ud)
-    integer                :: i,j,iter,unit
-    integer                :: Nitermax,Neigen,Nblock
-    real(8)                :: oldzero,enemin,Ei
-    real(8),allocatable    :: eig_values(:)
-    complex(8),allocatable :: eig_basis(:,:)
-    logical                :: lanc_solve,Tflag,lanc_verbose,bool
+    integer             :: isector,dim
+    integer             :: nups(Ns_Ud),ndws(Ns_Ud)
+    integer             :: i,j,iter,unit
+    integer             :: Nitermax,Neigen,Nblock
+    real(8)             :: oldzero,enemin,Ei
+    real(8),allocatable :: eig_values(:)
+    real(8),allocatable :: eig_basis(:,:)
+    logical             :: lanc_solve,Tflag,lanc_verbose,bool
     !
     if(state_list%status)call es_delete_espace(state_list)
     state_list=es_init_espace()
@@ -181,17 +181,17 @@ contains
           !
 #ifdef _MPI
           if(MpiStatus)then
-             call sp_eigh(MpiComm,spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+             call sp_eigh(MpiComm,spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
                   tol=lanc_tolerance,&
                   iverbose=(ed_verbose>3),&
                   mpi_reduce=.false.)
           else
-             call sp_eigh(spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+             call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
                   tol=lanc_tolerance,&
                   iverbose=(ed_verbose>3))
           endif
 #else
-          call sp_eigh(spHtimesV_cc,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+          call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
                tol=lanc_tolerance,&
                iverbose=(ed_verbose>3))
 #endif

@@ -9,19 +9,19 @@ module ED_EIGENSPACE
   private
 
   type sparse_estate
-     integer                         :: sector        !index of the sector
-     real(8)                         :: e             !energy of the eigen-state
-     complex(8),dimension(:),pointer :: cvec=>null()  !double complex eigen-vector
-     logical                         :: itwin=.false. !twin sector label
-     type(sparse_estate),pointer     :: twin=>null()  !link to twin box 
-     type(sparse_estate),pointer     :: next=>null()  !link to next box (chain)
+     integer                      :: sector        !index of the sector
+     real(8)                      :: e             !energy of the eigen-state
+     real(8),dimension(:),pointer :: cvec=>null()  !double precision eigen-vector
+     logical                      :: itwin=.false. !twin sector label
+     type(sparse_estate),pointer  :: twin=>null()  !link to twin box 
+     type(sparse_estate),pointer  :: next=>null()  !link to next box (chain)
   end type sparse_estate
 
   type sparse_espace
-     integer                     :: size
-     real(8)                     :: emax,emin
-     logical                     :: status=.false.
-     type(sparse_estate),pointer :: root=>null()       !head/root of the list\== list itself
+     integer                      :: size
+     real(8)                      :: emax,emin
+     logical                      :: status=.false.
+     type(sparse_estate),pointer  :: root=>null()       !head/root of the list\== list itself
   end type sparse_espace
 
 
@@ -138,7 +138,7 @@ contains        !some routine to perform simple operation on the lists
   subroutine es_add_state_c(espace,e,cvec,sector,twin,size,verbose)
     type(sparse_espace),intent(inout) :: espace
     real(8),intent(in)                :: e
-    complex(8),dimension(:),intent(in):: cvec
+    real(8),dimension(:),intent(in)   :: cvec
     integer,intent(in)                :: sector
     integer,intent(in),optional       :: size
     logical,intent(in),optional       :: verbose
@@ -167,12 +167,12 @@ contains        !some routine to perform simple operation on the lists
   !PURPOSE  : insert a state into the list using ener,vector,sector
   !+------------------------------------------------------------------+
   subroutine es_insert_state_c(space,e,vec,sector,twin)
-    type(sparse_espace),intent(inout)  :: space
-    real(8),intent(in)                 :: e
-    complex(8),dimension(:),intent(in) :: vec
-    integer,intent(in)                 :: sector
-    logical                            :: twin
-    type(sparse_estate),pointer        :: p,c
+    type(sparse_espace),intent(inout) :: space
+    real(8),intent(in)                :: e
+    real(8),dimension(:),intent(in)   :: vec
+    integer,intent(in)                :: sector
+    logical                           :: twin
+    type(sparse_estate),pointer       :: p,c
     p => space%root
     c => p%next
     do                            !traverse the list until e < value (ordered list)
@@ -411,7 +411,7 @@ contains        !some routine to perform simple operation on the lists
   function es_return_cvector_default(space,n) result(vector)
     type(sparse_espace),intent(in)   :: space
     integer,optional,intent(in)      :: n
-    complex(8),dimension(:),pointer  :: vector
+    real(8),dimension(:),pointer     :: vector
     type(sparse_estate),pointer      :: c
     integer                          :: i,pos
     integer                          :: dim
@@ -446,8 +446,8 @@ contains        !some routine to perform simple operation on the lists
     integer                          :: MpiComm
     type(sparse_espace),intent(in)   :: space
     integer,optional,intent(in)      :: n
-    complex(8),dimension(:),pointer  :: vtmp
-    complex(8),dimension(:),pointer  :: vector
+    real(8),dimension(:),pointer     :: vtmp
+    real(8),dimension(:),pointer     :: vector
     type(sparse_estate),pointer      :: c
     integer                          :: i,pos,Nloc,Ndim
     integer                          :: dim
@@ -494,14 +494,14 @@ contains        !some routine to perform simple operation on the lists
     forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
     !
     if(.not.c%itwin)then
-       allocate(Vector(Ndim)) ; Vector = zero
-       call MPI_Allgatherv(c%cvec(1:Nloc),Nloc,MPI_Double_Complex,Vector,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+       allocate(Vector(Ndim)) ; Vector = 0d0
+       call MPI_Allgatherv(c%cvec(1:Nloc),Nloc,MPI_Double_Precision,Vector,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
     else
        allocate(Order(Dim))
        call twin_sector_order(c%twin%sector,Order)
        !
-       allocate(Vtmp(Ndim)) ; Vtmp = zero
-       call MPI_Allgatherv(c%twin%cvec(1:Nloc),Nloc,MPI_Double_Complex,Vtmp,Counts,Displs,MPI_Double_Complex,MpiComm,MpiIerr)
+       allocate(Vtmp(Ndim)) ; Vtmp = 0d0
+       call MPI_Allgatherv(c%twin%cvec(1:Nloc),Nloc,MPI_Double_Precision,Vtmp,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
        allocate(Vector(Ndim))
        forall(i=1:Dim)Vector(i) = Vtmp(Order(i)) !c%twin%cvec(Order(i))
        deallocate(Vtmp,order)

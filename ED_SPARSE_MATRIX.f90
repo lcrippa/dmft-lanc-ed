@@ -1,6 +1,5 @@
 !>>> ACTHUNG: IN THIS VERSION THE LOCAL (in the memory) PART IS DISABLED <<<<
-MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN MATRIX) 
-  USE SF_CONSTANTS, only:zero
+MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY DBLE ELEMENT: (SYMMETRIC MATRIX) 
   USE SF_IOTOOLS, only: str,free_unit
 #ifdef _MPI
   USE SF_MPI
@@ -11,7 +10,7 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
 
   !SPARSE MATRIX: LINKED LIST FORMAT:
   type sparse_element_ll
-     complex(8)                               :: cval !value of the entry: double complex
+     real(8)                                  :: cval !value of the entry: double precision
      integer                                  :: col  !col connected to this compress value
      type(sparse_element_ll),pointer          :: next !link to next entry in the row
   end type sparse_element_ll
@@ -43,7 +42,7 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY COMPLX ELEMENT: (HERMITIAN 
   type sparse_row_ell
      integer                                   :: Size
      integer                                   :: Count
-     complex(8),dimension(:),allocatable       :: vals
+     real(8),dimension(:),allocatable          :: vals
      integer,dimension(:),allocatable          :: cols
   end type sparse_row_ell
 
@@ -216,7 +215,7 @@ contains
        Nnz = vecNnz(i)
        sparse%row(i)%Size  = Nnz
        sparse%row(i)%Count = 0
-       allocate(sparse%row(i)%vals(Nnz))  ;sparse%row(i)%vals=dcmplx(0d0,0d0)
+       allocate(sparse%row(i)%vals(Nnz))  ;sparse%row(i)%vals=0d0
        allocate(sparse%row(i)%cols(Nnz))  ;sparse%row(i)%cols=0
     end do
     !
@@ -278,7 +277,7 @@ contains
        Nnz = vecNnz(i-MpiIshift)
        sparse%row(i-MpiIshift)%Size  = Nnz
        sparse%row(i-MpiIshift)%Count = 0
-       allocate(sparse%row(i-MpiIshift)%vals(Nnz))  ;sparse%row(i-MpiIshift)%vals=dcmplx(0d0,0d0)
+       allocate(sparse%row(i-MpiIshift)%vals(Nnz))  ;sparse%row(i-MpiIshift)%vals=0d0
        allocate(sparse%row(i-MpiIshift)%cols(Nnz))  ;sparse%row(i-MpiIshift)%cols=0
     end do
     !
@@ -445,12 +444,12 @@ contains
   !+------------------------------------------------------------------+
   subroutine sp_insert_element_ll(sparse,value,i,j)
     type(sparse_matrix_ll),intent(inout) :: sparse
-    complex(8),intent(in)                :: value
-    integer,intent(in)                :: i,j
+    real(8),intent(in)                   :: value
+    integer,intent(in)                   :: i,j
     type(sparse_row_ll),pointer          :: row
-    integer                           :: column
+    integer                              :: column
     type(sparse_element_ll),pointer      :: p,c
-    logical                           :: iadd
+    logical                              :: iadd
     !
     column = j
     !
@@ -488,7 +487,7 @@ contains
 
   subroutine sp_insert_element_ell(sparse,value,i,j)
     type(sparse_matrix_ell),intent(inout) :: sparse
-    complex(8),intent(in)                    :: value
+    real(8),intent(in)                    :: value
     integer,intent(in)                    :: i,j
     type(sparse_row_ell),pointer          :: row
     integer                               :: column,pos
@@ -521,7 +520,7 @@ contains
   subroutine mpi_sp_insert_element_ll(MpiComm,sparse,value,i,j)
     integer                              :: MpiComm
     type(sparse_matrix_ll),intent(inout) :: sparse
-    complex(8),intent(in)                   :: value
+    real(8),intent(in)                   :: value
     integer,intent(in)                   :: i,j
     type(sparse_row_ll),pointer          :: row
     integer                              :: column
@@ -571,7 +570,7 @@ contains
   subroutine mpi_sp_insert_element_ell(MpiComm,sparse,value,i,j)
     integer                               :: MpiComm
     type(sparse_matrix_ell),intent(inout) :: sparse
-    complex(8),intent(in)                    :: value
+    real(8),intent(in)                    :: value
     integer,intent(in)                    :: i,j
     type(sparse_row_ell),pointer          :: row
     integer                               :: column,pos
@@ -621,9 +620,9 @@ contains
   !PURPOSE: dump a sparse matrix into a regular 2dim array
   !+------------------------------------------------------------------+
   subroutine sp_dump_matrix_ll(sparse,matrix)
-    type(sparse_matrix_ll),intent(in)       :: sparse
-    complex(8),dimension(:,:),intent(inout) :: matrix
-    type(sparse_element_ll),pointer         :: c
+    type(sparse_matrix_ll),intent(in)    :: sparse
+    real(8),dimension(:,:),intent(inout) :: matrix
+    type(sparse_element_ll),pointer      :: c
     integer                              :: i,Ndim1,Ndim2
     !
     Ndim1=size(matrix,1)
@@ -643,7 +642,7 @@ contains
 
   subroutine sp_dump_matrix_ell(sparse,matrix)
     type(sparse_matrix_ell),intent(in)   :: sparse
-    complex(8),dimension(:,:),intent(inout) :: matrix
+    real(8),dimension(:,:),intent(inout) :: matrix
     integer                              :: i,j,Ndim1,Ndim2
     !
     Ndim1=size(matrix,1)
@@ -663,12 +662,12 @@ contains
   !
 #ifdef _MPI
   subroutine mpi_sp_dump_matrix_ll(MpiComm,sparse,matrix)
-    integer                                             :: MpiComm
-    type(sparse_matrix_ll),intent(in)                   :: sparse
-    complex(8),dimension(:,:),intent(inout)             :: matrix
-    complex(8),dimension(size(matrix,1),size(matrix,2)) :: mtmp
-    type(sparse_element_ll),pointer                     :: c
-    integer                                             :: i,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
+    integer                                          :: MpiComm
+    type(sparse_matrix_ll),intent(in)                :: sparse
+    real(8),dimension(:,:),intent(inout)             :: matrix
+    real(8),dimension(size(matrix,1),size(matrix,2)) :: mtmp
+    type(sparse_element_ll),pointer                  :: c
+    integer                                          :: i,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
     Ndim1=size(matrix,1)
     Ndim2=size(matrix,2)
@@ -682,7 +681,7 @@ contains
     !
     call sp_MPI_setup(MpiComm,Ndim1)
     !
-    mtmp=zero
+    mtmp=0d0
     do i=MpiIstart,MpiIend
        c => sparse%row(i-MpiIshift)%root%next
        do while(associated(c))
@@ -691,15 +690,15 @@ contains
        enddo
     enddo
     !
-    call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
+    call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Precision,MPI_Sum,MpiComm,MpiIerr)
   end subroutine mpi_sp_dump_matrix_ll
 
   subroutine mpi_sp_dump_matrix_ell(MpiComm,sparse,matrix)
-    integer                                             :: MpiComm
-    type(sparse_matrix_ell),intent(in)                  :: sparse
-    complex(8),dimension(:,:),intent(inout)             :: matrix
-    complex(8),dimension(size(matrix,1),size(matrix,2)) :: mtmp
-    integer                                             :: i,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
+    integer                                          :: MpiComm
+    type(sparse_matrix_ell),intent(in)               :: sparse
+    real(8),dimension(:,:),intent(inout)             :: matrix
+    real(8),dimension(size(matrix,1),size(matrix,2)) :: mtmp
+    integer                                          :: i,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
     Ndim1=size(matrix,1)
     Ndim2=size(matrix,2)
@@ -713,14 +712,14 @@ contains
     !
     call sp_MPI_setup(MpiComm,Ndim1)
     !
-    mtmp=zero
+    mtmp=0d0
     do i=MpiIstart,MpiIend
        do j=1,sparse%row(i-mpiIshift)%Size
           mtmp(i,sparse%row(i-mpiIshift)%cols(j))=mtmp(i,sparse%row(i-mpiIshift)%cols(j))+sparse%row(i-mpiIshift)%vals(j)
        enddo
     enddo
     !
-    call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Complex,MPI_Sum,MpiComm,MpiIerr)
+    call MPI_AllReduce(Mtmp,Matrix,Ndim1*Ndim2,MPI_Double_Precision,MPI_Sum,MpiComm,MpiIerr)
   end subroutine mpi_sp_dump_matrix_ell
 #endif
 
