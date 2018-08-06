@@ -73,7 +73,7 @@ contains
     integer                :: iup,idw,jup,jdw,mup,mdw
     real(8)                :: norm2,sgn
     real(8),allocatable    :: alfa_(:),beta_(:)
-    complex(8),allocatable :: vvinit(:)
+    real(8),allocatable :: vvinit(:)
     integer                :: Nitermax
     type(sector_map)       :: HI(2)    !map of the Sector S to Hilbert space H
     !
@@ -129,12 +129,12 @@ contains
        call build_Hv_sector(isector)
 #ifdef _MPI
        if(MpiStatus)then
-          call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
        else
-          call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
        endif
 #else
-       call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
        !particles
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
@@ -163,7 +163,7 @@ contains
     integer                  :: iup,idw,jup,jdw,mup,mdw
     real(8)                  :: norm2,sgn
     real(8),allocatable      :: alfa_(:),beta_(:)
-    complex(8),allocatable   :: vvinit(:)
+    real(8),allocatable   :: vvinit(:)
     integer                  :: Nitermax
     type(sector_map)         :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
     !
@@ -217,12 +217,12 @@ contains
        call build_Hv_sector(isector)
 #ifdef _MPI
        if(MpiStatus)then
-          call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
        else
-          call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
        endif
 #else
-       call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
        !particles
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
@@ -260,7 +260,7 @@ contains
     integer                :: iup,idw,jup,jdw,mup,mdw
     real(8)                :: norm2,sgn,Sup,Sdw
     real(8),allocatable    :: alfa_(:),beta_(:)
-    complex(8),allocatable :: vvinit(:)
+    real(8),allocatable :: vvinit(:)
     integer                :: Nitermax
     type(sector_map)       :: HI(2)    !map of the Sector S to Hilbert space H
     !
@@ -316,12 +316,12 @@ contains
        call build_Hv_sector(isector)
 #ifdef _MP
        if(MpiStatus)then
-          call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
        else
-          call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
        endif
 #else
-       call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
        !particles
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,Norb+1)
@@ -350,7 +350,7 @@ contains
     integer                          :: iup,idw,jup,jdw,mup,mdw
     real(8)                          :: norm2,sgn,Sup,Sdw
     real(8),allocatable              :: alfa_(:),beta_(:)
-    complex(8),allocatable           :: vvinit(:)
+    real(8),allocatable           :: vvinit(:)
     integer                          :: Nitermax
     type(sector_map)                 :: HI(2*Norb)    !map of the Sector S to Hilbert space H
     !
@@ -400,12 +400,12 @@ contains
        call build_Hv_sector(isector)
 #ifdef _MP
        if(MpiStatus)then
-          call sp_lanc_tridiag(MpiComm,spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
        else
-          call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
        endif
 #else
-       call sp_lanc_tridiag(spHtimesV_cc,vvinit,alfa_,beta_)
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
        !particles
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,Norb+1)

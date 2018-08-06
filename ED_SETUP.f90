@@ -46,6 +46,8 @@ MODULE ED_SETUP
 contains
 
 
+
+  subroutine ed_checks_global
     if(Lfit>Lmats)Lfit=Lmats
     if(Nspin>2)stop "ED ERROR: Nspin > 2 is currently not supported"
     if(Norb>3)stop "ED ERROR: Norb > 3 is currently not supported"

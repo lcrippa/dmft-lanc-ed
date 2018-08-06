@@ -5,7 +5,7 @@
 !########################################################################
 MODULE ED_HAMILTONIAN_MATVEC
   USE SF_MISC,    only: assert_shape
-  USE SF_LINALG, only: kronecker_product,zeye
+  USE SF_LINALG, only: kronecker_product,eye
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
   USE ED_BATH
@@ -505,8 +505,8 @@ contains
        end select
 #endif
        !
-       Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
-       Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))
+       Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
+       Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
@@ -586,13 +586,13 @@ contains
           allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0ups(iud),Hrdx)
           call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
-          Hmat = Hmat + kronecker_product(Htmp_up,zeye(DimDw))          
+          Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))          
           deallocate(Hrdx)
 
           allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0dws(iud),Hrdx)
           call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
-          Hmat = Hmat + kronecker_product(zeye(DimUp),Htmp_dw)
+          Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
           deallocate(Hrdx)
        enddo
        deallocate(Htmp_up,Htmp_dw)
@@ -606,13 +606,13 @@ contains
       real(8),dimension(DimUp,DimUp) :: Hup
       if(dim/=DimUps(iud))stop "error in build_Htmp_up"
       if(iud==1)then
-         Hup= kronecker_product(H,zeye(product(DimUps(2:))))
+         Hup= kronecker_product(H,eye(product(DimUps(2:))))
       else if(iud==Ns_Ud)then
-         Hup= kronecker_product(zeye(product(DimUps(1:Ns_Ud-1))),H)
+         Hup= kronecker_product(eye(product(DimUps(1:Ns_Ud-1))),H)
       else
          Hup= kronecker_product( &
               kronecker_product( &
-              zeye(product(DimUps(1:iud-1))), H) , eye(product(DimUps(iud+1:Ns_Ud))) )
+              eye(product(DimUps(1:iud-1))), H) , eye(product(DimUps(iud+1:Ns_Ud))) )
       end if
     end subroutine build_Htmp_up
 
@@ -622,13 +622,13 @@ contains
       real(8),dimension(DimDw,DimDw) :: Hdw
       if(dim/=DimDws(iud))stop "error in build_Htmp_dw"
       if(iud==1)then
-         Hdw= kronecker_product(H,zeye(product(DimDws(2:))))
+         Hdw= kronecker_product(H,eye(product(DimDws(2:))))
       else if(iud==Ns_Ud)then
-         Hdw= kronecker_product(zeye(product(DimDws(1:Ns_Ud-1))),H)
+         Hdw= kronecker_product(eye(product(DimDws(1:Ns_Ud-1))),H)
       else
          Hdw= kronecker_product( &
               kronecker_product( &
-              zeye(product(DimDws(1:iud-1))), H) , zeye(product(DimDws(iud+1:Ns_Ud))) )
+              eye(product(DimDws(1:iud-1))), H) , eye(product(DimDws(iud+1:Ns_Ud))) )
       end if
     end subroutine build_Htmp_dw
   end subroutine ed_buildh_orbs

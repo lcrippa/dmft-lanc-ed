@@ -20,7 +20,7 @@ subroutine allocate_dmft_bath(dmft_bath_)
      !
      allocate(dmft_bath_%h(Nspin,Nspin,Norb,Norb,Nbath))     !replica hamilt of the bath
      allocate(dmft_bath_%vr(Nbath))                          !hybridization 
-     allocate(dmft_bath_%mask(Nspin,Nspin,Norb,Norb,2))      !mask on components 
+     allocate(dmft_bath_%mask(Nspin,Nspin,Norb,Norb,1))      !mask on components 
      !
   end select
   dmft_bath_%status=.true.
@@ -196,22 +196,23 @@ subroutine init_dmft_bath_mask(dmft_bath_)
      do iorb=1,Norb
         !Re-diagonal elements always present
         dmft_bath_%mask(ispin,ispin,iorb,iorb,1)=.true.
-        !Im-diagonal elements checked
-        if(abs(dimag(impHloc(ispin,ispin,iorb,iorb))).gt.1e-6)stop "impHloc is not Hermitian"
+        ! !Im-diagonal elements checked
+        ! if(abs(dimag(impHloc(ispin,ispin,iorb,iorb))).gt.1e-6)stop "impHloc is not Hermitian"
         !off-diagonal elements
         do jspin=1,Nspin
            do jorb=1,Norb
               io = iorb + (ispin-1)*Norb
               jo = jorb + (jspin-1)*Norb
               if(io/=jo)then
-                 !Re
-                 if( abs(dreal(impHloc(ispin,jspin,iorb,jorb))).gt.1e-6)then
-                    dmft_bath_%mask(ispin,jspin,iorb,jorb,1)=.true.
-                 endif
-                 !Im
-                 if(abs(dimag(impHloc(ispin,jspin,iorb,jorb))).gt.1e-6)then
-                    dmft_bath_%mask(ispin,jspin,iorb,jorb,2)=.true.
-                 endif
+                 ! !Re
+                 ! if( abs(dreal(impHloc(ispin,jspin,iorb,jorb))).gt.1e-6)then
+                 !    dmft_bath_%mask(ispin,jspin,iorb,jorb,1)=.true.
+                 ! endif
+                 ! !Im
+                 ! if(abs(dimag(impHloc(ispin,jspin,iorb,jorb))).gt.1e-6)then
+                 !    dmft_bath_%mask(ispin,jspin,iorb,jorb,2)=.true.
+                 ! endif
+                 if( abs(impHloc(ispin,jspin,iorb,jorb)).gt.1e-6)dmft_bath_%mask(ispin,jspin,iorb,jorb,1)=.true.
               endif
            enddo
         enddo
@@ -394,17 +395,24 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
                  jo = jorb + (ispin-1)*Norb
                  if(io.gt.jo)cycle!only diagonal and upper triangular are saved for hermiticity
                  element_R=0.0d0;element_I=0.0d0
+                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
+                 !    i=i+1
+                 !    element_R=bath_(i)
+                 ! endif
+                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,2)) then
+                 !    i=i+1
+                 !    element_I=bath_(i)
+                 ! endif
+                 ! dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)=cmplx(element_R,element_I)
+                 ! !hermiticity
+                 ! if(iorb/=jorb)dmft_bath_%h(ispin,ispin,jorb,iorb,ibath)=conjg(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
                  if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
                     i=i+1
                     element_R=bath_(i)
                  endif
-                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb,2)) then
-                    i=i+1
-                    element_I=bath_(i)
-                 endif
-                 dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)=cmplx(element_R,element_I)
-                 !hermiticity
-                 if(iorb/=jorb)dmft_bath_%h(ispin,ispin,jorb,iorb,ibath)=conjg(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
+                 dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)=element_R
+                 !symmetry
+                 if(iorb/=jorb)dmft_bath_%h(ispin,ispin,jorb,iorb,ibath)=dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)
                  !spin-conservation
                  ! if(Maxspin==1)dmft_bath_%h(2,2,iorb,jorb,ibath)=dmft_bath_%h(1,1,iorb,jorb,ibath)
                  ! if(Maxspin==1)dmft_bath_%h(2,2,jorb,iorb,ibath)=dmft_bath_%h(1,1,jorb,iorb,ibath)
@@ -508,12 +516,16 @@ subroutine get_dmft_bath(dmft_bath_,bath_)
                  if(io.gt.jo)cycle !only diagonal and upper triangular are saved for hermiticity
                  if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
                     i=i+1
-                    bath_(i)=dreal(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
+                    bath_(i)=dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)
                  endif
-                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb,2)) then
-                    i=i+1
-                    bath_(i)=dimag(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
-                 endif
+                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
+                 !    i=i+1
+                 !    bath_(i)=dreal(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
+                 ! endif
+                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,2)) then
+                 !    i=i+1
+                 !    bath_(i)=dimag(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
+                 ! endif
               enddo
            enddo
         enddo
@@ -522,7 +534,8 @@ subroutine get_dmft_bath(dmft_bath_,bath_)
      !all Re[Hybr]
      do ibath=1,Nbath
         i=i+1
-        bath_(i)=dreal(dmft_bath_%vr(ibath))
+        ! bath_(i)=dreal(dmft_bath_%vr(ibath))
+        bath_(i)=dmft_bath_%vr(ibath)
      enddo
      !    
      !

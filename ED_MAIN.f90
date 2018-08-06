@@ -82,7 +82,7 @@ contains
     !Init bath:
     call set_Hloc(Hloc)
     !
-    check = check_bath_dimension(bath,Hloc)
+    check = check_bath_dimension(bath,dreal(Hloc))
     if(.not.check)stop "init_ed_solver_single error: wrong bath dimensions"
     !
     bath = 0d0
@@ -123,7 +123,7 @@ contains
     !Init bath:
     call set_hloc(Hloc)
     !
-    check = check_bath_dimension(bath,Hloc)
+    check = check_bath_dimension(bath,dreal(Hloc))
     if(.not.check)stop "init_ed_solver_single error: wrong bath dimensions"
     !
     bath = 0d0

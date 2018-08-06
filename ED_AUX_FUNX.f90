@@ -158,7 +158,7 @@ contains
     impHloc = Hloc
     !
     write(LOGfile,"(A)")"Updated impHloc:"
-    if(ed_verbose>2)call print_Hloc(impHloc)
+    if(ed_verbose>2)call print_Hloc(one*impHloc)
   end subroutine set_Hloc_nn
   !
   subroutine set_Hloc_so(Hloc)
@@ -168,7 +168,7 @@ contains
     impHloc = so2nn_reshape(Hloc,Nspin,Norb)
     !
     write(LOGfile,"(A)")"Updated impHloc:"
-    if(ed_verbose>2)call print_Hloc(impHloc)
+    if(ed_verbose>2)call print_Hloc(one*impHloc)
   end subroutine set_Hloc_so
 
 

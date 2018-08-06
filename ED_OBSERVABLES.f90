@@ -109,9 +109,9 @@ contains
     real(8)                         :: peso
     real(8)                         :: norm
     real(8),dimension(Norb)         :: nup,ndw,Sz,nt
-    complex(8),dimension(:),pointer :: gscvec
+    real(8),dimension(:),pointer :: gscvec
     type(sector_map)                :: HI(2)
-    complex(8),allocatable          :: vvinit(:)
+    real(8),allocatable          :: vvinit(:)
     !
     !LOCAL OBSERVABLES:
     ! density, 
@@ -246,7 +246,7 @@ contains
                    i = iup + (idw-1)*idimUP
                    !
                    imp_density_matrix(ispin,ispin,iorb,iorb) = imp_density_matrix(ispin,ispin,iorb,iorb) + &
-                        peso*nud(ispin,iorb)*conjg(gscvec(i))*gscvec(i)
+                        peso*nud(ispin,iorb)*(gscvec(i))*gscvec(i)
                 enddo
              enddo
           enddo
@@ -272,7 +272,7 @@ contains
                          j = jud(1) + (jud(2)-1)*idimUP
                          !
                          imp_density_matrix(ispin,ispin,iorb,jorb) = imp_density_matrix(ispin,ispin,iorb,jorb) + &
-                              peso*sgn1*gscvec(i)*sgn2*conjg(gscvec(j))
+                              peso*sgn1*gscvec(i)*sgn2*(gscvec(j))
                       endif
                    enddo
                 enddo
@@ -335,9 +335,9 @@ contains
     real(8)                         :: peso
     real(8)                         :: norm
     real(8),dimension(Norb)         :: nup,ndw,Sz,nt
-    complex(8),dimension(:),pointer :: gscvec
+    real(8),dimension(:),pointer :: gscvec
     type(sector_map)                :: HI(2*Ns_Ud)
-    complex(8),allocatable          :: vvinit(:)
+    real(8),allocatable          :: vvinit(:)
     !
     !LOCAL OBSERVABLES:
     ! density, 
@@ -469,7 +469,7 @@ contains
                 !
                 !Diagonal densities
                 imp_density_matrix(ispin,ispin,iorb,iorb) = imp_density_matrix(ispin,ispin,iorb,iorb) + &
-                     peso*nud(ispin,iorb)*conjg(gscvec(i))*gscvec(i)
+                     peso*nud(ispin,iorb)*(gscvec(i))*gscvec(i)
              enddo
           enddo
           !
@@ -497,7 +497,7 @@ contains
                       call indices2state(Jndices,[iDimUps,iDimDws],j)
                       !
                       imp_density_matrix(ispin,ispin,iorb,jorb) = imp_density_matrix(ispin,ispin,iorb,jorb) + &
-                           peso*sgn1*gscvec(i)*sgn2*conjg(gscvec(j))
+                           peso*sgn1*gscvec(i)*sgn2*(gscvec(j))
                    endif
                 enddo
              enddo
@@ -566,7 +566,7 @@ contains
     real(8)                         :: norm
     real(8),dimension(Norb)         :: nup,ndw
     real(8),dimension(Nspin,Norb)   :: eloc
-    complex(8),dimension(:),pointer :: gscvec
+    real(8),dimension(:),pointer :: gscvec
     type(sector_map)                :: H(2)
     logical                         :: Jcondition
     !
@@ -646,7 +646,7 @@ contains
                       jud(ispin) = binary_search(H(ispin)%map,k2)
                       !                      
                       j = jud(1) + (jud(2)-1)*jdimUP
-                      ed_Eknot = ed_Eknot + impHloc(ispin,ispin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
+                      ed_Eknot = ed_Eknot + impHloc(ispin,ispin,iorb,jorb)*sg1*sg2*gscvec(i)*(gscvec(j))
                    endif
                    !SPIN DW
                    ispin=2
@@ -658,7 +658,7 @@ contains
                       jud(ispin) = binary_search(H(ispin)%map,k2)
                       !                      
                       j = jud(1) + (jud(2)-1)*jdimUP
-                      ed_Eknot = ed_Eknot + impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
+                      ed_Eknot = ed_Eknot + impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*(gscvec(j))
                    endif
                 enddo
              enddo
@@ -717,8 +717,8 @@ contains
                          !
                          j = jup + (jdw-1)*idimUP
                          !
-                         ed_Epot = ed_Epot + Jx*sg1*sg2*sg3*sg4*gscvec(i)*conjg(gscvec(j))
-                         ed_Dse  = ed_Dse  + sg1*sg2*sg3*sg4*gscvec(i)*conjg(gscvec(j))
+                         ed_Epot = ed_Epot + Jx*sg1*sg2*sg3*sg4*gscvec(i)*(gscvec(j))
+                         ed_Dse  = ed_Dse  + sg1*sg2*sg3*sg4*gscvec(i)*(gscvec(j))
                       endif
                    enddo
                 enddo
@@ -746,8 +746,8 @@ contains
                          !
                          j = jup + (jdw-1)*idimup
                          !
-                         ed_Epot = ed_Epot + Jp*sg1*sg2*sg3*sg4*gscvec(i)*conjg(gscvec(j))!gs_weight
-                         ed_Dph  = ed_Dph  + sg1*sg2*sg3*sg4*gscvec(i)*conjg(gscvec(j))!gs_weight
+                         ed_Epot = ed_Epot + Jp*sg1*sg2*sg3*sg4*gscvec(i)*(gscvec(j))!gs_weight
+                         ed_Dph  = ed_Dph  + sg1*sg2*sg3*sg4*gscvec(i)*(gscvec(j))!gs_weight
                       endif
                    enddo
                 enddo
@@ -815,7 +815,7 @@ contains
     real(8)                         :: norm
     real(8),dimension(Norb)         :: nup,ndw
     real(8),dimension(Nspin,Norb)   :: eloc
-    complex(8),dimension(:),pointer :: gscvec
+    real(8),dimension(:),pointer :: gscvec
     type(sector_map)                :: H(2*Ns_Ud)
     logical                         :: Jcondition
     !
@@ -896,7 +896,7 @@ contains
                    jud(ispin) = binary_search(H(ispin)%map,k2)
                    !                      
                    j = jud(1) + (jud(2)-1)*jdimUP
-                   ed_Eknot = ed_Eknot + impHloc(ispin,ispin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
+                   ed_Eknot = ed_Eknot + impHloc(ispin,ispin,iorb,jorb)*sg1*sg2*gscvec(i)*(gscvec(j))
                 endif
                 !SPIN DW
                 ispin=2
@@ -908,7 +908,7 @@ contains
                    jud(ispin) = binary_search(H(ispin)%map,k2)
                    !                      
                    j = jud(1) + (jud(2)-1)*jdimUP
-                   ed_Eknot = ed_Eknot + impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*conjg(gscvec(j))
+                   ed_Eknot = ed_Eknot + impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*(gscvec(j))
                 endif
              enddo
           enddo
