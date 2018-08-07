@@ -44,9 +44,7 @@ subroutine chi2_fitgf_replica(fg,bath_)
      do jspin=1,Nspin
         do iorb=1,Norb
            do jorb=1,Norb
-              if (dmft_bath%mask(ispin,jspin,iorb,jorb,1) .or. dmft_bath%mask(ispin,jspin,iorb,jorb,2))then
-                 count=count+1
-              endif
+              if (dmft_bath%mask(ispin,jspin,iorb,jorb))count=count+1
            enddo
         enddo
      enddo
@@ -60,7 +58,7 @@ subroutine chi2_fitgf_replica(fg,bath_)
      do jspin=1,Nspin
         do iorb=1,Norb
            do jorb=1,Norb
-              if (dmft_bath%mask(ispin,jspin,iorb,jorb,1) .or. dmft_bath%mask(ispin,jspin,iorb,jorb,2))then
+              if (dmft_bath%mask(ispin,jspin,iorb,jorb))then
                  count=count+1
                  getIspin(count) = ispin
                  getIorb(count)  = iorb

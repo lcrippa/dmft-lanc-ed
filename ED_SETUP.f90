@@ -183,6 +183,11 @@ contains
     if(Norb>1.AND.(Jx/=0d0.OR.Jp/=0d0))Jhflag=.TRUE.
     !
     !
+    offdiag_gf_flag=ed_solve_offdiag_gf
+    if(bath_type/="normal")offdiag_gf_flag=.true.
+    if(.not.ed_total_ud)offdiag_gf_flag=.false.
+    !
+    !
     if(nread/=0.d0)then
        i=abs(floor(log10(abs(nerr)))) !modulus of the order of magnitude of nerror
        niter=nloop/3

@@ -20,7 +20,7 @@ subroutine allocate_dmft_bath(dmft_bath_)
      !
      allocate(dmft_bath_%h(Nspin,Nspin,Norb,Norb,Nbath))     !replica hamilt of the bath
      allocate(dmft_bath_%vr(Nbath))                          !hybridization 
-     allocate(dmft_bath_%mask(Nspin,Nspin,Norb,Norb,1))      !mask on components 
+     allocate(dmft_bath_%mask(Nspin,Nspin,Norb,Norb))        !mask on components 
      !
   end select
   dmft_bath_%status=.true.
@@ -51,7 +51,7 @@ end subroutine deallocate_dmft_bath
 !+------------------------------------------------------------------+
 subroutine init_dmft_bath(dmft_bath_)
   type(effective_bath) :: dmft_bath_
-  complex(8)           :: hrep_aux(Nspin*Norb,Nspin*Norb)
+  real(8)              :: hrep_aux(Nspin*Norb,Nspin*Norb)
   real(8)              :: hybr_aux_R,hybr_aux_I
   real(8)              :: hrep_aux_R(Nspin*Norb,Nspin*Norb)
   real(8)              :: hrep_aux_I(Nspin*Norb,Nspin*Norb)
@@ -60,19 +60,13 @@ subroutine init_dmft_bath(dmft_bath_)
   integer              :: io,jo,iorb,ispin,jorb,jspin
   logical              :: IOfile
   real(8)              :: de,noise_tot
-  real(8),allocatable  :: noise_b(:),noise_s(:),noise_o(:)
+  real(8),allocatable  :: noise_b(:)
   character(len=21)    :: space
   if(.not.dmft_bath_%status)stop "init_dmft_bath error: bath not allocated"
   !
   allocate(noise_b(Nbath));noise_b=0.d0 
-  allocate(noise_s(Nspin));noise_s=0.d0 
-  allocate(noise_o(Norb)); noise_o=0.d0 
   call random_number(noise_b)
-  call random_number(noise_s)
-  call random_number(noise_o)
   noise_b=noise_b*ed_bath_noise_thr
-  noise_s=noise_s*ed_bath_noise_thr
-  noise_o=noise_o*ed_bath_noise_thr
   !
   select case(bath_type)
   case default
@@ -113,12 +107,14 @@ subroutine init_dmft_bath(dmft_bath_)
      dmft_bath_%vr=zero
      do i=1,Nbath
         noise_tot=noise_b(i)
-        dmft_bath_%vr(i)=cmplx(0.5d0+noise_b(i),0.0d0)!*(-1)**(i-1)
+        dmft_bath_%vr(i)=0.5d0+noise_b(i)!*(-1)**(i-1)
      enddo
      !
-     deallocate(noise_b,noise_s,noise_o)
+     deallocate(noise_b)
      !
   end select
+  !
+  !
   !
   !Read from file if exist:
   !
@@ -160,13 +156,13 @@ subroutine init_dmft_bath(dmft_bath_)
            hybr_aux_R=0.0d0;hybr_aux_I=0.0d0
            hrep_aux=zero
            do io=1,Nspin*Norb
-              if(io==1)read(unit,"(90(F21.12,1X))")     hybr_aux_R,hybr_aux_I,(hrep_aux_R(io,jo),jo=1,Nspin*Norb),(hrep_aux_I(io,jo),jo=1,Nspin*Norb)
-              if(io/=1)read(unit,"(2a21,90(F21.12,1X))")   space  ,   space  ,(hrep_aux_R(io,jo),jo=1,Nspin*Norb),(hrep_aux_I(io,jo),jo=1,Nspin*Norb)
+              if(io==1)read(unit,"(90(F21.12,1X))")hybr_aux_R,(hrep_aux_R(io,jo),jo=1,Nspin*Norb)
+              if(io/=1)read(unit,"(2a21,90(F21.12,1X))")space,space,(hrep_aux_R(io,jo),jo=1,Nspin*Norb)
            enddo
            read(unit,*)
-           hrep_aux=cmplx(hrep_aux_R,hrep_aux_I)
+           hrep_aux=hrep_aux_R!cmplx(hrep_aux_R,hrep_aux_I)
            dmft_bath_%h(:,:,:,:,i)=so2nn_reshape(hrep_aux,Nspin,Norb)
-           dmft_bath_%vr(i)=cmplx(hybr_aux_R,hybr_aux_I)
+           dmft_bath_%vr(i)=hybr_aux_R!cmplx(hybr_aux_R,hybr_aux_I)
         enddo
         !
         !
@@ -182,8 +178,6 @@ subroutine init_dmft_bath_mask(dmft_bath_)
   type(effective_bath),intent(inout) :: dmft_bath_
   integer                            :: iorb,ispin,jorb,jspin
   integer                            :: io,jo
-  complex(8)                         :: LS(Nspin*Norb,Nspin*Norb)
-  complex(8)                         :: LS_rot(Nspin*Norb,Nspin*Norb)
   !
   if(.not.(allocated(impHloc))) then
      stop "impHloc not allocated on mask initialization"
@@ -194,25 +188,16 @@ subroutine init_dmft_bath_mask(dmft_bath_)
   !
   do ispin=1,Nspin
      do iorb=1,Norb
-        !Re-diagonal elements always present
-        dmft_bath_%mask(ispin,ispin,iorb,iorb,1)=.true.
-        ! !Im-diagonal elements checked
-        ! if(abs(dimag(impHloc(ispin,ispin,iorb,iorb))).gt.1e-6)stop "impHloc is not Hermitian"
+        !diagonal elements always present
+        dmft_bath_%mask(ispin,ispin,iorb,iorb)=.true.
         !off-diagonal elements
         do jspin=1,Nspin
            do jorb=1,Norb
               io = iorb + (ispin-1)*Norb
               jo = jorb + (jspin-1)*Norb
               if(io/=jo)then
-                 ! !Re
-                 ! if( abs(dreal(impHloc(ispin,jspin,iorb,jorb))).gt.1e-6)then
-                 !    dmft_bath_%mask(ispin,jspin,iorb,jorb,1)=.true.
-                 ! endif
-                 ! !Im
-                 ! if(abs(dimag(impHloc(ispin,jspin,iorb,jorb))).gt.1e-6)then
-                 !    dmft_bath_%mask(ispin,jspin,iorb,jorb,2)=.true.
-                 ! endif
-                 if( abs(impHloc(ispin,jspin,iorb,jorb)).gt.1e-6)dmft_bath_%mask(ispin,jspin,iorb,jorb,1)=.true.
+                 if( abs(impHloc(ispin,jspin,iorb,jorb)).gt.1e-6)&
+                      dmft_bath_%mask(ispin,jspin,iorb,jorb)=.true.
               endif
            enddo
         enddo
@@ -233,8 +218,8 @@ subroutine write_dmft_bath(dmft_bath_,unit)
   integer              :: unit_
   integer              :: i
   integer              :: io,jo,iorb,ispin
-  complex(8)           :: hybr_aux
-  complex(8)           :: hrep_aux(Nspin*Norb,Nspin*Norb)
+  real(8)              :: hybr_aux
+  real(8)              :: hrep_aux(Nspin*Norb,Nspin*Norb)
   unit_=LOGfile;if(present(unit))unit_=unit
   if(.not.dmft_bath_%status)stop "write_dmft_bath error: bath not allocated"
   select case(bath_type)
@@ -268,17 +253,16 @@ subroutine write_dmft_bath(dmft_bath_,unit)
   case ('replica')
      !
      do i=1,Nbath
-        hrep_aux=zero;hrep_aux=nn2so_reshape(dmft_bath_%h(:,:,:,:,i),Nspin,Norb)
+        hrep_aux=0d0
+        hrep_aux=nn2so_reshape(dmft_bath_%h(:,:,:,:,i),Nspin,Norb)
         hybr_aux=dmft_bath_%vr(i)
         do io=1,Nspin*Norb
            if(unit_==LOGfile)then
-              if(io==1) write(unit_,"(2F8.3,a5,90(F8.3,1X))") real(hybr_aux),aimag(hybr_aux),"|",( real(hrep_aux(io,jo)),jo=1,Nspin*Norb),&
-                   (aimag(hrep_aux(io,jo)),jo=1,Nspin*Norb)
-              if(io/=1) write(unit_,"(2a8,a5,90(F8.3,1X))")        "  "     ,      "  "     ,"|",( real(hrep_aux(io,jo)),jo=1,Nspin*Norb),&
-                   (aimag(hrep_aux(io,jo)),jo=1,Nspin*Norb)
+              if(io==1) write(unit_,"(F9.4,a5,90(F9.4,1X))")hybr_aux,"|",( hrep_aux(io,jo),jo=1,Nspin*Norb)
+              if(io/=1) write(unit_,"(A9  ,a5,90(F9.4,1X))") "  "   ,"|",( hrep_aux(io,jo),jo=1,Nspin*Norb)
            else
-              if(io==1)write(unit_,"(90(F21.12,1X))")         real(hybr_aux),aimag(hybr_aux),(real(hrep_aux(io,jo)),jo=1,Nspin*Norb),(aimag(hrep_aux(io,jo)),jo=1,Nspin*Norb)
-              if(io/=1)write(unit_,"(2a21,90(F21.12,1X))")         "  "     ,     "  "      ,(real(hrep_aux(io,jo)),jo=1,Nspin*Norb),(aimag(hrep_aux(io,jo)),jo=1,Nspin*Norb)
+              if(io==1)write(unit_,"(90(F21.12,1X))")hybr_aux,(hrep_aux(io,jo),jo=1,Nspin*Norb)
+              if(io/=1)write(unit_,"(a21,90(F21.12,1X))")"  ",(hrep_aux(io,jo),jo=1,Nspin*Norb)
            endif
         enddo
         write(unit_,*)
@@ -330,10 +314,8 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
   integer                :: stride,io,jo,i
   integer                :: iorb,ispin,jorb,jspin,ibath,maxspin
   logical                :: check
-  complex(8)             :: hrep_aux(Nspin*Norb,Nspin*Norb)
-  complex(8)             :: U(Nspin*Norb,Nspin*Norb)
-  complex(8)             :: Udag(Nspin*Norb,Nspin*Norb)
-  real(8)                :: element_R,element_I,eps_k,lambda_k
+  real(8)                :: hrep_aux(Nspin*Norb,Nspin*Norb)
+  real(8)                :: element_R,eps_k,lambda_k
   if(.not.dmft_bath_%status)stop "set_dmft_bath error: bath not allocated"
   check = check_bath_dimension(bath_)
   if(.not.check)stop "set_dmft_bath error: wrong bath dimensions"
@@ -383,8 +365,8 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
      !
   case ('replica')
      !
-     dmft_bath_%h=zero
-     dmft_bath_%vr=zero
+     dmft_bath_%h=0d0
+     dmft_bath_%vr=0d0
      i = 0
      !all non-vanishing terms in imploc - all spin
      do ispin=1,Nspin
@@ -393,29 +375,15 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
               do ibath=1,Nbath
                  io = iorb + (ispin-1)*Norb
                  jo = jorb + (ispin-1)*Norb
-                 if(io.gt.jo)cycle!only diagonal and upper triangular are saved for hermiticity
-                 element_R=0.0d0;element_I=0.0d0
-                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
-                 !    i=i+1
-                 !    element_R=bath_(i)
-                 ! endif
-                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,2)) then
-                 !    i=i+1
-                 !    element_I=bath_(i)
-                 ! endif
-                 ! dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)=cmplx(element_R,element_I)
-                 ! !hermiticity
-                 ! if(iorb/=jorb)dmft_bath_%h(ispin,ispin,jorb,iorb,ibath)=conjg(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
-                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
+                 if(io.gt.jo)cycle!only diagonal and upper triangular are saved by symmetry
+                 element_R=0d0
+                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb)) then
                     i=i+1
                     element_R=bath_(i)
                  endif
                  dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)=element_R
                  !symmetry
                  if(iorb/=jorb)dmft_bath_%h(ispin,ispin,jorb,iorb,ibath)=dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)
-                 !spin-conservation
-                 ! if(Maxspin==1)dmft_bath_%h(2,2,iorb,jorb,ibath)=dmft_bath_%h(1,1,iorb,jorb,ibath)
-                 ! if(Maxspin==1)dmft_bath_%h(2,2,jorb,iorb,ibath)=dmft_bath_%h(1,1,jorb,iorb,ibath)
               enddo
            enddo
         enddo
@@ -423,19 +391,8 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
      !
      !all Re[Hybr]
      do ibath=1,Nbath
-        element_R=0.0d0;element_I=0.0d0
         i=i+1
-        element_R=bath_(i)
-        dmft_bath_%vr(ibath)=cmplx(element_R,element_I)
-     enddo
-     !
-     !
-     !all Re[Hybr]
-     do ibath=1,Nbath
-        element_R=0.0d0;element_I=0.0d0
-        i=i+1
-        element_R=bath_(i)
-        dmft_bath_%vr(ibath)=cmplx(element_R,element_I)
+        dmft_bath_%vr(ibath)=bath_(i)
      enddo
      !
      !
@@ -450,9 +407,7 @@ end subroutine set_dmft_bath
 subroutine get_dmft_bath(dmft_bath_,bath_)
   type(effective_bath)   :: dmft_bath_
   real(8),dimension(:)   :: bath_
-  complex(8)             :: hrep_aux(Nspin*Norb,Nspin*Norb)
-  complex(8)             :: U(Nspin*Norb,Nspin*Norb)
-  complex(8)             :: Udag(Nspin*Norb,Nspin*Norb)
+  real(8)                :: hrep_aux(Nspin*Norb,Nspin*Norb)
   integer                :: stride,io,jo,i
   integer                :: iorb,ispin,jorb,jspin,ibath,maxspin
   logical                :: check
@@ -513,19 +468,11 @@ subroutine get_dmft_bath(dmft_bath_,bath_)
               do ibath=1,Nbath
                  io = iorb + (ispin-1)*Norb
                  jo = jorb + (ispin-1)*Norb
-                 if(io.gt.jo)cycle !only diagonal and upper triangular are saved for hermiticity
-                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
+                 if(io.gt.jo)cycle !only diagonal and upper triangular are saved by symmetry
+                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb)) then
                     i=i+1
                     bath_(i)=dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)
                  endif
-                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,1)) then
-                 !    i=i+1
-                 !    bath_(i)=dreal(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
-                 ! endif
-                 ! if(dmft_bath_%mask(ispin,ispin,iorb,jorb,2)) then
-                 !    i=i+1
-                 !    bath_(i)=dimag(dmft_bath_%h(ispin,ispin,iorb,jorb,ibath))
-                 ! endif
               enddo
            enddo
         enddo
@@ -534,7 +481,6 @@ subroutine get_dmft_bath(dmft_bath_,bath_)
      !all Re[Hybr]
      do ibath=1,Nbath
         i=i+1
-        ! bath_(i)=dreal(dmft_bath_%vr(ibath))
         bath_(i)=dmft_bath_%vr(ibath)
      enddo
      !    

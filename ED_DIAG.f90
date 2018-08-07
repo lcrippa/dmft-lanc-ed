@@ -126,9 +126,9 @@ contains
     sector: do isector=1,Nsectors
        if(.not.twin_mask(isector))cycle sector !cycle loop if this sector should not be investigated
        iter=iter+1
-       Tflag    = twin_mask(isector).AND.ed_twin
        call get_Nup(isector,nups)
        call get_Ndw(isector,ndws)
+       Tflag    = twin_mask(isector).AND.ed_twin
        bool=.true.
        do i=1,Ns_ud
           Bool=Bool.AND.(nups(i)/=ndws(i))

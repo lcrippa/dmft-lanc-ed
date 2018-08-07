@@ -139,7 +139,7 @@ contains
     logical                     :: bool
     real(8),optional,intent(in) :: Hloc_nn(:,:,:,:)
     if (present(Hloc_nn))then
-       Ntrue = get_bath_dimension(Hloc_nn)
+       Ntrue = get_bath_dimension(one*Hloc_nn)
     else
        Ntrue = get_bath_dimension()
     endif

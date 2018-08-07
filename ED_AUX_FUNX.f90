@@ -67,10 +67,10 @@ contains
   !PURPOSE  : Print Hloc
   !+------------------------------------------------------------------+
   subroutine print_Hloc_nn(hloc,file)
-    complex(8),dimension(Nspin,Nspin,Norb,Norb) :: hloc
-    character(len=*),optional                   :: file
-    integer                                     :: iorb,jorb,ispin,jspin,Nso,unit
-    character(len=32)                           :: fmt
+    real(8),dimension(Nspin,Nspin,Norb,Norb) :: hloc
+    character(len=*),optional                :: file
+    integer                                  :: iorb,jorb,ispin,jspin,Nso,unit
+    character(len=32)                        :: fmt
     !
     unit=LOGfile
     if(present(file))then
@@ -84,35 +84,21 @@ contains
        do iorb=1,Norb
           do jspin=1,Nspin
              do jorb=1,Norb
-                write(unit,fmt,advance='no')str(dreal(Hloc(ispin,jspin,iorb,jorb)),d=4)
-             enddo
-          enddo
-          write(unit,"(A)",advance='yes')
-       enddo
-    enddo
-    !
-    write(unit,"(A)",advance='yes')
-    !
-    do ispin=1,Nspin
-       do iorb=1,Norb
-          do jspin=1,Nspin
-             do jorb=1,Norb
-                write(unit,fmt,advance='no')str(dimag(Hloc(ispin,jspin,iorb,jorb)),d=4)
+                write(unit,fmt,advance='no')str(Hloc(ispin,jspin,iorb,jorb),d=4)
              enddo
           enddo
           write(unit,"(A)",advance='yes')
        enddo
     enddo
     write(unit,"(A)",advance='yes')
-    !
     if(present(file))close(unit)
   end subroutine print_Hloc_nn
   !
   subroutine print_Hloc_so(hloc,file)
-    complex(8),dimension(Nspin*Norb,Nspin*Norb) :: hloc
-    character(len=*),optional                   :: file
-    integer                                     :: is,js,Nso,unit
-    character(len=32)                           :: fmt
+    real(8),dimension(Nspin*Norb,Nspin*Norb) :: hloc
+    character(len=*),optional                :: file
+    integer                                  :: is,js,Nso,unit
+    character(len=32)                        :: fmt
     !
     unit=LOGfile
     if(present(file))then
@@ -124,21 +110,11 @@ contains
     write(fmt,"(A,I0,A)")"(",Nso,"(A,2X))"
     do is=1,Nso
        do js=1,Nso
-          write(unit,fmt,advance='no')str(dreal(Hloc(is,js)),d=4)
-       enddo
-       write(unit,"(A)",advance='yes')
-    enddo
-    !
-    write(unit,"(A)",advance='yes')
-    !
-    do is=1,Nso
-       do js=1,Nso
-          write(unit,fmt,advance='no')str(dimag(Hloc(is,js)),d=4)
+          write(unit,fmt,advance='no')str(Hloc(is,js),d=4)
        enddo
        write(unit,"(A)",advance='yes')
     enddo
     write(unit,"(A)",advance='yes')
-    !
     if(present(file))close(unit)
   end subroutine print_Hloc_so
   !
@@ -155,20 +131,20 @@ contains
     complex(8),dimension(:,:,:,:) :: Hloc
     call assert_shape(Hloc,[Nspin,Nspin,Norb,Norb],"set_Hloc_nn","Hloc")
     !
-    impHloc = Hloc
+    impHloc = dreal(Hloc)
     !
     write(LOGfile,"(A)")"Updated impHloc:"
-    if(ed_verbose>2)call print_Hloc(one*impHloc)
+    if(ed_verbose>2)call print_Hloc(impHloc)
   end subroutine set_Hloc_nn
   !
   subroutine set_Hloc_so(Hloc)
     complex(8),dimension(:,:) :: hloc
     call assert_shape(Hloc,[Nspin*Norb,Nspin*Norb],"set_Hloc_so","Hloc")
     !
-    impHloc = so2nn_reshape(Hloc,Nspin,Norb)
+    impHloc = so2nn_reshape(dreal(Hloc),Nspin,Norb)
     !
     write(LOGfile,"(A)")"Updated impHloc:"
-    if(ed_verbose>2)call print_Hloc(one*impHloc)
+    if(ed_verbose>2)call print_Hloc(impHloc)
   end subroutine set_Hloc_so
 
 

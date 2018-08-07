@@ -19,7 +19,6 @@ contains
     integer :: iorb,jorb,ispin,i
     logical :: MaskBool
     !
-    !NORMAL: (default)
     do ispin=1,Nspin
        do iorb=1,Norb
           if(MPI_MASTER)write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_s"//str(ispin)
@@ -34,16 +33,15 @@ contains
        enddo
     enddo
     !
-    !HYBRID:
-    if(bath_type/="normal".AND.(ed_total_ud))then !we get off=diagonal GF only for the total NupNdw case
+    ! if(bath_type/="normal".AND.(ed_total_ud))then !we get off=diagonal GF only for the total NupNdw case
+    if(offdiag_gf_flag)then
        do ispin=1,Nspin
           do iorb=1,Norb
              do jorb=iorb+1,Norb
-                if(MPI_MASTER)write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
                 MaskBool=.true.   
-                if(bath_type=="replica")MaskBool=&
-                     (dmft_bath%mask(ispin,ispin,iorb,jorb,1))!.OR.(dmft_bath%mask(ispin,ispin,iorb,jorb,2))
+                if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
                 if(.not.MaskBool)cycle
+                if(MPI_MASTER)write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
                 if(MPI_MASTER)call start_timer
                 call lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
                 if(MPI_MASTER)call stop_timer(LOGfile)
@@ -56,11 +54,9 @@ contains
        do ispin=1,Nspin
           do iorb=1,Norb
              do jorb=iorb+1,Norb
-                !
                 !if(hybrid)always T; if(replica)T iff following condition is T
                 MaskBool=.true.   
-                if(bath_type=="replica")MaskBool=&
-                     (dmft_bath%mask(ispin,ispin,iorb,jorb,1))!.OR.(dmft_bath%mask(ispin,ispin,iorb,jorb,2))
+                if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
                 !
                 if(.not.MaskBool)cycle
                 ! impGmats(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGmats(ispin,ispin,iorb,jorb,:) &
@@ -73,9 +69,6 @@ contains
                      - impGreal(ispin,ispin,iorb,iorb,:) - impGreal(ispin,ispin,jorb,jorb,:))
                 impGmats(ispin,ispin,jorb,iorb,:) = impGmats(ispin,ispin,iorb,jorb,:)
                 impGreal(ispin,ispin,jorb,iorb,:) = impGreal(ispin,ispin,iorb,jorb,:)
-
-
-
              enddo
           enddo
        enddo

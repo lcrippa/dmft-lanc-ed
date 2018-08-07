@@ -9,10 +9,10 @@
 ! 1 for get_spin_orb_component_size_bath
 !+-------------------------------------------------------------------+
 function get_bath_dimension(Hloc_nn,ispin_) result(bath_size)
-  real(8),optional,intent(in) :: Hloc_nn(:,:,:,:)
-  integer,optional            :: ispin_
-  integer                     :: bath_size,ndx,ispin,iorb,jspin,jorb,io,jo,Maxspin
-  real(8),allocatable         :: Hloc(:,:,:,:)
+  complex(8),optional,intent(in) :: Hloc_nn(:,:,:,:)
+  integer,optional               :: ispin_
+  integer                        :: bath_size,ndx,ispin,iorb,jspin,jorb,io,jo,Maxspin
+  real(8),allocatable            :: Hloc(:,:,:,:)
 
   select case(bath_type)
   case default
@@ -25,9 +25,9 @@ function get_bath_dimension(Hloc_nn,ispin_) result(bath_size)
      if(.not.present(ispin_))bath_size=Nspin*bath_size
   case('replica')
      !
-     !Re/Im off-diagonal non-vanishing elements
+     !off-diagonal non-vanishing elements
      if(present(Hloc_nn))then
-        allocate(Hloc(Nspin,Nspin,Norb,Norb));Hloc=Hloc_nn
+        allocate(Hloc(Nspin,Nspin,Norb,Norb));Hloc=dreal(Hloc_nn)
      elseif(allocated(impHloc))then
         allocate(Hloc(Nspin,Nspin,Norb,Norb));Hloc=impHloc
      else
@@ -41,8 +41,6 @@ function get_bath_dimension(Hloc_nn,ispin_) result(bath_size)
               io = iorb + (ispin-1)*Norb
               jo = jorb + (ispin-1)*Norb
               if(io.lt.jo)then
-                 ! if(abs(dreal(Hloc(ispin,ispin,iorb,jorb))).gt.1d-6)ndx=ndx+1
-                 ! if(abs(dimag(Hloc(ispin,ispin,iorb,jorb))).gt.1d-6)ndx=ndx+1
                  if(abs(Hloc(ispin,ispin,iorb,jorb)).gt.1d-6)ndx=ndx+1
               endif
            enddo
@@ -50,19 +48,12 @@ function get_bath_dimension(Hloc_nn,ispin_) result(bath_size)
      enddo
      !Real diagonal elements (always assumed)
      ndx= ndx + Nspin * Norb
-     !complex diagonal elements checked
-     ! do ispin=1,Nspin
-     !    do iorb=1,Norb
-     !       if(abs(dimag(Hloc(ispin,ispin,iorb,iorb))).gt.1d-6)stop "Hloc is not Hermitian"
-     !    enddo
-     ! enddo
      !number of non vanishing elements for each replica
      ndx = ndx * Nbath
-     !real diagonal hybridizations
+     !diagonal hybridizations
      ndx = ndx + Nbath
      !
      bath_size = ndx
-     !
      !
   end select
 end function get_bath_dimension

@@ -10,7 +10,7 @@ MODULE ED_VARS_GLOBAL
      real(8),dimension(:,:,:),allocatable        :: v     !spin-keep hyb. [Nspin][Norb][Nbath]
      real(8),dimension(:),allocatable            :: vr    !diagonal hyb.  [Nbath]
      real(8),dimension(:,:,:,:,:),allocatable    :: h     !Replica hamilt [Nspin][Nspin][Norb][Norb][Nbath]
-     logical(8),dimension(:,:,:,:,:),allocatable :: mask  !impHloc mask   [Nspin][Nspin][Norb][Norb][Re,Im]
+     logical(8),dimension(:,:,:,:),allocatable   :: mask  !impHloc mask   [Nspin][Nspin][Norb][Norb]
      logical                                     :: status=.false.
   end type effective_bath
 
@@ -194,7 +194,7 @@ MODULE ED_VARS_GLOBAL
   character(len=10)                                  :: ineq_site_suffix="_ineq"
   integer                                            :: site_indx_padding=4
   logical                                            :: Jhflag              !spin-exchange and pair-hopping flag.
-
+  logical                                            :: offdiag_gf_flag=.false.
 
 
 contains
