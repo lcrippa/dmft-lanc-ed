@@ -19,7 +19,6 @@ module ED_MAIN
 #endif
   implicit none
   private
-
   !
   !>INIT ED SOLVER
   !
