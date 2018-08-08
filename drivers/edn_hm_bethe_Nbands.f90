@@ -132,7 +132,9 @@ program hm_Nbands_bethe
   if(master)call dmft_print_gf_realaxis(Greal,"Greal",iprint=1)
   call dmft_kinetic_energy(comm,Ebands,Dbands,H0,Smats(1,1,:,:,:))
 
+  call finalize_MPI()
 
+  
 end program hm_Nbands_bethe
 
 
