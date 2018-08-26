@@ -450,9 +450,8 @@ contains        !some routine to perform simple operation on the lists
     real(8),dimension(:),pointer     :: vector
     type(sparse_estate),pointer      :: c
     integer                          :: i,pos,Nloc,Ndim
-    integer                          :: dim
-    integer                          :: MpiSize,MpiRank,MpiIerr,mpiQ,mpiR
-    integer,allocatable,dimension(:) :: Counts,Displs
+    integer                          :: dim,ierr
+    logical                          :: MpiMaster
     integer,dimension(:),allocatable :: order
     !
     if(MpiComm==MPI_UNDEFINED)stop "es_return_cvector ERRROR: MpiComm = MPI_UNDEFINED"
@@ -477,41 +476,46 @@ contains        !some routine to perform simple operation on the lists
     !Ensure that the sum of the dimension of all vector chunks equals the sector dimension.
     Dim  = getdim(c%sector)
     Ndim = 0
-    call MPI_AllReduce(Nloc,Ndim,1,MPI_Integer,MPI_Sum,MpiComm,MpiIerr)
+    call Allreduce_MPI(MpiComm,Nloc,Ndim)
     if(Dim/=Ndim)stop "es_return_cvector ERROR: Dim != Ndim from v chunks"
     !
-    MpiSize  = Get_size_MPI(MpiComm)
-    MpiRank  = Get_rank_MPI(MpiComm)
-    mpiQ = Ndim/MpiSize
-    mpiR = 0
-    if(MpiRank == MpiSize-1)mpiR=mod(Ndim,MpiSize)
-    !
-    allocate(Counts(0:MpiSize-1))
-    Counts(0:)        = mpiQ
-    Counts(MpiSize-1) = mpiQ+mod(Ns,MpiSize)
-    !
-    allocate(Displs(0:MpiSize-1))
-    forall(i=0:MpiSize-1)Displs(i)=i*mpiQ
+    MpiMaster = get_master_MPI(MpiComm)
     !
     if(.not.c%itwin)then
-       allocate(Vector(Ndim)) ; Vector = 0d0
-       call MPI_Allgatherv(c%cvec(1:Nloc),Nloc,MPI_Double_Precision,Vector,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
+       if(MpiMaster)then
+          allocate(Vector(Ndim))
+       else
+          allocate(Vector(1))
+       endif
+       Vector = 0d0
+       call gather_vector_MPI(MpiComm,c%cvec(1:Nloc),Vector)
     else
-       allocate(Order(Dim))
-       call twin_sector_order(c%twin%sector,Order)
        !
-       allocate(Vtmp(Ndim)) ; Vtmp = 0d0
-       call MPI_Allgatherv(c%twin%cvec(1:Nloc),Nloc,MPI_Double_Precision,Vtmp,Counts,Displs,MPI_Double_Precision,MpiComm,MpiIerr)
-       allocate(Vector(Ndim))
-       forall(i=1:Dim)Vector(i) = Vtmp(Order(i)) !c%twin%cvec(Order(i))
-       deallocate(Vtmp,order)
+       if(MpiMaster)then
+          allocate(Vtmp(Ndim))
+          allocate(Order(Dim))
+          call twin_sector_order(c%twin%sector,Order)
+       else
+          allocate(Vtmp(1))
+       endif
+       Vtmp = 0d0
+       call gather_vector_MPI(MpiComm,c%twin%cvec(1:Nloc),Vtmp)
+       if(MpiMaster)then
+          allocate(Vector(Ndim))
+          forall(i=1:Dim)Vector(i) = Vtmp(Order(i))
+          deallocate(Order)
+       else
+          allocate(Vector(1))
+          Vector = 0d0
+       endif
+       deallocate(Vtmp)
     endif
   end function es_return_cvector_mpi
 #endif
 
 
 
-  
+
 
   !+------------------------------------------------------------------+
   !PURPOSE  : pretty print the list of states

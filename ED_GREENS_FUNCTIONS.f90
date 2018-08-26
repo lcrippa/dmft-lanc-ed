@@ -11,7 +11,8 @@ MODULE ED_GREENS_FUNCTIONS
   public :: buildGf_impurity
   public :: buildChi_impurity
 
-
+  integer :: irank
+  
 contains
 
 
@@ -37,7 +38,7 @@ contains
     call build_gf_normal()
     call build_sigma_normal()
     !
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        if(ed_print_Sigma)call ed_print_impSigma()
        if(ed_print_G)call ed_print_impG()
        if(ed_print_G0)call ed_print_impG0()
@@ -90,7 +91,7 @@ contains
     !
     !
     !PRINTING:
-    if(MPI_MASTER)call ed_print_impChi()
+    if(MPIMASTER)call ed_print_impChi()
     !
     !
     call deallocate_grids

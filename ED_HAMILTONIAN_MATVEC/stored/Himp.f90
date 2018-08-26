@@ -1,50 +1,28 @@
-  ! do i=first_state,last_state
-  !    iup = iup_index(i,DimUp)
-  !    idw = idw_index(i,DimUp)
-  !    !
-  !    nup  = bdecomp(Hs(1)%map(iup),Ns)
-  !    ndw  = bdecomp(Hs(2)%map(idw),Ns)
-  !    !
-  !    impi = i - ishift
-  do idw=map_first_state_dw(1),map_last_state_dw(1)
-     mdw  = Hs(2)%map(idw)
-     ndw  = bdecomp(mdw,Ns)
+  do i=MpiIstart,MpiIend
+     iup = iup_index(i,DimUp)
+     idw = idw_index(i,DimUp)
      !
-     do iup=map_first_state_up(idw),map_last_state_up(idw)
-        mup  = Hs(1)%map(iup)
-        nup  = bdecomp(mup,Ns)
-        !
-        !MPI Shifts
-        i    = iup + (idw-1)*dimUp
-        impi = i - ishift
-        !
-        !
-        !Diagonal Elements, i.e. local part
-        htmp = zero
-        do iorb=1,Norb
-           htmp = htmp + impHloc(1,1,iorb,iorb)*nup(iorb)
-           htmp = htmp + impHloc(Nspin,Nspin,iorb,iorb)*ndw(iorb)
-           htmp = htmp - xmu*(nup(iorb)+ndw(iorb))
-        enddo
-        !
-        select case (ed_sparse_format)
-        case default
-           select case(MpiStatus)
-           case (.true.)
-              call sp_insert_element(MpiComm,spH0d,htmp,i,i)
-           case (.false.)
-              call sp_insert_element(spH0d,htmp,i,i)
-           end select
-        case ("ELL")
-           select case(MpiStatus)
-           case (.true.)
-              call sp_insert_element(MpiComm,dpH0d,htmp,i,i)
-           case (.false.)
-              call sp_insert_element(dpH0d,htmp,i,i)
-           end select
-        end select
-        !
+     mup = Hs(1)%map(iup)
+     mdw = Hs(2)%map(idw)
+     !
+     nup = bdecomp(mup,Ns)
+     ndw = bdecomp(mdw,Ns)
+     !
+     !Diagonal Elements, i.e. local part
+     htmp = zero
+     do iorb=1,Norb
+        htmp = htmp + impHloc(1,1,iorb,iorb)*nup(iorb)
+        htmp = htmp + impHloc(Nspin,Nspin,iorb,iorb)*ndw(iorb)
+        htmp = htmp - xmu*(nup(iorb)+ndw(iorb))
      enddo
+     !
+     select case(MpiStatus)
+     case (.true.)
+        call sp_insert_element(MpiComm,spH0d,htmp,i,i)
+     case (.false.)
+        call sp_insert_element(spH0d,htmp,i,i)
+     end select
+     !
   enddo
 
 
@@ -55,11 +33,9 @@
   !occupation 0 and 1, as required by this if Jcondition:
   !
   !UP
-  ! do iup=1,DimUp                !first_state_up,last_state_up
-  do iup=first_state_up,last_state_up
+  do iup=1,DimUp
      mup  = Hs(1)%map(iup)
      nup  = bdecomp(mup,Ns)
-     impi_up = iup - IshiftUp
      !
      do iorb=1,Norb
         do jorb=1,Norb
@@ -72,22 +48,7 @@
               jup = binary_search(Hs(1)%map,k2)
               htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
               !
-              select case (ed_sparse_format)
-              case default
-                 select case(MpiStatus)
-                 case (.true.)
-                    call sp_insert_element(MpiComm,spH0up,htmp,iup,jup)
-                 case (.false.)
-                    call sp_insert_element(spH0up,htmp,iup,jup)
-                 end select
-              case ("ELL")
-                 select case(MpiStatus)
-                 case (.true.)
-                    call sp_insert_element(MpiComm,dpH0up,htmp,iup,jup)
-                 case (.false.)
-                    call sp_insert_element(dpH0up,htmp,iup,jup)
-                 end select
-              end select
+              call sp_insert_element(spH0up,htmp,iup,jup)
               !
            endif
         enddo
@@ -96,11 +57,9 @@
   end do
 
   !DW
-  !do idw=map_first_state_dw(1),map_last_state_dw(1)
-  do idw=first_state_dw,last_state_dw
+  do idw=1,DimDw
      mdw  = Hs(2)%map(idw)
      ndw  = bdecomp(mdw,Ns)
-     impi_dw = idw - IshiftDw
      !
      do iorb=1,Norb
         do jorb=1,Norb
@@ -113,26 +72,10 @@
               jdw = binary_search(Hs(2)%map,k2)
               htmp = impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2
               !
-              select case (ed_sparse_format)
-              case default
-                 select case(MpiStatus)
-                 case (.true.)
-                    call sp_insert_element(MpiComm,spH0dw,htmp,idw,jdw)
-                 case (.false.)
-                    call sp_insert_element(spH0dw,htmp,idw,jdw)
-                 end select
-              case ("ELL")
-                 select case(MpiStatus)
-                 case (.true.)
-                    call sp_insert_element(MpiComm,dpH0dw,htmp,idw,jdw)
-                 case (.false.)
-                    call sp_insert_element(dpH0dw,htmp,idw,jdw)
-                 end select
-              end select
+              call sp_insert_element(spH0dw,htmp,idw,jdw)
               !
            endif
         enddo
      enddo
      !
   enddo
-
