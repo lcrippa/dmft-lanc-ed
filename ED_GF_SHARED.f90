@@ -25,7 +25,7 @@ MODULE ED_GF_SHARED
   !Lanczos shared variables
   !=========================================================
   real(8),dimension(:),pointer                :: state_vec
-  real(8),dimension(:),pointer             :: state_cvec
+  real(8),dimension(:),pointer                :: state_cvec
   real(8)                                     :: state_e
 
   !Frequency and time arrays:
@@ -38,34 +38,28 @@ MODULE ED_GF_SHARED
   complex(8),allocatable,dimension(:,:)       :: auxGmats,auxGreal
 
 
-
 #ifdef _MPI
   integer                                     :: MpiComm=MPI_UNDEFINED
 #else
   integer                                     :: MpiComm=0
 #endif
   logical                                     :: MpiStatus=.false.  
-  integer                                     :: MPI_RANK=0
-  integer                                     :: MPI_SIZE=1
-  logical                                     :: MPI_MASTER=.true.
-  integer                                     :: mpi_ierr
+  integer                                     :: MpiRank=0
+  integer                                     :: MpiSize=1
+  logical                                     :: MpiMaster=.true.
+  integer                                     :: MpiIerr
 
-
-
-
+  
 contains
-
-
-
 
   subroutine ed_greens_functions_set_MPI(comm)
 #ifdef _MPI
     integer :: comm
     MpiComm  = comm
     MpiStatus = .true.
-    MPI_RANK = get_Rank_MPI(MpiComm)
-    MPI_SIZE = get_Size_MPI(MpiComm)
-    MPI_MASTER=get_Master_MPI(MpiComm)
+    MPIRANK = get_Rank_MPI(MpiComm)
+    MPISIZE = get_Size_MPI(MpiComm)
+    MPIMASTER=get_Master_MPI(MpiComm)
 #else
     integer,optional :: comm
 #endif
@@ -76,9 +70,9 @@ contains
 #ifdef _MPI
     MpiComm  = MPI_UNDEFINED
     MpiStatus = .false.
-    MPI_RANK=0
-    MPI_SIZE=1
-    MPI_MASTER=.true.
+    MPIRANK=0
+    MPISIZE=1
+    MPIMASTER=.true.
 #endif
   end subroutine ed_greens_functions_del_MPI
 

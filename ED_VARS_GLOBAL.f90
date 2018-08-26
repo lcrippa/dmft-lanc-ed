@@ -86,10 +86,6 @@ MODULE ED_VARS_GLOBAL
   type(sparse_matrix_ll)                             :: spH0up,spH0dw !reduced UP and DW parts
   type(sparse_matrix_ll),dimension(:),allocatable    :: spH0ups,spH0dws !reduced UP and DW parts
   !
-  type(sparse_matrix_ell)                            :: dpH0d !diagonal part
-  type(sparse_matrix_ell)                            :: dpH0nd !non-diagonal part
-  type(sparse_matrix_ell)                            :: dpH0up,dpH0dw !reduced UP and DW parts 
-  !
   procedure(dd_sparse_HxV),pointer                   :: spHtimesV_p=>null()
 
 

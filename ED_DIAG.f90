@@ -38,18 +38,10 @@ module ED_DIAG
   logical :: MpiStatus=.false.
   integer :: Mpi_Size=1
   integer :: Mpi_Rank=0
-  integer :: mpi_Q=1
-  integer :: mpi_R=0
   logical :: Mpi_Master=.true.  !
   integer :: Mpi_Ierr
 
   integer :: unit
-
-
-
-
-
-
 
 contains
 
@@ -102,14 +94,16 @@ contains
   ! spectrum DOUBLE PRECISION
   !+------------------------------------------------------------------+
   subroutine ed_diag_c
-    integer             :: isector,dim
-    integer             :: nups(Ns_Ud),ndws(Ns_Ud)
-    integer             :: i,j,iter,unit
+    integer             :: isector,Dim
+    integer             :: Nups(Ns_Ud)
+    integer             :: Ndws(Ns_Ud)
+    integer             :: i,j,iter,unit,vecDim
     integer             :: Nitermax,Neigen,Nblock
     real(8)             :: oldzero,enemin,Ei
     real(8),allocatable :: eig_values(:)
     real(8),allocatable :: eig_basis(:,:)
     logical             :: lanc_solve,Tflag,lanc_verbose,bool
+
     !
     if(state_list%status)call es_delete_espace(state_list)
     state_list=es_init_espace()
@@ -134,16 +128,12 @@ contains
           Bool=Bool.AND.(nups(i)/=ndws(i))
        enddo
        Tflag=Tflag.AND.Bool
+       !
        Dim      = getdim(isector)
+       !
        Neigen   = min(dim,neigen_sector(isector))
        Nitermax = min(dim,lanc_niter)
        Nblock   = min(dim,lanc_ncv_factor*max(Neigen,lanc_nstates_sector) + lanc_ncv_add)
-       !
-       !
-       !Mpi vars:
-       mpi_Q = dim/Mpi_Size
-       mpi_R = 0
-       if(Mpi_Rank==(Mpi_Size-1))mpi_R=mod(Dim,Mpi_Size)
        !
        !
        lanc_solve  = .true.
@@ -152,8 +142,6 @@ contains
        !
        if(MPI_MASTER)then
           if(ed_verbose>=3)then
-             call get_Nup(isector,nups)
-             call get_Ndw(isector,ndws)
              if(lanc_solve)then
                 write(LOGfile,"(1X,I4,A,I4,A6,"//str(Ns_Ud)//"I3,A6,"//str(Ns_Ud)//"I3,A6,I15,A12,3I6)")&
                      iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
@@ -168,13 +156,15 @@ contains
           endif
        endif
        !
+       !
        if(allocated(eig_values))deallocate(eig_values)
        if(allocated(eig_basis))deallocate(eig_basis)
        if(lanc_solve)then
           allocate(eig_values(Neigen))
           eig_values=0d0 
           !
-          allocate(eig_basis(mpi_Q+mpi_R,Neigen))
+          vecDim = vecDim_Hv_sector(isector)
+          allocate(eig_basis(vecDim,Neigen))
           eig_basis=zero
           !
           call build_Hv_sector(isector)
@@ -183,8 +173,7 @@ contains
           if(MpiStatus)then
              call sp_eigh(MpiComm,spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
                   tol=lanc_tolerance,&
-                  iverbose=(ed_verbose>3),&
-                  mpi_reduce=.false.)
+                  iverbose=(ed_verbose>3))
           else
              call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
                   tol=lanc_tolerance,&
@@ -198,8 +187,11 @@ contains
           call delete_Hv_sector()
        else
           allocate(eig_values(Dim))
-          allocate(eig_basis(Dim,dim))
-          eig_values=0d0 ; eig_basis=zero
+          eig_values=0d0
+          !
+          vecDim = Dim
+          allocate(eig_basis(Dim,Dim))
+          eig_basis=0d0
           !
           call build_Hv_sector(isector,eig_basis)
           call eigh(eig_basis,eig_values,'V','U')

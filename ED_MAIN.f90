@@ -262,16 +262,7 @@ contains
     !
     select case(ed_sparse_H)
     case (.true.)
-       select case (ed_sparse_format)
-       case default
-          if(ed_total_ud)then
-             spHtimesV_p => spMatVec_main
-          else
-             spHtimesV_p => spMatVec_orbs
-          end if
-       case ("ELL")
-          spHtimesV_p => dpMatVec_main
-       end select
+       spHtimesV_p => spMatVec_main
     case (.false.)
        spHtimesV_p => directMatVec_main
     end select
@@ -317,18 +308,7 @@ contains
     !
     select case(ed_sparse_H)
     case (.true.)
-       select case (ed_sparse_format)
-       case default
-          if(ed_total_ud)then
-             spHtimesV_p => spMatVec_MPI_main
-          else
-             spHtimesV_p => spMatVec_orbs
-             ! stop "ed_solve_single_mpi error: ed_total_ud=F and MPI=T is not supported"
-             ! spHtimesV_p => spMatVec_MPI_orbs
-          end if
-       case ("ELL")
-          spHtimesV_p => dpMatVec_MPI_main
-       end select
+       spHtimesV_p => spMatVec_MPI_main
     case (.false.)
        spHtimesV_p => directMatVec_MPI_main
     end select

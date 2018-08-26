@@ -45,13 +45,14 @@ program ed_bhz
   real(8),dimension(2)   :: Eout
   real(8),allocatable    :: dens(:)
   !MPI Vars:
-  integer                :: comm,rank
+  integer                :: irank,comm,rank,size2
   logical                :: master
 
   call init_MPI()
   comm = MPI_COMM_WORLD
   call StartMsg_MPI(comm)
   rank = get_Rank_MPI(comm)
+  size2 = get_Size_MPI(comm)
   master = get_Master_MPI(comm)
 
   !Parse additional variables && read Input && read H(k)^4x4
@@ -130,7 +131,6 @@ program ed_bhz
      call ed_get_sigma_real(Sreal)
      call ed_get_dens(dens)
 
-
      call dmft_gloc_matsubara(comm,Hk,Wtk,Gmats,Smats)
      if(master)call dmft_print_gf_matsubara(Gmats,"Gloc",iprint=1)
 
@@ -140,6 +140,7 @@ program ed_bhz
         else
            call dmft_delta(Gmats,Smats,Delta,Hloc=j2so(bhzHloc))
         endif
+        call dmft_print_gf_matsubara(Delta,"Weiss",iprint=1)
      endif
      call Bcast_MPI(comm,Delta)
 
@@ -743,7 +744,7 @@ contains
   end function hk_bhz2x2
 
 
-  
+
   ! function inverse_gk(zeta,hk) result(gk)
   !   complex(8)                  :: zita(2)
   !   complex(8),dimension(4,4)   :: zeta,hk
