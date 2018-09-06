@@ -285,7 +285,7 @@ contains
     !
 #ifdef _MPI
     if(MpiStatus)then
-       call sp_set_mpi_ll(MpiComm,spH0d,mpiIstart,mpiIend,mpiIshift)
+       call sp_set_mpi_matrix(MpiComm,spH0d,mpiIstart,mpiIend,mpiIshift)
        call sp_init_matrix(MpiComm,spH0d,Dim)
     else
        call sp_init_matrix(spH0d,Dim)
@@ -364,52 +364,49 @@ contains
     integer                         :: Nloc
     real(8),dimension(Nloc)         :: v
     real(8),dimension(Nloc)         :: Hv
-    integer                         :: i,iup,idw,j
-    type(sparse_element_ll),pointer :: c
+    real(8)                         :: val
+    integer                         :: i,iup,idw,j,jup,jdw,jj
     !
     !
     Hv=0d0
     !
     do i = 1,Nloc
-       c => spH0d%row(i)%root%next
-       do while(associated(c))
-          Hv(i) = Hv(i) + c%cval*V(c%col)    !<== V
-          c => c%next
+       do j=1,spH0d%row(i)%Size
+          Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(spH0d%row(i)%cols(j))
        enddo
     enddo
-    nullify(c)
     !
     !DW:
     do iup=1,DimUp
        !
        do idw=1,DimDw
-          i = iup + (idw-1)*DimUp          
-          c => spH0dw%row(idw)%root%next
-          do while(associated(c))
-             j = iup +  (c%col-1)*DimUp
-             Hv(i) = Hv(i) + c%cval*V(j)
-             c => c%next
+          i = iup + (idw-1)*DimUp
+          do jj=1,spH0dw%row(idw)%Size
+             jup = iup
+             jdw = spH0dw%row(idw)%cols(jj)
+             val = spH0dw%row(idw)%vals(jj)
+             j     = jup +  (jdw-1)*DimUp
+             Hv(i) = Hv(i) + val*V(j)
           enddo
        enddo
        !
     enddo
-    nullify(c)
     !
     !UP:
     do idw=1,DimDw
        !
        do iup=1,DimUp
-          i = iup + (idw-1)*DimUp          
-          c => spH0up%row(iup)%root%next
-          do while(associated(c))
-             j = c%col + (idw-1)*DimUp
-             Hv(i) = Hv(i) + c%cval*V(j)
-             c => c%next
+          i = iup + (idw-1)*DimUp
+          do jj=1,spH0up%row(iup)%Size
+             jup = spH0up%row(iup)%cols(jj)
+             jdw = idw
+             val = spH0up%row(iup)%vals(jj)
+             j =  jup + (jdw-1)*DimUp
+             Hv(i) = Hv(i) + val*V(j)
           enddo
        enddo
        !
     enddo
-    nullify(c)
     !
   end subroutine spMatVec_main
 
@@ -423,9 +420,9 @@ contains
     !
     integer                          :: N
     real(8),dimension(:),allocatable :: vt,Hvt
-    integer                          :: i,iup,idw,j,jup,jdw
+    real(8)                          :: val
+    integer                          :: i,iup,idw,j,jup,jdw,jj
     !local MPI
-    type(sparse_element_ll),pointer  :: c
     integer                          :: irank
     integer                          :: MpiQup,MpiQdw
     !
@@ -435,13 +432,10 @@ contains
     !Evaluate the local contribution: Hv_loc = Hloc*v
     Hv=0d0
     do i=1,Nloc                 !==spH0%Nrow
-       c => spH0d%row(i)%root%next
-       local: do while(associated(c))          
-          Hv(i) = Hv(i) + c%cval*v(i)
-          c => c%next
-       end do local
+       do j=1,spH0d%row(i)%Size
+          Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(i)
+       end do
     end do
-    nullify(c)
     !
     mpiQdw=DimDw/MpiSize
     if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
@@ -455,11 +449,12 @@ contains
     do idw=1,MpiQdw
        do iup=1,DimUp
           i = iup + (idw-1)*DimUp
-          c => spH0up%row(iup)%root%next
-          hxv_up: do while(associated(c))
-             j = c%col + (idw-1)*DimUp
-             Hv(i) = Hv(i) + c%cval*v(j)
-             c => c%next
+          hxv_up: do jj=1,spH0up%row(iup)%Size
+             jup = spH0up%row(iup)%cols(jj)
+             jdw = idw
+             val = spH0up%row(iup)%vals(jj)
+             j   = jup + (idw-1)*DimUp
+             Hv(i) = Hv(i) + val*v(j)
           end do hxv_up
        enddo
     end do
@@ -473,11 +468,12 @@ contains
     do iup=1,MpiQup
        do idw=1,DimDw
           i = idw + (iup-1)*DimDw
-          c => spH0dw%row(idw)%root%next
-          hxv_dw: do while(associated(c))
-             j = c%col + (iup-1)*DimDw
-             Hvt(i) = Hvt(i) + c%cval*vt(j)
-             c => c%next
+          hxv_dw: do jj=1,spH0dw%row(idw)%Size
+             jdw = spH0dw%row(idw)%cols(jj)
+             jup = iup
+             val = spH0dw%row(idw)%vals(jj)
+             j   = jdw + (jup-1)*DimDw
+             Hvt(i) = Hvt(i) + val*vt(j)
           end do hxv_dw
        enddo
     end do
@@ -503,9 +499,9 @@ contains
 
 
 
-  !####################################################################
-  !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
-  !####################################################################
+     !####################################################################
+     !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
+     !####################################################################
   subroutine directMatVec_main(Nloc,vin,Hv)
     integer                             :: Nloc
     real(8),dimension(Nloc)             :: vin
@@ -578,77 +574,77 @@ contains
 
 
 #ifdef _MPI
-  subroutine directMatVec_MPI_main(Nloc,vin,Hv)
-    integer                             :: Nloc
-    real(8),dimension(Nloc)             :: Vin
-    real(8),dimension(Nloc)             :: Hv
-    real(8),dimension(:),allocatable    :: vt,Hvt
-    integer,allocatable,dimension(:)    :: Counts,Displs
-    integer                             :: isector
-    integer,dimension(Ns)               :: nup,ndw
-    integer                             :: i,iup,idw
-    integer                             :: j,jup,jdw
-    integer                             :: m,mup,mdw
-    integer                             :: ms
-    integer                             :: impi
-    integer                             :: iorb,jorb,ispin,jspin,ibath
-    integer                             :: kp,k1,k2,k3,k4
-    integer                             :: alfa,beta
-    real(8)                             :: sg1,sg2,sg3,sg4
-    real(8)                             :: htmp,htmpup,htmpdw
-    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-    logical                             :: Jcondition
-    integer                             :: MpiQup,MpiQdw
-    !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
-    !
-    !Get diagonal hybridization
-    diag_hybr=0d0
-    do ibath=1,Nbath
-       do ispin=1,Nspin
-          do iorb=1,Norb
-             if(bath_type/="replica")then
-                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
-             else
-                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-             end if
+     subroutine directMatVec_MPI_main(Nloc,vin,Hv)
+       integer                             :: Nloc
+       real(8),dimension(Nloc)             :: Vin
+       real(8),dimension(Nloc)             :: Hv
+       real(8),dimension(:),allocatable    :: vt,Hvt
+       integer,allocatable,dimension(:)    :: Counts,Displs
+       integer                             :: isector
+       integer,dimension(Ns)               :: nup,ndw
+       integer                             :: i,iup,idw
+       integer                             :: j,jup,jdw
+       integer                             :: m,mup,mdw
+       integer                             :: ms
+       integer                             :: impi
+       integer                             :: iorb,jorb,ispin,jspin,ibath
+       integer                             :: kp,k1,k2,k3,k4
+       integer                             :: alfa,beta
+       real(8)                             :: sg1,sg2,sg3,sg4
+       real(8)                             :: htmp,htmpup,htmpdw
+       real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+       logical                             :: Jcondition
+       integer                             :: MpiQup,MpiQdw
+       !
+       if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
+       isector=Hsector
+       !
+       !Get diagonal hybridization
+       diag_hybr=0d0
+       do ibath=1,Nbath
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                if(bath_type/="replica")then
+                   diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+                else
+                   diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+                end if
+             enddo
           enddo
        enddo
-    enddo
-    !    
-    if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
-    if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
-    !
-    !
-    Hv=0d0
-    !
-    !-----------------------------------------------!
-    !LOCAL HAMILTONIAN PART: H_loc*vin = vout
-    include "ED_HAMILTONIAN_MATVEC/direct/HxV_local.f90"
-    !
-    !NON-LOCAL TERMS:
-    mpiQdw=DimDw/MpiSize
-    if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
-    !
-    mpiQup=DimUp/MpiSize
-    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
-    ! 
-    !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
-    include "ED_HAMILTONIAN_MATVEC/direct/HxV_up.f90"
-    !
-    !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
-    allocate(vt(mpiQup*DimDw)) ;vt=0d0
-    allocate(Hvt(mpiQup*DimDw));Hvt=0d0
-    call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt)
-    include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw.f90"
-    deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0
-    call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt)
-    Hv = Hv + Vt
-    !-----------------------------------------------!
-    !
-    return
-  end subroutine directMatVec_MPI_main
+       !    
+       if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
+       if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
+       !
+       !
+       Hv=0d0
+       !
+       !-----------------------------------------------!
+       !LOCAL HAMILTONIAN PART: H_loc*vin = vout
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_local.f90"
+       !
+       !NON-LOCAL TERMS:
+       mpiQdw=DimDw/MpiSize
+       if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
+       !
+       mpiQup=DimUp/MpiSize
+       if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
+       ! 
+       !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_up.f90"
+       !
+       !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
+       allocate(vt(mpiQup*DimDw)) ;vt=0d0
+       allocate(Hvt(mpiQup*DimDw));Hvt=0d0
+       call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw.f90"
+       deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0
+       call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt)
+       Hv = Hv + Vt
+       !-----------------------------------------------!
+       !
+       return
+     end subroutine directMatVec_MPI_main
 #endif
 
 
@@ -663,87 +659,87 @@ contains
 
 
 
-  !####################################################################
-  !               ALL-2-ALL-V VECTOR MPI TRANSPOSITION 
-  !####################################################################
+     !####################################################################
+     !               ALL-2-ALL-V VECTOR MPI TRANSPOSITION 
+     !####################################################################
 #ifdef _MPI
-  subroutine vector_transpose_MPI(nrow,qcol,a,ncol,qrow,b)    
-    integer                            :: nrow,ncol,qrow,qcol
-    real(8)                            :: a(nrow,qcol)
-    real(8)                            :: b(ncol,qrow)
-    integer,allocatable,dimension(:,:) :: send_counts,send_offset
-    integer,allocatable,dimension(:,:) :: recv_counts,recv_offset
-    integer                            :: counts,Ntot
-    integer :: i,j,irank,ierr
-    !
-    counts = Nrow/MpiSize
-    Ntot   = Ncol/MpiSize
-    if(mod(Ncol,MpiSize)/=0)Ntot=Ntot+1
-    !
-    allocate(send_counts(0:MpiSize-1,Ntot));send_counts=0
-    allocate(send_offset(0:MpiSize-1,Ntot));send_offset=0
-    allocate(recv_counts(0:MpiSize-1,Ntot));recv_counts=0
-    allocate(recv_offset(0:MpiSize-1,Ntot));recv_offset=0
-    !
-    do i=1,qcol
-       do irank=0,MpiSize-1
-          if(irank < mod(Nrow,MpiSize))then
-             send_counts(irank,i) = counts+1
-          else
-             send_counts(irank,i) = counts
-          endif
+     subroutine vector_transpose_MPI(nrow,qcol,a,ncol,qrow,b)    
+       integer                            :: nrow,ncol,qrow,qcol
+       real(8)                            :: a(nrow,qcol)
+       real(8)                            :: b(ncol,qrow)
+       integer,allocatable,dimension(:,:) :: send_counts,send_offset
+       integer,allocatable,dimension(:,:) :: recv_counts,recv_offset
+       integer                            :: counts,Ntot
+       integer :: i,j,irank,ierr
+       !
+       counts = Nrow/MpiSize
+       Ntot   = Ncol/MpiSize
+       if(mod(Ncol,MpiSize)/=0)Ntot=Ntot+1
+       !
+       allocate(send_counts(0:MpiSize-1,Ntot));send_counts=0
+       allocate(send_offset(0:MpiSize-1,Ntot));send_offset=0
+       allocate(recv_counts(0:MpiSize-1,Ntot));recv_counts=0
+       allocate(recv_offset(0:MpiSize-1,Ntot));recv_offset=0
+       !
+       do i=1,qcol
+          do irank=0,MpiSize-1
+             if(irank < mod(Nrow,MpiSize))then
+                send_counts(irank,i) = counts+1
+             else
+                send_counts(irank,i) = counts
+             endif
+          enddo
        enddo
-    enddo
-    !
-    do i=1,Ntot
-       call MPI_AllToAll(&
-            send_counts(:,i),1,MPI_INTEGER,&
-            recv_counts(:,i),1,MPI_INTEGER,&
-            MpiComm,ierr)
-    enddo
-    !
-    do i=1,Ntot
-       do irank=1,MpiSize-1
-          send_offset(irank,i) = send_counts(irank-1,i) + send_offset(irank-1,i)
+       !
+       do i=1,Ntot
+          call MPI_AllToAll(&
+               send_counts(:,i),1,MPI_INTEGER,&
+               recv_counts(:,i),1,MPI_INTEGER,&
+               MpiComm,ierr)
        enddo
-    enddo
-    !
-    !Get the irank=0 elements, i.e. first entries:
-    recv_offset(0,1) = 0
-    do i=2,Ntot
-       recv_offset(0,i) = sum(recv_counts(0,:i-1))
-    enddo
-    !the rest of the entries:
-    do i=1,Ntot
-       do irank=1,MpiSize-1
-          recv_offset(irank,i) = recv_offset(irank-1,i) + sum(recv_counts(irank-1,:))
+       !
+       do i=1,Ntot
+          do irank=1,MpiSize-1
+             send_offset(irank,i) = send_counts(irank-1,i) + send_offset(irank-1,i)
+          enddo
        enddo
-    enddo
-    !
-    !
-    do j=1,Ntot
-       call MPI_AllToAllV(&
-            A(:,j),send_counts(:,j),send_offset(:,j),MPI_DOUBLE_PRECISION,&
-            B(:,:),recv_counts(:,j),recv_offset(:,j),MPI_DOUBLE_PRECISION,&
-            MpiComm,ierr)
-    enddo
-    !
-    call local_transpose(b,ncol,qrow)
-    !
-    return
-  end subroutine vector_transpose_MPI
+       !
+       !Get the irank=0 elements, i.e. first entries:
+       recv_offset(0,1) = 0
+       do i=2,Ntot
+          recv_offset(0,i) = sum(recv_counts(0,:i-1))
+       enddo
+       !the rest of the entries:
+       do i=1,Ntot
+          do irank=1,MpiSize-1
+             recv_offset(irank,i) = recv_offset(irank-1,i) + sum(recv_counts(irank-1,:))
+          enddo
+       enddo
+       !
+       !
+       do j=1,Ntot
+          call MPI_AllToAllV(&
+               A(:,j),send_counts(:,j),send_offset(:,j),MPI_DOUBLE_PRECISION,&
+               B(:,:),recv_counts(:,j),recv_offset(:,j),MPI_DOUBLE_PRECISION,&
+               MpiComm,ierr)
+       enddo
+       !
+       call local_transpose(b,ncol,qrow)
+       !
+       return
+     end subroutine vector_transpose_MPI
 
 
-  subroutine local_transpose(mat,nrow,ncol)
-    integer                      :: nrow,ncol
-    real(8),dimension(Nrow,Ncol) :: mat
-    mat = transpose(reshape(mat,[Ncol,Nrow]))
-  end subroutine local_transpose
+     subroutine local_transpose(mat,nrow,ncol)
+       integer                      :: nrow,ncol
+       real(8),dimension(Nrow,Ncol) :: mat
+       mat = transpose(reshape(mat,[Ncol,Nrow]))
+     end subroutine local_transpose
 #endif
 
 
 
-end MODULE ED_HAMILTONIAN_MATVEC
+   end MODULE ED_HAMILTONIAN_MATVEC
 
 
 

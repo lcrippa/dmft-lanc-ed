@@ -9,41 +9,33 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY DBLE ELEMENT: (SYMMETRIC MA
   private
 
 
-  !SPARSE MATRIX: LINKED LIST FORMAT:
-  type sparse_element_ll
-     real(8)                                  :: cval !value of the entry: double precision
-     integer                                  :: col  !col connected to this compress value
-     type(sparse_element_ll),pointer          :: next !link to next entry in the row
-  end type sparse_element_ll
 
-  type sparse_row_ll
-     integer                                  :: size=0    !size of the list
-     integer                                  :: min_column= huge(1)
-     integer                                  :: max_column=-huge(1)
-     type(sparse_element_ll),pointer          :: root    !head/root of the list\== list itself
-  end type sparse_row_ll
+  type sparse_row_csr
+     integer                                   :: size !actual 
+     real(8),dimension(:),allocatable          :: vals
+     integer,dimension(:),allocatable          :: cols
+  end type sparse_row_csr
 
-  type sparse_matrix_ll
-     integer                                  :: Nrow
-     integer                                  :: Ncol
-     logical                                  :: status=.false.
-     type(sparse_row_ll),dimension(:),pointer :: row
+  type sparse_matrix_csr
+     type(sparse_row_csr),dimension(:),pointer :: row
+     integer                                   :: Nrow
+     integer                                   :: Ncol
+     logical                                   :: status=.false.
 #ifdef _MPI
-     logical                                  :: mpi=.false.
-     integer                                  :: istart=0 !global start index for MPI storage
-     integer                                  :: iend=0
-     integer                                  :: ishift=0
+     integer                                   :: istart=0 !global start index for MPI storage
+     integer                                   :: iend=0
+     integer                                   :: ishift=0
+     logical                                   :: mpi=.false.
 #endif
-  end type sparse_matrix_ll
-
+  end type sparse_matrix_csr
 
 
 
   !INIT SPARSE MATRICES 
   interface sp_init_matrix
-     module procedure :: sp_init_matrix_ll
+     module procedure :: sp_init_matrix_csr
 #ifdef _MPI
-     module procedure :: mpi_sp_init_matrix_ll
+     module procedure :: mpi_sp_init_matrix_csr
 #endif
   end interface sp_init_matrix
 
@@ -51,63 +43,76 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY DBLE ELEMENT: (SYMMETRIC MA
 
   !DELETE SPARSE MATRIX 
   interface sp_delete_matrix
-     module procedure :: sp_delete_matrix_ll
+     module procedure :: sp_delete_matrix_csr
 #ifdef _MPI
-     module procedure :: mpi_sp_delete_matrix_ll
+     module procedure :: mpi_sp_delete_matrix_csr
 #endif
   end interface sp_delete_matrix
 
 
   !INSERT ELEMENTS
   interface sp_insert_element
-     module procedure :: sp_insert_element_ll
+     module procedure :: sp_insert_element_csr
 #ifdef _MPI
-     module procedure :: mpi_sp_insert_element_ll
+     module procedure :: mpi_sp_insert_element_csr
 #endif
   end interface sp_insert_element
 
 
+  !LOAD STANDARD MATRIX INTO SPARSE MATRICES
+  interface sp_load_matrix
+     module procedure :: sp_load_matrix_csr
+#ifdef _MPI
+     module procedure :: mpi_sp_load_matrix_csr
+#endif
+  end interface sp_load_matrix
+
 
   !DUMP SPARSE MATRIX INTO STANDARD MATRIX
   interface sp_dump_matrix
-     module procedure :: sp_dump_matrix_ll
+     module procedure :: sp_dump_matrix_csr
 #ifdef _MPI
-     module procedure :: mpi_sp_dump_matrix_ll
+     module procedure :: mpi_sp_dump_matrix_csr
 #endif
   end interface sp_dump_matrix
 
 
-  !PRETTY PRINTING
-  interface sp_print_matrix
-     module procedure :: sp_print_matrix_ll
-#ifdef _MPI
-     module procedure :: mpi_sp_print_matrix_ll
-#endif
-  end interface sp_print_matrix
-
-
   !SPY PRINT SPARSE MATRIX
   interface sp_spy_matrix
-     module procedure :: sp_spy_matrix_ll
+     module procedure :: sp_spy_matrix_csr
 #ifdef _MPI
-     module procedure :: mpi_sp_spy_matrix_ll
+     module procedure :: mpi_sp_spy_matrix_csr
 #endif
   end interface sp_spy_matrix
 
+#ifdef _MPI  
+  interface sp_set_mpi_matrix
+     module procedure :: sp_set_mpi_matrix_csr
+  end interface sp_set_mpi_matrix
+#endif
 
   !Linked-List Sparse Matrix
-  public :: sparse_element_ll
-  public :: sparse_matrix_ll
+  public :: sparse_matrix_csr
 
   public :: sp_init_matrix      !init the sparse matrix   !checked
   public :: sp_delete_matrix    !delete the sparse matrix !checked
   public :: sp_insert_element   !insert an element        !checked
+  public :: sp_load_matrix      !create sparse from array !checked
   public :: sp_dump_matrix      !dump sparse into array   !checked
-  public :: sp_print_matrix     !print sparse             !checked
   public :: sp_spy_matrix       !
 #ifdef _MPI
-  public :: sp_set_mpi_ll
+  public :: sp_set_mpi_matrix
 #endif
+
+
+
+
+
+  interface add_to
+     module procedure :: add_to_I
+     module procedure :: add_to_D
+     module procedure :: add_to_Z
+  end interface add_to
 
 
 
@@ -118,56 +123,56 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY DBLE ELEMENT: (SYMMETRIC MA
 
 
 
-
-
-
 contains       
 
 
   !+------------------------------------------------------------------+
   !PURPOSE:  initialize the sparse matrix list
   !+------------------------------------------------------------------+
-  subroutine sp_init_matrix_ll(sparse,N,N1)
-    type(sparse_matrix_ll),intent(inout) :: sparse
-    integer                           :: N
-    integer,optional                  :: N1
-    integer                           :: i
+  subroutine sp_init_matrix_csr(sparse,N,N1)
+    type(sparse_matrix_csr),intent(inout) :: sparse
+    integer                               :: N
+    integer,optional                      :: N1
+    integer                               :: i
+    !
     !put here a delete statement to avoid problems
-    if(sparse%status)stop "sp_init_matrix LL: alreay allocate can not init"
+    if(sparse%status)stop "sp_init_matrix: alreay allocate can not init"
+    !
     sparse%Nrow=N
-    sparse%Ncol=N
+    sparse%Ncol=N 
     if(present(N1))sparse%Ncol=N1
     !
     allocate(sparse%row(N))
     do i=1,N
-       allocate(sparse%row(i)%root)
-       sparse%row(i)%root%next => null()
        sparse%row(i)%size=0
-       sparse%row(i)%min_column=huge(1)
-       sparse%row(i)%max_column=-huge(1)
+       allocate(sparse%row(i)%vals(0)) !empty array
+       allocate(sparse%row(i)%cols(0)) !empty array
     end do
     !
     sparse%status=.true.
     !
-  end subroutine sp_init_matrix_ll
+  end subroutine sp_init_matrix_csr
 
 
 
 #ifdef _MPI
-  subroutine mpi_sp_init_matrix_ll(MpiComm,sparse,N,N1)
+  subroutine mpi_sp_init_matrix_csr(MpiComm,sparse,N,N1)
     integer                              :: MpiComm
-    type(sparse_matrix_ll),intent(inout) :: sparse
+    type(sparse_matrix_csr),intent(inout) :: sparse
     integer                              :: N
     integer,optional                     :: N1
     integer                              :: i,Ncol,Nloc
     !
-    call sp_test_matrix_mpi(MpiComm,sparse,"mpi_sp_init_matrix_ll")
+    call sp_test_matrix_mpi(MpiComm,sparse,"mpi_sp_init_matrix_csr")
     !
     Ncol = N
     if(present(N1))Ncol=N1
+    !
     Nloc = sparse%iend-sparse%istart+1
-    call sp_init_matrix_ll(sparse,Nloc,Ncol)
-  end subroutine mpi_sp_init_matrix_ll
+    !
+    call sp_init_matrix_csr(sparse,Nloc,Ncol)
+    !
+  end subroutine mpi_sp_init_matrix_csr
 #endif
 
 
@@ -179,26 +184,17 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE: delete an entire sparse matrix
   !+------------------------------------------------------------------+
-  subroutine sp_delete_matrix_ll(sparse)    
-    type(sparse_matrix_ll),intent(inout) :: sparse
+  subroutine sp_delete_matrix_csr(sparse)    
+    type(sparse_matrix_csr),intent(inout) :: sparse
     integer                           :: i
-    type(sparse_row_ll),pointer          :: row
-    type(sparse_element_ll),pointer      :: p,c
+    type(sparse_row_csr),pointer          :: row
+    !
     if(.not.sparse%status)stop "Warning SPARSE/sp_delete_matrix: sparse not allocated already."
+    !
     do i=1,sparse%Nrow
-       row=>sparse%row(i)
-       do
-          p => row%root
-          c => p%next
-          if(.not.associated(c))exit  !empty list
-          p%next => c%next !
-          c%next=>null()
-          deallocate(c)
-       end do
-       sparse%row(i)%size=0
-       sparse%row(i)%min_column=huge(1)
-       sparse%row(i)%max_column=-huge(1)
-       deallocate(sparse%row(i)%root)
+       deallocate(sparse%row(i)%vals)
+       deallocate(sparse%row(i)%cols)
+       sparse%row(i)%Size  = 0
     enddo
     deallocate(sparse%row)
     !
@@ -211,44 +207,40 @@ contains
     sparse%ishift = 0
     sparse%mpi    = .false.
 #endif 
-  end subroutine sp_delete_matrix_ll
+  end subroutine sp_delete_matrix_csr
+
 
 
 #ifdef _MPI
-  subroutine mpi_sp_delete_matrix_ll(MpiComm,sparse)
+  subroutine mpi_sp_delete_matrix_csr(MpiComm,sparse)
     integer                              :: MpiComm
-    type(sparse_matrix_ll),intent(inout) :: sparse
+    type(sparse_matrix_csr),intent(inout) :: sparse
     integer                              :: i
-    type(sparse_row_ll),pointer          :: row
-    type(sparse_element_ll),pointer      :: p,c
+    type(sparse_row_csr),pointer          :: row
+    !
     if(.not.sparse%status)stop "Error SPARSE/mpi_sp_delete_matrix: sparse is not allocated."
+    !
     do i=1,sparse%Nrow
-       row=>sparse%row(i)
-       do
-          p => row%root
-          c => p%next
-          if(.not.associated(c))exit  !empty list
-          p%next => c%next !
-          c%next=>null()
-          deallocate(c)
-       end do
-       sparse%row(i)%size=0
-       sparse%row(i)%min_column=huge(1)
-       sparse%row(i)%max_column=-huge(1)
-       deallocate(sparse%row(i)%root)
+       deallocate(sparse%row(i)%vals)
+       deallocate(sparse%row(i)%cols)
+       sparse%row(i)%Size  = 0
     enddo
     deallocate(sparse%row)
+    !
+    sparse%Nrow=0
+    sparse%Ncol=0
+    sparse%status=.false.
     !
     sparse%istart=0
     sparse%iend=0
     sparse%ishift=0
     sparse%mpi=.false.
     !
-    sparse%Nrow=0
-    sparse%Ncol=0
-    sparse%status=.false.
-  end subroutine mpi_sp_delete_matrix_ll
+  end subroutine mpi_sp_delete_matrix_csr
 #endif    
+
+
+
 
 
 
@@ -262,110 +254,125 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE: insert an element value at position (i,j) in the sparse matrix
   !+------------------------------------------------------------------+
-  subroutine sp_insert_element_ll(sparse,value,i,j)
-    type(sparse_matrix_ll),intent(inout) :: sparse
-    real(8),intent(in)                   :: value
-    integer,intent(in)                   :: i,j
-    type(sparse_row_ll),pointer          :: row
-    integer                              :: column
-    type(sparse_element_ll),pointer      :: p,c
-    logical                              :: iadd
+  subroutine sp_insert_element_csr(sparse,value,i,j)
+    type(sparse_matrix_csr),intent(inout) :: sparse
+    real(8),intent(in)                    :: value
+    integer,intent(in)                    :: i,j
+    !
+    type(sparse_row_csr),pointer          :: row
+    integer                               :: column,pos
+    logical                               :: iadd
     !
     column = j
     !
     row => sparse%row(i)
     !
-    p => row%root
-    c => p%next
-    iadd = .false.                !check if column already exist
-    do                            !traverse the list
-       if(.not.associated(c))exit !empty list or end of the list
-       if(c%col == column)then
-          iadd=.true.
-          exit
-       endif
-       !if(c%col > column)exit
-       if(column <= c%col)exit
-       p => c
-       c => c%next
-    end do
-    if(iadd)then
-       c%cval=c%cval + value
-    else
-       allocate(p%next)                !Create a new element in the list
-       p%next%cval= value
-       p%next%col = column
-       row%size   = row%size+1
-       if(column<row%min_column)row%min_column=column
-       if(column>row%max_column)row%max_column=column
-       if(.not.associated(c))then !end of the list special case (current=>current%next)
-          p%next%next  => null()
-       else
-          p%next%next  => c      !the %next of the new node come to current
-       end if
+    iadd = .false.                          !check if column already exist
+    if(any(row%cols == column))then         !
+       pos = binary_search(row%cols,column) !find the position  column in %cols        
+       iadd=.true.                          !set Iadd to true
     endif
-  end subroutine sp_insert_element_ll
-
-
+    !
+    if(iadd)then                            !this column exists so just sum it up       
+       row%vals(pos)=row%vals(pos) + value  !add up value to the current one in %vals
+    else                                    !this column is new. increase counter and store it 
+       ! row%vals = [row%vals,value]
+       ! row%cols = [row%cols,column]
+       call add_to(row%vals,value)
+       call add_to(row%cols,column)
+       row%Size = row%Size + 1
+    endif
+    !
+    if(row%Size > sparse%Ncol)stop "sp_insert_element_csr ERROR: row%Size > sparse%Ncol"
+    !
+  end subroutine sp_insert_element_csr
 
 #ifdef _MPI
-  subroutine mpi_sp_insert_element_ll(MpiComm,sparse,value,i,j)
-    integer                              :: MpiComm
-    type(sparse_matrix_ll),intent(inout) :: sparse
-    real(8),intent(in)                   :: value
-    integer,intent(in)                   :: i,j
-    type(sparse_row_ll),pointer          :: row
-    integer                              :: column
-    type(sparse_element_ll),pointer      :: p,c
-    logical                              :: iadd
+  subroutine mpi_sp_insert_element_csr(MpiComm,sparse,value,i,j)
+    integer                               :: MpiComm
+    type(sparse_matrix_csr),intent(inout) :: sparse
+    real(8),intent(in)                    :: value
+    integer,intent(in)                    :: i,j
+    type(sparse_row_csr),pointer          :: row
+    integer                               :: column,pos
+    logical                               :: iadd
     !
-    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_insert_element_ll")
+    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_insert_element_csr")
     !
     column = j
     !
     row => sparse%row(i-sparse%Ishift)
     !
-    p => row%root
-    c => p%next
-    iadd = .false.                !check if column already exist
-    do                            !traverse the list
-       if(.not.associated(c))exit !empty list or end of the list
-       if(c%col == column)then
-          iadd=.true.
-          exit
-       endif
-       !if(c%col > column)exit
-       if(column <= c%col)exit
-       p => c
-       c => c%next
-    end do
-    if(iadd)then
-       c%cval=c%cval + value
-    else
-       allocate(p%next)                !Create a new element in the list
-       p%next%cval= value
-       p%next%col = column
-       row%size   = row%size+1
-       if(column<row%min_column)row%min_column=column
-       if(column>row%max_column)row%max_column=column
-       if(.not.associated(c))then !end of the list special case (current=>current%next)
-          p%next%next  => null()
-       else
-          p%next%next  => c      !the %next of the new node come to current
-       end if
+    iadd = .false.                          !check if column already exist
+    if(any(row%cols == column))then         !
+       pos = binary_search(row%cols,column) !find the position  column in %cols        
+       iadd=.true.                          !set Iadd to true
     endif
-  end subroutine mpi_sp_insert_element_ll
+    !
+    if(iadd)then                            !this column exists so just sum it up       
+       row%vals(pos)=row%vals(pos) + value  !add up value to the current one in %vals
+    else                                    !this column is new. increase counter and store it 
+       ! row%vals = [row%vals,value]
+       ! row%cols = [row%cols,column]
+       call add_to(row%vals,value)
+       call add_to(row%cols,column)
+       row%Size = row%Size + 1
+    endif
+    !
+    if(row%Size > sparse%Ncol)stop "mpi_sp_insert_element_csr ERROR: row%Size > sparse%Ncol"
+    !
+  end subroutine mpi_sp_insert_element_csr
 #endif
 
+
+
+
+
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE: load a regular matrix (2dim array) into a sparse matrix
+  !+------------------------------------------------------------------+
+  subroutine sp_load_matrix_csr(matrix,sparse)
+    real(8),dimension(:,:),intent(in) :: matrix
+    type(sparse_matrix_csr),intent(inout) :: sparse    
+    integer                           :: i,j,Ndim1,Ndim2
     !
+    Ndim1=size(matrix,1)
+    Ndim2=size(matrix,2)   
     !
+    if(sparse%status)call sp_delete_matrix_csr(sparse)
+    call sp_init_matrix_csr(sparse,Ndim1,Ndim2)
     !
+    do i=1,Ndim1
+       do j=1,Ndim2
+          if(matrix(i,j)/=0.d0)call sp_insert_element_csr(sparse,matrix(i,j),i,j)
+       enddo
+    enddo
+  end subroutine sp_load_matrix_csr
 
-
-
-
-
-
+#ifdef _MPI
+  subroutine mpi_sp_load_matrix_csr(MpiComm,matrix,sparse)
+    integer                               :: MpiComm
+    real(8),dimension(:,:),intent(in)     :: matrix
+    type(sparse_matrix_csr),intent(inout) :: sparse    
+    integer                               :: i,j,Ndim1,Ndim2
+    !
+    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_load_matrix_csr")
+    !
+    Ndim1=size(matrix,1)
+    Ndim2=size(matrix,2)
+    !
+    if(sparse%status)call sp_delete_matrix_csr(sparse)
+    call mpi_sp_init_matrix_csr(MpiComm,sparse,Ndim1,Ndim2)
+    !
+    do i=sparse%Istart,sparse%Iend
+       do j=1,Ndim2
+          if(matrix(i,j)/=0.d0)call mpi_sp_insert_element_csr(MpiComm,sparse,matrix(i,j),i,j)
+       enddo
+    enddo
+  end subroutine mpi_sp_load_matrix_csr
+#endif
 
 
 
@@ -375,11 +382,10 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE: dump a sparse matrix into a regular 2dim array
   !+------------------------------------------------------------------+
-  subroutine sp_dump_matrix_ll(sparse,matrix)
-    type(sparse_matrix_ll),intent(in)    :: sparse
+  subroutine sp_dump_matrix_csr(sparse,matrix)
+    type(sparse_matrix_csr),intent(in)   :: sparse
     real(8),dimension(:,:),intent(inout) :: matrix
-    type(sparse_element_ll),pointer      :: c
-    integer                              :: i,Ndim1,Ndim2
+    integer                              :: i,j,Ndim1,Ndim2
     !
     Ndim1=size(matrix,1)
     Ndim2=size(matrix,2)
@@ -388,45 +394,41 @@ contains
     !
     matrix=0.d0
     do i=1,Ndim1
-       c => sparse%row(i)%root%next
-       do while(associated(c))
-          matrix(i,c%col) = matrix(i,c%col) + c%cval
-          c => c%next  !traverse list
+       do j=1,sparse%row(i)%Size
+          matrix(i,sparse%row(i)%cols(j)) = matrix(i,sparse%row(i)%cols(j)) + sparse%row(i)%vals(j)
        enddo
     enddo
-  end subroutine sp_dump_matrix_ll
+  end subroutine sp_dump_matrix_csr
 
-
-  !
 #ifdef _MPI
-  subroutine mpi_sp_dump_matrix_ll(MpiComm,sparse,matrix)
+  subroutine mpi_sp_dump_matrix_csr(MpiComm,sparse,matrix)
     integer                              :: MpiComm
-    type(sparse_matrix_ll),intent(in)    :: sparse
+    type(sparse_matrix_csr),intent(in)   :: sparse
     real(8),dimension(:,:),intent(inout) :: matrix
-    type(sparse_element_ll),pointer      :: c
-    integer                              :: i,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
+    integer                              :: i,impi,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
-    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_dump_matrix_ll")
+    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_dump_matrix_csr")
     !
     Ndim1=size(matrix,1)
     Ndim2=size(matrix,2)
     !
-    N1_=sparse%Nrow
-    N2_=sparse%Ncol
+    N1_  = sparse%Nrow
+    N2_  = sparse%Ncol
+    Nrow = 0
+    Ncol = 0
     call MPI_AllReduce(N1_,Nrow,1,MPI_Integer,MPI_SUM,MpiComm,MpiIerr)
     call MPI_AllReduce(N2_,Ncol,1,MPI_Integer,MPI_MAX,MpiComm,MpiIerr)
     !
     if(Nrow>Ndim1 .OR. Ncol>Ndim2)stop "Warning SPARSE/mpi_dump_matrix: dimensions error"
-    ! !
+    !
     matrix=0d0
     do i=sparse%Istart,sparse%Iend
-       c => sparse%row(i-sparse%Ishift)%root%next
-       do while(associated(c))
-          matrix(i,c%col) = matrix(i,c%col) + c%cval
-          c => c%next  !traverse list
+       impi = i - sparse%Ishift
+       do j=1,sparse%row(impi)%Size
+          matrix(i,sparse%row(impi)%cols(j))=matrix(i,sparse%row(impi)%cols(j))+sparse%row(impi)%vals(j)
        enddo
     enddo
-  end subroutine mpi_sp_dump_matrix_ll
+  end subroutine mpi_sp_dump_matrix_csr
 #endif
 
 
@@ -436,64 +438,52 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE: pretty print a sparse matrix on a given unit using format fmt
   !+------------------------------------------------------------------+
-  subroutine sp_print_matrix_ll(sparse,unit,fmt)
-    type(sparse_matrix_ll)          :: sparse
+  subroutine sp_print_matrix_csr(sparse,unit,fmt)
+    type(sparse_matrix_csr)          :: sparse
     integer,optional             :: unit
     integer                      :: unit_
     integer                      :: i,j,Ns
     character(len=*),optional    :: fmt
     character(len=64)            :: fmt_
-    type(sparse_row_ll),pointer     :: row
-    type(sparse_element_ll),pointer :: c
+    type(sparse_row_csr),pointer     :: row
     integer                      :: count=0
     unit_=6;if(present(unit))unit_=unit
     fmt_='F15.9';if(present(fmt))fmt_=fmt
     write(*,*)"Print sparse matrix (compact mode) ->",unit_
     do i=1,sparse%Nrow
        row => sparse%row(i)
-       c => row%root%next   !assume is associated,ie list exists
-       do
-          if(.not.associated(c))exit
-          count=count+1
-          write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')c%cval,',',c%col
-          c => c%next  !traverse list
+       do j=1,row%Size
+          write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')row%vals(j),',',row%cols(j)
        end do
        write(unit_,*)
     enddo
     write(unit_,*)
-  end subroutine sp_print_matrix_ll
-
-
-
+  end subroutine sp_print_matrix_csr
 
 #ifdef _MPI
-  subroutine mpi_sp_print_matrix_ll(MpiComm,sparse,unit,fmt)
+  subroutine mpi_sp_print_matrix_csr(MpiComm,sparse,unit,fmt)
     integer                         :: MpiComm
-    type(sparse_matrix_ll)          :: sparse
+    type(sparse_matrix_csr)          :: sparse
     integer,optional                :: unit
     integer                         :: unit_
     integer                         :: i,j,Ns
     character(len=*),optional       :: fmt
     character(len=64)               :: fmt_
-    type(sparse_row_ll),pointer     :: row
-    type(sparse_element_ll),pointer :: c
+    type(sparse_row_csr),pointer     :: row
     integer                         :: count=0
     unit_=6;if(present(unit))unit_=unit
     fmt_='F15.9';if(present(fmt))fmt_=fmt
     write(*,*)"Print sparse matrix (compact mode) ->",unit_
     do i=1,sparse%Nrow
        row => sparse%row(i)
-       c => row%root%next   !assume is associated,ie list exists
-       do
-          if(.not.associated(c))exit
-          count=count+1
-          write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')c%cval,',',c%col
-          c => c%next  !traverse list
+       do j=1,row%Size
+          write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')row%vals(j),',',row%cols(j)
        end do
        write(unit_,*)
+       !
     enddo
     write(unit_,*)
-  end subroutine mpi_sp_print_matrix_ll
+  end subroutine mpi_sp_print_matrix_csr
 #endif
 
 
@@ -506,11 +496,10 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE: pretty print a sparse matrix on a given unit using format fmt
   !+------------------------------------------------------------------+  
-  subroutine sp_spy_matrix_ll(sparse,header)
-    type(sparse_matrix_ll)          :: sparse
+  subroutine sp_spy_matrix_csr(sparse,header)
+    type(sparse_matrix_csr)          :: sparse
     character ( len = * )           :: header
     integer                         :: N1,N2
-    type(sparse_element_ll),pointer :: c
     character ( len = 255 )         :: command_filename
     integer                         :: command_unit
     character ( len = 255 )         :: data_filename
@@ -529,11 +518,9 @@ contains
     open (unit=free_unit(data_unit), file = data_filename, status = 'replace' )
     nz_num = 0
     do i=1,N1
-       c => sparse%row(i)%root%next
-       do while(associated(c))
-          write(data_unit,'(2x,i6,2x,i6)') c%col,i
+       do j=1,sparse%row(i)%size
+          write(data_unit,'(2x,i6,2x,i6)') sparse%row(i)%cols(j),i
           nz_num = nz_num + 1
-          c => c%next  !traverse list
        enddo
     enddo
     close(data_unit)
@@ -554,27 +541,26 @@ contains
          str(data_filename)//'" w p pt 5 ps 0.4 lc rgb "red"'
     close ( unit = command_unit )
     return
-  end subroutine sp_spy_matrix_ll
+  end subroutine sp_spy_matrix_csr
 
 
 
 #ifdef _MPI
-  subroutine mpi_sp_spy_matrix_ll(MpiComm,sparse,header)
+  subroutine mpi_sp_spy_matrix_csr(MpiComm,sparse,header)
     integer                         :: MpiComm
-    type(sparse_matrix_ll)          :: sparse
+    type(sparse_matrix_csr)          :: sparse
     character ( len = * )           :: header
     integer                         :: N1,N2,N1_,N2_
-    type(sparse_element_ll),pointer :: c
     character ( len = 255 )         :: command_filename
     integer                         :: command_unit
-    character ( len = 255 )         :: data_filename
+    character ( len = 255 )         :: data_filename(1)
     integer                         :: data_unit
     integer                         :: i, j
     character ( len = 6 )           :: n1_s,n2_s,n1_i,n2_i
     integer                         :: nz_num
     character ( len = 255 )         :: png_filename
     !
-    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_spy_matrix_ll")
+    call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_spy_matrix_csr")
     !
     MpiRank  = get_Rank_MPI(MpiComm)
     !
@@ -589,18 +575,17 @@ contains
     !
     nz_num = 0
     !
-    data_filename = trim(header)//"_rank"//str(MpiRank,4)//'_matrix.dat'
-    open(unit=free_unit(data_unit),file=data_filename, status = 'replace' )
+    data_filename(1) = trim(header)//"_rank"//str(MpiRank,4)//'_matrix.dat'
+    open(unit=free_unit(data_unit),file=data_filename(1), status = 'replace' )
     do i=1,sparse%Nrow
-       c => sparse%row(i)%root%next
-       do while(associated(c))
-          write(data_unit,'(2x,i6,2x,i6)') c%col,i+sparse%Ishift
+       do j=1,sparse%row(i)%Size
+          write(data_unit,'(2x,i6,2x,i6)') sparse%row(i)%cols(j),i+sparse%Ishift
           nz_num = nz_num + 1
-          c => c%next  !traverse list
        enddo
     enddo
     write(data_unit,'(2x,i6,2x,i6)')
     close(data_unit)
+    !
     !
     call MPI_Barrier(MpiComm,MpiIerr)
     !
@@ -618,10 +603,10 @@ contains
          'set title "',nz_num,' nonzeros for '//str(header)//"_rank"//str(MpiRank,4)//'"'
     write(command_unit,'(a)') 'set timestamp'
     write(command_unit,'(a)' )'plot [x=1:'//str(N1)//'] [y='//str(N2)//':1] "'//&
-         str(data_filename)//'" w p pt 5 ps 0.4 lc rgb "red"'
+         str(data_filename(1))//'" w p pt 5 ps 0.4 lc rgb "red"'
     close ( unit = command_unit )
     return
-  end subroutine mpi_sp_spy_matrix_ll
+  end subroutine mpi_sp_spy_matrix_csr
 #endif
 
 
@@ -631,19 +616,19 @@ contains
 
 
 #ifdef _MPI
-  subroutine sp_set_mpi_ll(MpiComm,sparse,istart,iend,ishift)
+  subroutine sp_set_mpi_matrix_csr(MpiComm,sparse,istart,iend,ishift)
     integer                              :: MpiComm
-    type(sparse_matrix_ll),intent(inout) :: sparse
+    type(sparse_matrix_csr),intent(inout) :: sparse
     integer                              :: istart,iend,ishift
     sparse%istart = istart
     sparse%iend   = iend
     sparse%ishift = ishift
     sparse%mpi    = .true.
-  end subroutine sp_set_mpi_ll
+  end subroutine sp_set_mpi_matrix_csr
 
   subroutine sp_test_matrix_mpi(MpiComm,sparse,text)
     integer                              :: MpiComm
-    type(sparse_matrix_ll),intent(in)    :: sparse
+    type(sparse_matrix_csr),intent(in)    :: sparse
     character(len=*)                     :: text
     integer                              :: MpiRank
     MpiRank = get_Rank_MPI(MpiComm)
@@ -655,4 +640,102 @@ contains
 #endif
 
 
+
+
+
+
+  recursive function binary_search(a,value) result(bsresult)
+    integer,intent(in) :: a(:), value
+    integer            :: bsresult, mid
+    mid = size(a)/2 + 1
+    if (size(a) == 0) then
+       bsresult = 0        ! not found
+       !stop "binary_search error: value not found"
+    else if (a(mid) > value) then
+       bsresult= binary_search(a(:mid-1), value)
+    else if (a(mid) < value) then
+       bsresult = binary_search(a(mid+1:), value)
+       if (bsresult /= 0) then
+          bsresult = mid + bsresult
+       end if
+    else
+       bsresult = mid      ! SUCCESS!!
+    end if
+  end function binary_search
+
+  subroutine add_to_I(vec,val)
+    integer,dimension(:),allocatable,intent(inout) :: vec
+    integer,intent(in)                             :: val  
+    integer,dimension(:),allocatable               :: tmp
+    integer                                        :: n
+    !
+    if (allocated(vec)) then
+       n = size(vec)
+       allocate(tmp(n+1))
+       tmp(:n) = vec
+       call move_alloc(tmp,vec)
+       n = n + 1
+    else
+       n = 1
+       allocate(vec(n))
+    end if
+    !
+    !Put val as last entry:
+    vec(n) = val
+    !
+    if(allocated(tmp))deallocate(tmp)
+  end subroutine add_to_I
+
+  subroutine add_to_D(vec,val)
+    real(8),dimension(:),allocatable,intent(inout) :: vec
+    real(8),intent(in)                             :: val  
+    real(8),dimension(:),allocatable               :: tmp
+    integer                                        :: n
+    !
+    if (allocated(vec)) then
+       n = size(vec)
+       allocate(tmp(n+1))
+       tmp(:n) = vec
+       call move_alloc(tmp,vec)
+       n = n + 1
+    else
+       n = 1
+       allocate(vec(n))
+    end if
+    !
+    !Put val as last entry:
+    vec(n) = val
+    !
+    if(allocated(tmp))deallocate(tmp)
+  end subroutine add_to_D
+
+  subroutine add_to_Z(vec,val)
+    complex(8),dimension(:),allocatable,intent(inout) :: vec
+    complex(8),intent(in)                             :: val  
+    complex(8),dimension(:),allocatable               :: tmp
+    integer                                           :: n
+    !
+    if (allocated(vec)) then
+       n = size(vec)
+       allocate(tmp(n+1))
+       tmp(:n) = vec
+       call move_alloc(tmp,vec)
+       n = n + 1
+    else
+       n = 1
+       allocate(vec(n))
+    end if
+    !
+    !Put val as last entry:
+    vec(n) = val
+    !
+    if(allocated(tmp))deallocate(tmp)
+  end subroutine add_to_Z
+
 end module ED_SPARSE_MATRIX
+
+
+
+
+
+
