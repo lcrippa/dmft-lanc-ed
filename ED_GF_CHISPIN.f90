@@ -198,6 +198,9 @@ contains
        iDimUp = product(iDimUps)
        iDimDw = product(iDimDws)
        !
+       ! if(MpiMaster)then
+       call build_sector(isector,HI)
+       !
        if(MpiMaster)then
           call build_sector(isector,HI)
           !
