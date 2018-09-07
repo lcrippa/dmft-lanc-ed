@@ -1,12 +1,28 @@
+  ! do i=MpiIstart,MpiIend
+  !    iup = iup_index(i,DimUp)
+  !    idw = idw_index(i,DimUp)
+  !    !
+  !    mup = Hs(1)%map(iup)
+  !    mdw = Hs(2)%map(idw)
+  !    !
+  !    Nups(1,:) = Bdecomp(mup,Ns)
+  !    Ndws(1,:) = Bdecomp(mdw,Ns)
+  !    !
+  !    Nup = Breorder(Nups)
+  !    Ndw = Breorder(Ndws)
   do i=MpiIstart,MpiIend
-     iup = iup_index(i,DimUp)
-     idw = idw_index(i,DimUp)
+     call state2indices(i,[DimUps,DimDws],Indices)
      !
-     mup = Hs(1)%map(iup)
-     mdw = Hs(2)%map(idw)
+     do iud=1,Ns_Ud
+        mup = Hs(iud)%map(Indices(iud))
+        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_Ud))
+        !
+        Nups(iud,:) = Bdecomp(mup,Ns_Orb)
+        Ndws(iud,:) = Bdecomp(mdw,Ns_Orb)
+     enddo
      !
-     nup = bdecomp(mup,Ns)
-     ndw = bdecomp(mdw,Ns)
+     Nup = Breorder(Nups)
+     Ndw = Breorder(Ndws)
      !
      if(bath_type/="replica") then
         !
@@ -15,8 +31,8 @@
         do iorb=1,size(dmft_bath%e,2)
            do kp=1,Nbath
               alfa = getBathStride(iorb,kp)
-              htmp =htmp + dmft_bath%e(1    ,iorb,kp)*nup(alfa) !UP
-              htmp =htmp + dmft_bath%e(Nspin,iorb,kp)*ndw(alfa) !DW
+              htmp =htmp + dmft_bath%e(1    ,iorb,kp)*Nup(alfa) !UP
+              htmp =htmp + dmft_bath%e(Nspin,iorb,kp)*Ndw(alfa) !DW
            enddo
         enddo
         !
@@ -34,8 +50,8 @@
         do kp=1,Nbath
            do iorb=1,Norb
               alfa = getBathStride(iorb,kp)
-              htmp = htmp + dmft_bath%h(1    ,    1,iorb,iorb,kp)*nup(alfa) !UP
-              htmp = htmp + dmft_bath%h(Nspin,Nspin,iorb,iorb,kp)*ndw(alfa) !DW
+              htmp = htmp + dmft_bath%h(1    ,    1,iorb,iorb,kp)*Nup(alfa) !UP
+              htmp = htmp + dmft_bath%h(Nspin,Nspin,iorb,iorb,kp)*Ndw(alfa) !DW
            enddo
         enddo
         !
@@ -56,12 +72,13 @@
   !this loop considers only the orbital off-diagonal terms
   !because iorb=jorb can not have simultaneously
   !occupation 0 and 1, as required by this if Jcondition:
-  if(bath_type=="replica") then
+
+  if(ed_total_ud.AND.bath_type=="replica") then
      !
      !UP:
      do iup=1,DimUp
         mup  = Hs(1)%map(iup)
-        nup  = bdecomp(mup,Ns)
+        Nup  = bdecomp(mup,Ns)
         !
         do kp=1,Nbath
            do iorb=1,Norb
@@ -71,7 +88,7 @@
                  beta = getBathStride(jorb,kp)
                  Jcondition = &
                       (dmft_bath%h(1,1,iorb,jorb,kp)/=zero) &
-                      .AND. (nup(beta)==1) .AND. (nup(alfa)==0)
+                      .AND. (Nup(beta)==1) .AND. (Nup(alfa)==0)
                  !
                  if (Jcondition)then
                     call c(beta,mup,k1,sg1)
@@ -79,7 +96,7 @@
                     jup = binary_search(Hs(1)%map,k2)
                     htmp = dmft_bath%h(1,1,iorb,jorb,kp)*sg1*sg2
                     !
-                    call sp_insert_element(spH0up,htmp,iup,jup)
+                    call sp_insert_element(spH0ups(1),htmp,iup,jup)
                     !
                  endif
               enddo
@@ -92,7 +109,7 @@
      !DW:
      do idw=1,DimDw
         mdw  = Hs(2)%map(idw)
-        ndw  = bdecomp(mdw,Ns)
+        Ndw  = bdecomp(mdw,Ns)
         !
         do kp=1,Nbath
            do iorb=1,Norb
@@ -102,7 +119,7 @@
                  beta = getBathStride(jorb,kp)
                  Jcondition = &
                       (dmft_bath%h(Nspin,Nspin,iorb,jorb,kp)/=zero) &
-                      .AND. (ndw(beta)==1) .AND. (ndw(alfa)==0)
+                      .AND. (Ndw(beta)==1) .AND. (Ndw(alfa)==0)
                  !
                  if (Jcondition)then
                     call c(beta,mdw,k1,sg1)
@@ -110,7 +127,7 @@
                     jdw = binary_search(Hs(2)%map,k2)
                     htmp = dmft_bath%h(Nspin,Nspin,iorb,jorb,kp)*sg1*sg2
                     !
-                    call sp_insert_element(spH0dw,htmp,idw,jdw)
+                    call sp_insert_element(spH0dws(1),htmp,idw,jdw)
                     !
                  endif
               enddo

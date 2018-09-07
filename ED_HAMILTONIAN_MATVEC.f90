@@ -230,11 +230,12 @@ contains
 #else
     call sp_delete_matrix(spH0d)
 #endif
-    call sp_delete_matrix(spH0up)
-    call sp_delete_matrix(spH0dw)
+    do iud=1,Ns_Ud
+       call sp_delete_matrix(spH0ups(iud))
+       call sp_delete_matrix(spH0dws(iud))
+    enddo
     !
   end subroutine delete_Hv_sector
-
 
 
 
@@ -248,16 +249,20 @@ contains
   subroutine ed_buildh_main(isector,Hmat)
     integer                             :: isector   
     real(8),dimension(:,:),optional     :: Hmat
-    real(8),dimension(:,:),allocatable  :: Hredux,Htmp_up,Htmp_dw
-    integer,dimension(Ns)               :: nup,ndw
+    real(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
+    !
+    integer,dimension(2*Ns_Ud)          :: Indices    ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)               :: Nup,Ndw    ![Ns]
+    !
     integer                             :: i,iup,idw
     integer                             :: j,jup,jdw
     integer                             :: m,mup,mdw
-    integer                             :: ms
+    integer                             :: ms,iud
     integer                             :: impi,impi_up,impi_dw
     integer                             :: iorb,jorb,ispin,jspin,ibath
     integer                             :: kp,k1,k2,k3,k4
-    integer                             :: alfa,beta
+    integer                             :: alfa,beta,indx
     real(8)                             :: sg1,sg2,sg3,sg4
     real(8)                             :: htmp,htmpup,htmpdw
     real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
@@ -293,22 +298,16 @@ contains
 #else
     call sp_init_matrix(spH0d,Dim)
 #endif
-    call sp_init_matrix(spH0dw,DimDw)
-    call sp_init_matrix(spH0up,DimUp)
-    !
+    do iud=1,Ns_Ud
+       call sp_init_matrix(spH0dws(iud),DimDws(iud))
+       call sp_init_matrix(spH0ups(iud),DimUps(iud))
+    enddo
     !
     !-----------------------------------------------!
-    !IMPURITY  HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/stored/Himp.f90"
-    !
-    !LOCAL INTERACTION
-    include "ED_HAMILTONIAN_MATVEC/stored/Hint.f90"
-    !
-    !BATH HAMILTONIAN
-    include "ED_HAMILTONIAN_MATVEC/stored/Hbath.f90"
-    !
-    !IMPURITY- BATH HYBRIDIZATION
-    include "ED_HAMILTONIAN_MATVEC/stored/Hhyb.f90"
+    include "ED_HAMILTONIAN_MATVEC/stored/Himp.f90"  !IMPURITY HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/stored/Hint.f90"  !LOCAL INTERACTION
+    include "ED_HAMILTONIAN_MATVEC/stored/Hbath.f90" !BATH HAMILTONIAN
+    include "ED_HAMILTONIAN_MATVEC/stored/Hhyb.f90"  !IMPURITY- BATH HYBRIDIZATION
     !-----------------------------------------------!
     !
     if(present(Hmat))then
@@ -325,19 +324,68 @@ contains
 #else
        call sp_dump_matrix(spH0d,Hmat)
 #endif
-       call sp_dump_matrix(spH0up,Htmp_up)
-       call sp_dump_matrix(spH0dw,Htmp_dw)
-       !
-       Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
-       Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))
-       !
-       ! NEW:
-       ! Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
-       ! Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
-       !
+       select case(Ns_Ud)
+       case(1)
+          do iud=1,Ns_Ud
+             call sp_dump_matrix(spH0ups(iud),Htmp_up)
+             call sp_dump_matrix(spH0dws(iud),Htmp_dw)
+             Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw) ! kron(eye(DimDw),Htmp_up)
+             Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw)) ! kron(Htmp_dw,eye(DimUp))
+          enddo
+          !
+       case default
+          do iud=1,Ns_Ud
+             allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
+             call sp_dump_matrix(spH0ups(iud),Hrdx)
+             call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
+             Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))          
+             deallocate(Hrdx)
+             !
+             allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=0d0
+             call sp_dump_matrix(spH0dws(iud),Hrdx)
+             call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
+             Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
+             deallocate(Hrdx)
+          enddo
+          !
+       end select
        deallocate(Htmp_up,Htmp_dw)
     endif
     !
+  contains
+
+    subroutine build_Htmp_up(iud,H,Dim,Hup)
+      integer                        :: iud,Dim,i
+      real(8),dimension(Dim,Dim)     :: H
+      real(8),dimension(DimUp,DimUp) :: Hup
+      if(dim/=DimUps(iud))stop "error in build_Htmp_up"
+      if(iud==1)then
+         Hup= kronecker_product(H,eye(product(DimUps(2:))))
+      else if(iud==Ns_Ud)then
+         Hup= kronecker_product(eye(product(DimUps(1:Ns_Ud-1))),H)
+      else
+         Hup= kronecker_product( &
+              kronecker_product( &
+              eye(product(DimUps(1:iud-1))), H) , eye(product(DimUps(iud+1:Ns_Ud))) )
+      end if
+    end subroutine build_Htmp_up
+
+    subroutine build_Htmp_dw(iud,H,Dim,Hdw)
+      integer                        :: iud,Dim,i
+      real(8),dimension(Dim,Dim)     :: H
+      real(8),dimension(DimDw,DimDw) :: Hdw
+      if(dim/=DimDws(iud))stop "error in build_Htmp_dw"
+      if(iud==1)then
+         Hdw= kronecker_product(H,eye(product(DimDws(2:))))
+      else if(iud==Ns_Ud)then
+         Hdw= kronecker_product(eye(product(DimDws(1:Ns_Ud-1))),H)
+      else
+         Hdw= kronecker_product( &
+              kronecker_product( &
+              eye(product(DimDws(1:iud-1))), H) , eye(product(DimDws(iud+1:Ns_Ud))) )
+      end if
+    end subroutine build_Htmp_dw
+
   end subroutine ed_buildh_main
 
 
@@ -361,11 +409,12 @@ contains
   !                     USE LL sparse format
   !+------------------------------------------------------------------+
   subroutine spMatVec_main(Nloc,v,Hv)
-    integer                         :: Nloc
-    real(8),dimension(Nloc)         :: v
-    real(8),dimension(Nloc)         :: Hv
-    real(8)                         :: val
-    integer                         :: i,iup,idw,j,jup,jdw,jj
+    integer                    :: Nloc
+    real(8),dimension(Nloc)    :: v
+    real(8),dimension(Nloc)    :: Hv
+    integer                    :: i,iup,idw,j,jup,jdw,jj
+    integer                    :: iud
+    integer,dimension(2*Ns_Ud) :: Indices,Jndices
     !
     !
     Hv=0d0
@@ -376,36 +425,29 @@ contains
        enddo
     enddo
     !
-    !DW:
-    do iup=1,DimUp
-       !
-       do idw=1,DimDw
-          i = iup + (idw-1)*DimUp
-          do jj=1,spH0dw%row(idw)%Size
-             jup = iup
-             jdw = spH0dw%row(idw)%cols(jj)
-             val = spH0dw%row(idw)%vals(jj)
-             j     = jup +  (jdw-1)*DimUp
-             Hv(i) = Hv(i) + val*V(j)
-          enddo
-       enddo
-       !
-    enddo
     !
-    !UP:
-    do idw=1,DimDw
-       !
-       do iup=1,DimUp
-          i = iup + (idw-1)*DimUp
-          do jj=1,spH0up%row(iup)%Size
-             jup = spH0up%row(iup)%cols(jj)
-             jdw = idw
-             val = spH0up%row(iup)%vals(jj)
-             j =  jup + (jdw-1)*DimUp
-             Hv(i) = Hv(i) + val*V(j)
+    do i=1,Dim
+       call state2indices(i,[DimUps,DimDws],Indices)
+       do iud=1,Ns_Ud
+          !
+          !DW:
+          idw = Indices(iud+Ns_Ud)
+          do jj=1,spH0dws(iud)%row(idw)%Size
+             Jndices = Indices ; Jndices(iud+Ns_Ud) = spH0dws(iud)%row(idw)%cols(jj)
+             call indices2state(Jndices,[DimUps,DimDws],j)
+             Hv(i) = Hv(i) + spH0dws(iud)%row(idw)%vals(jj)*V(j)
           enddo
+          !
+          !
+          !UP:
+          iup = Indices(iud)
+          do jj=1,spH0ups(iud)%row(iup)%Size
+             Jndices = Indices ; Jndices(iud) = spH0ups(iud)%row(iup)%cols(jj)
+             call indices2state(Jndices,[DimUps,DimDws],j)
+             Hv(i) = Hv(i) + spH0ups(iud)%row(iup)%vals(jj)*V(j)
+          enddo
+          !
        enddo
-       !
     enddo
     !
   end subroutine spMatVec_main
@@ -422,6 +464,9 @@ contains
     real(8),dimension(:),allocatable :: vt,Hvt
     real(8)                          :: val
     integer                          :: i,iup,idw,j,jup,jdw,jj
+    integer                          :: iiup,iidw
+    integer                          :: iud
+    integer,dimension(2*Ns_Ud)       :: Indices,Jndices
     !local MPI
     integer                          :: irank
     integer                          :: MpiQup,MpiQdw
@@ -446,16 +491,21 @@ contains
     !
     !Non-local terms.
     !UP part: contiguous in memory.
-    do idw=1,MpiQdw
-       do iup=1,DimUp
-          i = iup + (idw-1)*DimUp
-          hxv_up: do jj=1,spH0up%row(iup)%Size
-             jup = spH0up%row(iup)%cols(jj)
-             jdw = idw
-             val = spH0up%row(iup)%vals(jj)
-             j   = jup + (idw-1)*DimUp
-             Hv(i) = Hv(i) + val*v(j)
-          end do hxv_up
+    do iidw=1,MpiQdw
+       do iiup=1,DimUp
+          i = iiup + (iidw-1)*DimUp
+          call state2indices(i,[DimUps,DimDws],Indices)
+          do iud=1,Ns_Ud
+             !
+             iup = Indices(iud)
+             hxv_up: do jj=1,spH0ups(iud)%row(iup)%Size
+                Jndices      = Indices
+                Jndices(iud) = spH0ups(iud)%row(iup)%cols(jj)
+                call indices2state(Jndices,[DimUps,DimDws],j)
+                Hv(i) = Hv(i) + spH0ups(iud)%row(iup)%vals(jj)*v(j)
+             end do hxv_up
+             !
+          enddo
        enddo
     end do
     !
@@ -465,16 +515,21 @@ contains
     allocate(Hvt(mpiQup*DimDw));Hvt=0d0
     call vector_transpose_MPI(DimUp,MpiQdw,v,DimDw,MpiQup,vt)
     Hvt=0d0    
-    do iup=1,MpiQup
-       do idw=1,DimDw
-          i = idw + (iup-1)*DimDw
-          hxv_dw: do jj=1,spH0dw%row(idw)%Size
-             jdw = spH0dw%row(idw)%cols(jj)
-             jup = iup
-             val = spH0dw%row(idw)%vals(jj)
-             j   = jdw + (jup-1)*DimDw
-             Hvt(i) = Hvt(i) + val*vt(j)
-          end do hxv_dw
+    do iiup=1,MpiQup
+       do iidw=1,DimDw
+          i = iidw + (iiup-1)*DimDw
+          call state2indices(i,[DimDws,DimUps],Indices)
+          do iud=1,Ns_Ud
+             !
+             idw = Indices(iud+Ns_Ud)
+             hxv_dw: do jj=1,spH0dws(iud)%row(idw)%Size
+                Jndices      = Indices
+                Jndices(iud) = spH0dws(iud)%row(idw)%cols(jj)
+                call indices2state(Jndices,[DimDws,DimUps],j)
+                Hvt(i) = Hvt(i) + spH0dws(iud)%row(idw)%vals(jj)*vt(j)
+             end do hxv_dw
+             !
+          enddo
        enddo
     end do
     deallocate(vt)
@@ -499,16 +554,23 @@ contains
 
 
 
-     !####################################################################
-     !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
-     !####################################################################
+  !####################################################################
+  !            SPARSE MAT-VEC DIRECT ON-THE-FLY PRODUCT 
+  !####################################################################
   subroutine directMatVec_main(Nloc,vin,Hv)
     integer                             :: Nloc
     real(8),dimension(Nloc)             :: vin
     real(8),dimension(Nloc)             :: Hv
     real(8),dimension(:),allocatable    :: vt,Hvt
     integer                             :: isector
-    integer,dimension(Ns)               :: nup,ndw
+    !
+    integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)               :: Nup,Ndw
+    !
+    integer                             :: iiup,iidw
+    integer                             :: iud,jj
+    !
     integer                             :: i,iup,idw
     integer                             :: j,jup,jdw
     integer                             :: m,mup,mdw
@@ -548,22 +610,23 @@ contains
     !
     !-----------------------------------------------!
     !LOCAL HAMILTONIAN PART: H_loc*vin = vout
-    include "ED_HAMILTONIAN_MATVEC/direct/HxV_local.f90"
+    include "ED_HAMILTONIAN_MATVEC/direct/HxV_local.f90" 
     !
-    !NON-LOCAL TERMS:
-    mpiQdw=DimDw
-    !
-    mpiQup=DimUp
-    ! 
-    !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
-    include "ED_HAMILTONIAN_MATVEC/direct/HxV_up.f90"
-    !
-    !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
-    allocate(vt(mpiQup*DimDw)) ;vt=0d0
-    allocate(Hvt(mpiQup*DimDw));Hvt=0d0
-    include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw.f90"
-    deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ; vt=0d0
-    Hv = Hv + Vt
+    !UP HAMILTONIAN TERMS
+    select case(ed_total_ud)
+    case (.true.)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_up.f90"    
+    case (.false.)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_up_Orbs.f90"
+    end select
+    !    
+    !DW HAMILTONIAN TERMS
+    select case(ed_total_ud)
+    case (.true.)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw.f90"    
+    case (.false.)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw_Orbs.f90"
+    end select
     !-----------------------------------------------!
     !
     return
@@ -574,172 +637,189 @@ contains
 
 
 #ifdef _MPI
-     subroutine directMatVec_MPI_main(Nloc,vin,Hv)
-       integer                             :: Nloc
-       real(8),dimension(Nloc)             :: Vin
-       real(8),dimension(Nloc)             :: Hv
-       real(8),dimension(:),allocatable    :: vt,Hvt
-       integer,allocatable,dimension(:)    :: Counts,Displs
-       integer                             :: isector
-       integer,dimension(Ns)               :: nup,ndw
-       integer                             :: i,iup,idw
-       integer                             :: j,jup,jdw
-       integer                             :: m,mup,mdw
-       integer                             :: ms
-       integer                             :: impi
-       integer                             :: iorb,jorb,ispin,jspin,ibath
-       integer                             :: kp,k1,k2,k3,k4
-       integer                             :: alfa,beta
-       real(8)                             :: sg1,sg2,sg3,sg4
-       real(8)                             :: htmp,htmpup,htmpdw
-       real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
-       logical                             :: Jcondition
-       integer                             :: MpiQup,MpiQdw
-       !
-       if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-       isector=Hsector
-       !
-       !Get diagonal hybridization
-       diag_hybr=0d0
-       do ibath=1,Nbath
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                if(bath_type/="replica")then
-                   diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
-                else
-                   diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-                end if
-             enddo
-          enddo
-       enddo
-       !    
-       if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
-       if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
-       !
-       !
-       Hv=0d0
-       !
-       !-----------------------------------------------!
-       !LOCAL HAMILTONIAN PART: H_loc*vin = vout
-       include "ED_HAMILTONIAN_MATVEC/direct/HxV_local.f90"
-       !
-       !NON-LOCAL TERMS:
-       mpiQdw=DimDw/MpiSize
-       if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
-       !
-       mpiQup=DimUp/MpiSize
-       if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
-       ! 
-       !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
-       include "ED_HAMILTONIAN_MATVEC/direct/HxV_up.f90"
-       !
-       !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
-       allocate(vt(mpiQup*DimDw)) ;vt=0d0
-       allocate(Hvt(mpiQup*DimDw));Hvt=0d0
-       call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt)
-       include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw.f90"
-       deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0
-       call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt)
-       Hv = Hv + Vt
-       !-----------------------------------------------!
-       !
-       return
-     end subroutine directMatVec_MPI_main
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-     !####################################################################
-     !               ALL-2-ALL-V VECTOR MPI TRANSPOSITION 
-     !####################################################################
-#ifdef _MPI
-     subroutine vector_transpose_MPI(nrow,qcol,a,ncol,qrow,b)    
-       integer                            :: nrow,ncol,qrow,qcol
-       real(8)                            :: a(nrow,qcol)
-       real(8)                            :: b(ncol,qrow)
-       integer,allocatable,dimension(:,:) :: send_counts,send_offset
-       integer,allocatable,dimension(:,:) :: recv_counts,recv_offset
-       integer                            :: counts,Ntot
-       integer :: i,j,irank,ierr
-       !
-       counts = Nrow/MpiSize
-       Ntot   = Ncol/MpiSize
-       if(mod(Ncol,MpiSize)/=0)Ntot=Ntot+1
-       !
-       allocate(send_counts(0:MpiSize-1,Ntot));send_counts=0
-       allocate(send_offset(0:MpiSize-1,Ntot));send_offset=0
-       allocate(recv_counts(0:MpiSize-1,Ntot));recv_counts=0
-       allocate(recv_offset(0:MpiSize-1,Ntot));recv_offset=0
-       !
-       do i=1,qcol
-          do irank=0,MpiSize-1
-             if(irank < mod(Nrow,MpiSize))then
-                send_counts(irank,i) = counts+1
+  subroutine directMatVec_MPI_main(Nloc,vin,Hv)
+    integer                             :: Nloc
+    real(8),dimension(Nloc)             :: Vin
+    real(8),dimension(Nloc)             :: Hv
+    real(8),dimension(:),allocatable    :: vt,Hvt
+    !
+    integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)               :: Nup,Ndw
+    !
+    integer                             :: iiup,iidw
+    integer                             :: iud,jj
+    !
+    integer,allocatable,dimension(:)    :: Counts,Displs
+    integer                             :: isector
+    integer                             :: i,iup,idw
+    integer                             :: j,jup,jdw
+    integer                             :: m,mup,mdw
+    integer                             :: ms
+    integer                             :: impi
+    integer                             :: iorb,jorb,ispin,jspin,ibath
+    integer                             :: kp,k1,k2,k3,k4
+    integer                             :: alfa,beta
+    real(8)                             :: sg1,sg2,sg3,sg4
+    real(8)                             :: htmp,htmpup,htmpdw
+    real(8),dimension(Nspin,Norb,Nbath) :: diag_hybr
+    logical                             :: Jcondition
+    integer                             :: MpiQup,MpiQdw
+    !
+    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
+    isector=Hsector
+    !
+    !Get diagonal hybridization
+    diag_hybr=0d0
+    do ibath=1,Nbath
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             if(bath_type/="replica")then
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
              else
-                send_counts(irank,i) = counts
-             endif
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
+             end if
           enddo
        enddo
-       !
-       do i=1,Ntot
-          call MPI_AllToAll(&
-               send_counts(:,i),1,MPI_INTEGER,&
-               recv_counts(:,i),1,MPI_INTEGER,&
-               MpiComm,ierr)
-       enddo
-       !
-       do i=1,Ntot
-          do irank=1,MpiSize-1
-             send_offset(irank,i) = send_counts(irank-1,i) + send_offset(irank-1,i)
-          enddo
-       enddo
-       !
-       !Get the irank=0 elements, i.e. first entries:
-       recv_offset(0,1) = 0
-       do i=2,Ntot
-          recv_offset(0,i) = sum(recv_counts(0,:i-1))
-       enddo
-       !the rest of the entries:
-       do i=1,Ntot
-          do irank=1,MpiSize-1
-             recv_offset(irank,i) = recv_offset(irank-1,i) + sum(recv_counts(irank-1,:))
-          enddo
-       enddo
-       !
-       !
-       do j=1,Ntot
-          call MPI_AllToAllV(&
-               A(:,j),send_counts(:,j),send_offset(:,j),MPI_DOUBLE_PRECISION,&
-               B(:,:),recv_counts(:,j),recv_offset(:,j),MPI_DOUBLE_PRECISION,&
-               MpiComm,ierr)
-       enddo
-       !
-       call local_transpose(b,ncol,qrow)
-       !
-       return
-     end subroutine vector_transpose_MPI
-
-
-     subroutine local_transpose(mat,nrow,ncol)
-       integer                      :: nrow,ncol
-       real(8),dimension(Nrow,Ncol) :: mat
-       mat = transpose(reshape(mat,[Ncol,Nrow]))
-     end subroutine local_transpose
+    enddo
+    !    
+    if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
+    if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
+    !
+    !
+    Hv=0d0
+    !
+    !-----------------------------------------------!
+    !LOCAL HAMILTONIAN PART: H_loc*vin = vout
+    include "ED_HAMILTONIAN_MATVEC/direct_mpi/HxV_local.f90"
+    !
+    !NON-LOCAL TERMS:
+    mpiQdw=DimDw/MpiSize
+    if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
+    !
+    mpiQup=DimUp/MpiSize
+    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
+    ! 
+    !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
+    select case(ed_total_ud)
+    case (.true.)
+       include "ED_HAMILTONIAN_MATVEC/direct_mpi/HxV_up.f90"    
+    case (.false.)
+       include "ED_HAMILTONIAN_MATVEC/direct_mpi/HxV_up_Orbs.f90"
+    end select
+    !
+    !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
+    allocate(vt(mpiQup*DimDw)) ;vt=0d0
+    allocate(Hvt(mpiQup*DimDw));Hvt=0d0
+    call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt) !Vin^T --> Vt
+    select case(ed_total_ud)
+    case (.true.)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw.f90"    
+    case (.false.)
+       include "ED_HAMILTONIAN_MATVEC/direct/HxV_dw_Orbs.f90"
+    end select
+    deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0         !reallocate Vt
+    call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt) !Hvt^T --> Vt
+    Hv = Hv + Vt
+    !-----------------------------------------------!
+    !
+    return
+  end subroutine directMatVec_MPI_main
 #endif
 
 
 
-   end MODULE ED_HAMILTONIAN_MATVEC
+
+
+
+
+
+
+
+
+
+
+  !####################################################################
+  !               ALL-2-ALL-V VECTOR MPI TRANSPOSITION 
+  !####################################################################
+#ifdef _MPI
+  subroutine vector_transpose_MPI(nrow,qcol,a,ncol,qrow,b)    
+    integer                            :: nrow,ncol,qrow,qcol
+    real(8)                            :: a(nrow,qcol)
+    real(8)                            :: b(ncol,qrow)
+    integer,allocatable,dimension(:,:) :: send_counts,send_offset
+    integer,allocatable,dimension(:,:) :: recv_counts,recv_offset
+    integer                            :: counts,Ntot
+    integer :: i,j,irank,ierr
+    !
+    counts = Nrow/MpiSize
+    Ntot   = Ncol/MpiSize
+    if(mod(Ncol,MpiSize)/=0)Ntot=Ntot+1
+    !
+    allocate(send_counts(0:MpiSize-1,Ntot));send_counts=0
+    allocate(send_offset(0:MpiSize-1,Ntot));send_offset=0
+    allocate(recv_counts(0:MpiSize-1,Ntot));recv_counts=0
+    allocate(recv_offset(0:MpiSize-1,Ntot));recv_offset=0
+    !
+    do i=1,qcol
+       do irank=0,MpiSize-1
+          if(irank < mod(Nrow,MpiSize))then
+             send_counts(irank,i) = counts+1
+          else
+             send_counts(irank,i) = counts
+          endif
+       enddo
+    enddo
+    !
+    do i=1,Ntot
+       call MPI_AllToAll(&
+            send_counts(:,i),1,MPI_INTEGER,&
+            recv_counts(:,i),1,MPI_INTEGER,&
+            MpiComm,ierr)
+    enddo
+    !
+    do i=1,Ntot
+       do irank=1,MpiSize-1
+          send_offset(irank,i) = send_counts(irank-1,i) + send_offset(irank-1,i)
+       enddo
+    enddo
+    !
+    !Get the irank=0 elements, i.e. first entries:
+    recv_offset(0,1) = 0
+    do i=2,Ntot
+       recv_offset(0,i) = sum(recv_counts(0,:i-1))
+    enddo
+    !the rest of the entries:
+    do i=1,Ntot
+       do irank=1,MpiSize-1
+          recv_offset(irank,i) = recv_offset(irank-1,i) + sum(recv_counts(irank-1,:))
+       enddo
+    enddo
+    !
+    !
+    do j=1,Ntot
+       call MPI_AllToAllV(&
+            A(:,j),send_counts(:,j),send_offset(:,j),MPI_DOUBLE_PRECISION,&
+            B(:,:),recv_counts(:,j),recv_offset(:,j),MPI_DOUBLE_PRECISION,&
+            MpiComm,ierr)
+    enddo
+    !
+    call local_transpose(b,ncol,qrow)
+    !
+    return
+  end subroutine vector_transpose_MPI
+
+
+  subroutine local_transpose(mat,nrow,ncol)
+    integer                      :: nrow,ncol
+    real(8),dimension(Nrow,Ncol) :: mat
+    mat = transpose(reshape(mat,[Ncol,Nrow]))
+  end subroutine local_transpose
+#endif
+
+
+
+end MODULE ED_HAMILTONIAN_MATVEC
 
 
 

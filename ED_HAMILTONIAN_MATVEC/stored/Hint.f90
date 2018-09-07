@@ -1,12 +1,28 @@
+  ! do i=MpiIstart,MpiIend
+  ! iup = iup_index(i,DimUp)
+  ! idw = idw_index(i,DimUp)
+  ! !
+  ! mup = Hs(1)%map(iup)
+  ! mdw = Hs(2)%map(idw)
+  ! !
+  ! Nups(1,:) = Bdecomp(mup,Ns)
+  ! Ndws(1,:) = Bdecomp(mdw,Ns)
+  ! !
+  ! Nup = Breorder(Nups)
+  ! Ndw = Breorder(Ndws)
   do i=MpiIstart,MpiIend
-     iup = iup_index(i,DimUp)
-     idw = idw_index(i,DimUp)
+     call state2indices(i,[DimUps,DimDws],Indices)
      !
-     mup = Hs(1)%map(iup)
-     mdw = Hs(2)%map(idw)
+     do iud=1,Ns_Ud
+        mup = Hs(iud)%map(Indices(iud))
+        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_Ud))
+        !
+        Nups(iud,:) = Bdecomp(mup,Ns_Orb)
+        Ndws(iud,:) = Bdecomp(mdw,Ns_Orb)
+     enddo
      !
-     nup = bdecomp(mup,Ns)
-     ndw = bdecomp(mdw,Ns)
+     Nup = Breorder(Nups)
+     Ndw = Breorder(Ndws)
      !
      !density-density interaction: same orbital, opposite spins:
      ! = \sum_\a U_\a*(n_{\a,up}*n_{\a,dw})

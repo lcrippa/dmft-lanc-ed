@@ -1,21 +1,25 @@
-  do i=1,Nloc
-     iup = iup_index(i+mpiIshift,DimUp)
-     idw = idw_index(i+mpiIshift,DimUp)
+  do i=1,Dim
+     call state2indices(i,[DimUps,DimDws],Indices)
      !
-     mup = Hs(1)%map(iup)
-     mdw = Hs(2)%map(idw)
+     do iud=1,Ns_Ud
+        mup = Hs(iud)%map(Indices(iud))
+        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
+        !
+        Nups(iud,:) = Bdecomp(mup,Ns_Orb) ![1+Nbath]*Norb
+        Ndws(iud,:) = Bdecomp(mdw,Ns_Orb) ![1+Nbath]*Norb
+     enddo
      !
-     nup = bdecomp(mup,Ns)
-     ndw = bdecomp(mdw,Ns)
+     Nup = Breorder(Nups)
+     Ndw = Breorder(Ndws)
      !
      !
      !
      ! HxV_imp: Diagonal Elements, i.e. local part
      htmp = zero
      do iorb=1,Norb
-        htmp = htmp + impHloc(1,1,iorb,iorb)*nup(iorb)
-        htmp = htmp + impHloc(Nspin,Nspin,iorb,iorb)*ndw(iorb)
-        htmp = htmp - xmu*(nup(iorb)+ndw(iorb))
+        htmp = htmp + impHloc(1,1,iorb,iorb)*Nup(iorb)
+        htmp = htmp + impHloc(Nspin,Nspin,iorb,iorb)*Ndw(iorb)
+        htmp = htmp - xmu*(Nup(iorb)+Ndw(iorb))
      enddo
      !
      hv(i) = hv(i) + htmp*vin(i)
@@ -28,7 +32,7 @@
      htmp = zero
      !
      do iorb=1,Norb
-        htmp = htmp + Uloc(iorb)*nup(iorb)*ndw(iorb)
+        htmp = htmp + Uloc(iorb)*Nup(iorb)*Ndw(iorb)
      enddo
      if(Norb>1)then
         !density-density interaction: different orbitals, opposite spins:
@@ -36,7 +40,7 @@
         ! =  (Uloc-2*Jh)*sum_{i/=j} [ n_{i,up}*n_{j,dw} + n_{j,up}*n_{i,dw} ]
         do iorb=1,Norb
            do jorb=iorb+1,Norb
-              htmp = htmp + Ust*(nup(iorb)*ndw(jorb) + nup(jorb)*ndw(iorb))
+              htmp = htmp + Ust*(Nup(iorb)*Ndw(jorb) + Nup(jorb)*Ndw(iorb))
            enddo
         enddo
         !density-density interaction: different orbitals, parallel spins
@@ -44,7 +48,7 @@
         ! = \sum_{i<j} (Uloc-3*Jh)*[ n_{i,up}*n_{j,up} + n_{i,dw}*n_{j,dw} ]
         do iorb=1,Norb
            do jorb=iorb+1,Norb
-              htmp = htmp + (Ust-Jh)*(nup(iorb)*nup(jorb) + ndw(iorb)*ndw(jorb))
+              htmp = htmp + (Ust-Jh)*(Nup(iorb)*Nup(jorb) + Ndw(iorb)*Ndw(jorb))
            enddo
         enddo
      endif
@@ -52,13 +56,13 @@
      !sum up the contributions of hartree terms:
      if(hfmode)then
         do iorb=1,Norb
-           htmp = htmp - 0.5d0*Uloc(iorb)*(nup(iorb)+ndw(iorb)) + 0.25d0*uloc(iorb)
+           htmp = htmp - 0.5d0*Uloc(iorb)*(Nup(iorb)+Ndw(iorb)) + 0.25d0*uloc(iorb)
         enddo
         if(Norb>1)then
            do iorb=1,Norb
               do jorb=iorb+1,Norb
-                 htmp=htmp-0.5d0*Ust*(nup(iorb)+ndw(iorb)+nup(jorb)+ndw(jorb))+0.25d0*Ust
-                 htmp=htmp-0.5d0*(Ust-Jh)*(nup(iorb)+ndw(iorb)+nup(jorb)+ndw(jorb))+0.25d0*(Ust-Jh)
+                 htmp=htmp-0.5d0*Ust*(Nup(iorb)+Ndw(iorb)+Nup(jorb)+Ndw(jorb))+0.25d0*Ust
+                 htmp=htmp-0.5d0*(Ust-Jh)*(Nup(iorb)+Ndw(iorb)+Nup(jorb)+Ndw(jorb))+0.25d0*(Ust-Jh)
               enddo
            enddo
         endif
@@ -77,8 +81,8 @@
         do iorb=1,size(dmft_bath%e,2)
            do kp=1,Nbath
               alfa = getBathStride(iorb,kp)
-              htmp =htmp + dmft_bath%e(1    ,iorb,kp)*nup(alfa) !UP
-              htmp =htmp + dmft_bath%e(Nspin,iorb,kp)*ndw(alfa) !DW
+              htmp =htmp + dmft_bath%e(1    ,iorb,kp)*Nup(alfa) !UP
+              htmp =htmp + dmft_bath%e(Nspin,iorb,kp)*Ndw(alfa) !DW
            enddo
         enddo
         !
@@ -91,8 +95,8 @@
         do kp=1,Nbath
            do iorb=1,Norb
               alfa = getBathStride(iorb,kp)
-              htmp = htmp + dmft_bath%h(1    ,    1,iorb,iorb,kp)*nup(alfa) !UP
-              htmp = htmp + dmft_bath%h(Nspin,Nspin,iorb,iorb,kp)*ndw(alfa) !DW
+              htmp = htmp + dmft_bath%h(1    ,    1,iorb,iorb,kp)*Nup(alfa) !UP
+              htmp = htmp + dmft_bath%h(Nspin,Nspin,iorb,iorb,kp)*Ndw(alfa) !DW
            enddo
         enddo
         !

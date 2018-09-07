@@ -1,11 +1,14 @@
-  DWstates_loop:  do idw=1,MpiQdw
+  do i=1,Dim
+     call state2indices(i,[DimUps,DimDws],Indices)
      !
+     do iud=1,Ns_Ud
+        mup = Hs(iud)%map(Indices(iud))
+        Nups(iud,:) = Bdecomp(mup,Ns_Orb) ![1+Nbath]*Norb
+     enddo
      !
-     do iup=1,DimUp
-        mup  = Hs(1)%map(iup)
-        nup  = bdecomp(mup,Ns)
-        !
-        i    = iup + (idw-1)*dimUp
+     Nup = Breorder(Nups)
+     !
+     do iud=1,Ns_Ud             !== 1
         !
         !
         ! HxV_imp: off-diagonal terms
@@ -17,17 +20,15 @@
               if (Jcondition) then
                  call c(jorb,mup,k1,sg1)
                  call cdg(iorb,k1,k2,sg2)
-                 jup = binary_search(Hs(1)%map,k2)
-                 j   = jup + (idw-1)*DimUp
+                 Jndices = Indices
+                 Jndices(iud) = binary_search(Hs(iud)%map,k2)
+                 call indices2state(Jndices,[DimUps,DimDws],j)
                  htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
                  !
-                 Hv(i) = Hv(i) + htmp*vin(j)
-                 !
+                 Hv(i) = Hv(i) + htmp*Vin(j)
               endif
            enddo
         enddo
-        !
-        !
         !
         !
         !HxV_bath: off-diagonal terms
@@ -45,13 +46,12 @@
                     if (Jcondition)then
                        call c(beta,mup,k1,sg1)
                        call cdg(alfa,k1,k2,sg2)
-                       jup = binary_search(Hs(1)%map,k2)
-                       j   = jup + (idw-1)*DimUp
-                       !
+                       Jndices = Indices
+                       Jndices(iud) = binary_search(Hs(iud)%map,k2)
+                       call indices2state(Jndices,[DimUps,DimDws],j)
                        htmp = dmft_bath%h(1,1,iorb,jorb,kp)*sg1*sg2
                        !
-                       hv(i) = hv(i) + htmp*vin(j)
-                       !
+                       Hv(i) = Hv(i) + htmp*Vin(j)
                     endif
                  enddo
               enddo
@@ -59,8 +59,7 @@
         end if
         !
         !
-        !
-        !HxV_Hyb: IMP UP <--> BATH UP hoppings
+        !HxV_Hyb: IMP UP <--> BATH UP hoppings        
         do iorb=1,Norb
            do kp=1,Nbath
               alfa=getBathStride(iorb,kp)
@@ -69,37 +68,31 @@
                    (nup(iorb)==1) .AND. (nup(alfa)==0) )then              
                  call c(iorb,mup,k1,sg1)
                  call cdg(alfa,k1,k2,sg2)
-                 jup = binary_search(Hs(1)%map,k2)
-                 j   = jup + (idw-1)*DimUp
-                 !
+                 Jndices = Indices
+                 Jndices(iud) = binary_search(Hs(iud)%map,k2)
+                 call indices2state(Jndices,[DimUps,DimDws],j)
                  htmp = diag_hybr(1,iorb,kp)*sg1*sg2
                  !
-                 ! hv(impi) = hv(impi) + htmp*vin(j)
-                 hv(i) = hv(i) + htmp*vin(j)
-                 !
+                 Hv(i) = Hv(i) + htmp*Vin(j)
               endif
               !
               if( (diag_hybr(1,iorb,kp)/=0d0) .AND. &
                    (nup(iorb)==0) .AND. (nup(alfa)==1) )then
                  call c(alfa,mup,k1,sg1)
                  call cdg(iorb,k1,k2,sg2)
-                 jup = binary_search(Hs(1)%map,k2)
-                 j   = jup + (idw-1)*DimUp
-                 !
+                 Jndices = Indices
+                 Jndices(iud) = binary_search(Hs(iud)%map,k2)
+                 call indices2state(Jndices,[DimUps,DimDws],j)
                  htmp = diag_hybr(1,iorb,kp)*sg1*sg2
                  !
-                 hv(i) = hv(i) + htmp*vin(j)
-                 !
+                 Hv(i) = Hv(i) + htmp*Vin(j)
               endif
            enddo
         enddo
         !
         !
      end do
-     !
-     !
-     !
-  end do DWSTATES_LOOP
+  enddo
 
 
 
