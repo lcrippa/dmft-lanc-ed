@@ -234,29 +234,29 @@ contains
              enddo
              !
              !Off-diagonal
-             do ispin=1,Nspin
-                do iorb=1,Norb
-                   iorb1 = iorb ; if(ed_total_ud)iorb1 = 1
-                   do jorb=1,Norb
-                      jorb1 = jorb ; if(ed_total_ud)jorb1 = 1
-                      !
-                      if((Nud(ispin,jorb)==1).and.(Nud(ispin,iorb)==0))then
-                         iud(1) = HI(jorb1)%map(Indices(jorb1))
-                         iud(2) = HI(jorb1+Ns_Ud)%map(Indices(jorb1+Ns_Ud))
-                         call c(jorb,iud(ispin),r,sgn1)
-                         call cdg(iorb,r,k,sgn2)
-                         Jndices        = Indices
-                         Jndices(iorb1+(ispin-1)*Ns_Ud) = &
-                              binary_search(HI(iorb1+(ispin-1)*Ns_Ud)%map,k)
-                         call indices2state(Jndices,[jDimUps,jDimDws],j)
+             if(ed_total_ud)then
+                do ispin=1,Nspin
+                   do iorb=1,Norb
+                      do jorb=1,Norb
                          !
-                         imp_density_matrix(ispin,ispin,iorb,jorb) = &
-                              imp_density_matrix(ispin,ispin,iorb,jorb) + &
-                              peso*sgn1*gscvec(i)*sgn2*(gscvec(j))
-                      endif
+                         if((Nud(ispin,jorb)==1).and.(Nud(ispin,iorb)==0))then
+                            iud(1) = HI(1)%map(Indices(1))
+                            iud(2) = HI(2)%map(Indices(2))
+                            call c(jorb,iud(ispin),r,sgn1)
+                            call cdg(iorb,r,k,sgn2)
+                            Jndices = Indices
+                            Jndices(1+(ispin-1)*Ns_Ud) = &
+                                 binary_search(HI(1+(ispin-1)*Ns_Ud)%map,k)
+                            call indices2state(Jndices,[jDimUps,jDimDws],j)
+                            !
+                            imp_density_matrix(ispin,ispin,iorb,jorb) = &
+                                 imp_density_matrix(ispin,ispin,iorb,jorb) + &
+                                 peso*sgn1*gscvec(i)*sgn2*(gscvec(j))
+                         endif
+                      enddo
                    enddo
                 enddo
-             enddo
+             endif
              !
              !
           enddo

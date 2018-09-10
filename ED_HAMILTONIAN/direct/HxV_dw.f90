@@ -1,8 +1,7 @@
-  do iup=1,MpiQup
+  do iup=1,DimUp
      do idw=1,DimDw
         mdw  = Hs(2)%map(idw)
         ndw  = bdecomp(mdw,Ns)
-        !
         i    = iup + (idw-1)*dimUp
         !
         !
@@ -68,7 +67,7 @@
                  j   = iup + (jdw-1)*DimUp
                  htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
                  !
-                 hvt(i) = hvt(i) + htmp*vt(j)
+                 Hv(i) = Hv(i) + htmp*vin(j)
                  !
               endif
               if( (diag_hybr(Nspin,iorb,kp)/=0d0) .AND. &

@@ -145,7 +145,7 @@ contains
        !
        !
        !ADD ONE PARTICLE:
-       jsector = getCDGsector(1,ispin,isector)
+       jsector = getCDGsector(ialfa,ispin,isector)
        if(jsector/=0)then 
           !
           jdim   = getdim(jsector)
@@ -168,7 +168,7 @@ contains
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
                 if(Nud(ispin,iorb1)/=0)cycle
-                call cdg(iorb,iud(ispin),r,sgn)
+                call cdg(iorb1,iud(ispin),r,sgn)
                 Jndices        = Indices
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
@@ -207,7 +207,7 @@ contains
        endif
        !
        !REMOVE ONE PARTICLE:
-       jsector = getCsector(1,ispin,isector)
+       jsector = getCsector(ialfa,ispin,isector)
        if(jsector/=0)then
           !            
           jdim   = getdim(jsector)
@@ -229,7 +229,7 @@ contains
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
                 if(nud(ispin,iorb1)/=1)cycle
-                call c(iorb,iud(ispin),r,sgn)
+                call c(iorb1,iud(ispin),r,sgn)
                 Jndices        = Indices
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
@@ -334,7 +334,7 @@ contains
        !
        !
        !EVALUATE (c^+_iorb + c^+_jorb)|gs>
-       jsector = getCDGsector(1,ispin,isector)
+       jsector = getCDGsector(ialfa,ispin,isector)
        if(jsector/=0)then
           !
           jdim   = getdim(jsector)
@@ -354,7 +354,7 @@ contains
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
                 if(nud(ispin,iorb1)/=0)cycle
-                call cdg(iorb,iud(ispin),r,sgn)
+                call cdg(iorb1,iud(ispin),r,sgn)
                 !
                 Jndices        = Indices
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
@@ -370,7 +370,7 @@ contains
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
                 if(nud(ispin,jorb1)/=0)cycle
-                call cdg(jorb,iud(ispin),r,sgn)
+                call cdg(jorb1,iud(ispin),r,sgn)
                 !
                 Jndices        = Indices
                 Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
@@ -411,7 +411,7 @@ contains
        endif
        !
        !EVALUATE (c_iorb + c_jorb)|gs>
-       jsector = getCsector(1,ispin,isector)
+       jsector = getCsector(ialfa,ispin,isector)
        if(jsector/=0)then
           !
           jdim   = getdim(jsector)
@@ -431,7 +431,7 @@ contains
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
                 if(nud(ispin,iorb1)/=1)cycle
-                call c(iorb,iud(ispin),r,sgn)
+                call c(iorb1,iud(ispin),r,sgn)
                 !
                 Jndices        = Indices
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
@@ -447,7 +447,7 @@ contains
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
                 if(nud(ispin,jorb1)/=1)cycle
-                call c(jorb,iud(ispin),r,sgn)
+                call c(jorb1,iud(ispin),r,sgn)
                 !
                 Jndices        = Indices
                 Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)

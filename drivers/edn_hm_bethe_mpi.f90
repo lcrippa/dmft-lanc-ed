@@ -83,13 +83,7 @@ program lancED
      if(master)call dmft_print_gf_matsubara(Gmats,"Gloc",iprint=1)
      !
      !Get the Weiss field/Delta function to be fitted
-     if(master)then
-        if(cg_scheme=='weiss')then
-           call dmft_weiss(Gmats,Smats,Weiss,Hloc)
-        else
-           call dmft_delta(Gmats,Smats,Weiss,Hloc)
-        endif
-     endif
+     if(master)call dmft_self_consistency(Gmats,Smats,Weiss,Hloc,cg_scheme)
      call Bcast_MPI(comm,Weiss)
      !
      !

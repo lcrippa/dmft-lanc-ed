@@ -472,7 +472,7 @@ contains
                 Jndices      = Indices
                 Jndices(iud) = spH0dws(iud)%row(iup)%cols(jj)
                 call indices2state(Jndices,[DimDws,DimUps],j)
-                Hvt(i) = Hvt(i) + spH0dws(iud)%row(idw)%vals(jj)*vt(j)
+                Hvt(i) = Hvt(i) + spH0dws(iud)%row(iup)%vals(jj)*vt(j)
              end do hxv_dw
              !
           enddo

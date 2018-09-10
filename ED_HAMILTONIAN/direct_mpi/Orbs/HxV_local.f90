@@ -60,8 +60,6 @@
         endif
      endif
      !
-     hv(i) = hv(i) + htmp*vin(i)
-     !
      !
      !> H_Bath: local bath energy contribution.
      !diagonal bath hamiltonian: +energy of the bath=\sum_a=1,Norb\sum_{l=1,Nbath}\e^a_l n^a_l

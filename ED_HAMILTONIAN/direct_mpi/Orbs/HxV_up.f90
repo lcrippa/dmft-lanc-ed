@@ -17,7 +17,7 @@
                    .AND. (Nups(iorb,1)==1) .AND. (Nups(iorb,ialfa)==0) )then
                  call c(1,mup,k1,sg1)
                  call cdg(ialfa,k1,k2,sg2)
-                 Jndices      = Indices
+                 Jndices       = Indices
                  Jndices(iorb) = binary_search(Hs(iorb)%map,k2)
                  call indices2state(Jndices,[DimUps,DimDws],j)
                  htmp = diag_hybr(1,iorb,kp)*sg1*sg2
@@ -30,7 +30,7 @@
                    .AND. (Nups(iorb,1)==0) .AND. (Nups(iorb,ialfa)==1) )then
                  call c(ialfa,mup,k1,sg1)
                  call cdg(1,k1,k2,sg2)
-                 Jndices      = Indices
+                 Jndices       = Indices
                  Jndices(iorb) = binary_search(Hs(iorb)%map,k2)
                  call indices2state(Jndices,[DimUps,DimDws],j)
                  htmp = diag_hybr(1,iorb,kp)*sg1*sg2

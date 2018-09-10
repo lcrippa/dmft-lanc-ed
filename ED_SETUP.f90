@@ -58,8 +58,6 @@ contains
     if(.not.ed_total_ud)then
        if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid" 
        if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
-       if(ed_sparse_H.AND.ed_sparse_format=="ELL")stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=T AND ed_sparse_format=ELL"
-       if(.not.ed_sparse_H)stop "ED ERROR: ed_total_ud=F can not be used with ed_sparse_H=F"
     endif
     !
     if(Nspin>1.AND.ed_twin.eqv..true.)then

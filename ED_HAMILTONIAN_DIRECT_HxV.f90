@@ -47,7 +47,6 @@ contains
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: Nup,Ndw
-    integer                             :: MpiQup,MpiQdw
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -87,7 +86,6 @@ contains
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: Nup,Ndw
-    integer                             :: MpiQup,MpiQdw
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -106,7 +104,7 @@ contains
     !
     !UP HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/direct/Orbs/HxV_up.f90"
-    !    
+    !
     !DW HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/direct/Orbs/HxV_dw.f90"
     !-----------------------------------------------!

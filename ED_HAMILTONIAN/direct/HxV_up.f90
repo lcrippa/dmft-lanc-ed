@@ -1,4 +1,4 @@
-  do idw=1,MpiQdw
+  do idw=1,DimDw
      do iup=1,DimUp
         mup  = Hs(1)%map(iup)
         nup  = bdecomp(mup,Ns)
