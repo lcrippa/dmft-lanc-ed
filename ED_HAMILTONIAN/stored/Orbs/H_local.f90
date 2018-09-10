@@ -1,32 +1,28 @@
-  ! do i=MpiIstart,MpiIend
-  ! iup = iup_index(i,DimUp)
-  ! idw = idw_index(i,DimUp)
-  ! !
-  ! mup = Hs(1)%map(iup)
-  ! mdw = Hs(2)%map(idw)
-  ! !
-  ! Nups(1,:) = Bdecomp(mup,Ns)
-  ! Ndws(1,:) = Bdecomp(mdw,Ns)
-  ! !
-  ! Nup = Breorder(Nups)
-  ! Ndw = Breorder(Ndws)
   do i=MpiIstart,MpiIend
      call state2indices(i,[DimUps,DimDws],Indices)
-     !
      do iud=1,Ns_Ud
         mup = Hs(iud)%map(Indices(iud))
-        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_Ud))
-        !
-        Nups(iud,:) = Bdecomp(mup,Ns_Orb)
+        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
+        Nups(iud,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
         Ndws(iud,:) = Bdecomp(mdw,Ns_Orb)
      enddo
-     !
      Nup = Breorder(Nups)
      Ndw = Breorder(Ndws)
      !
+     !
+     !> H_Imp: Diagonal Elements, i.e. local part
+     htmp = zero
+     do iorb=1,Norb
+        htmp = htmp + impHloc(1,1,iorb,iorb)*Nup(iorb)
+        htmp = htmp + impHloc(Nspin,Nspin,iorb,iorb)*Ndw(iorb)
+        htmp = htmp - xmu*( Nup(iorb)+Ndw(iorb) )
+     enddo
+     !
+     !
+     !> H_Int: Kanamori interaction part. non-local S-E and P-H terms commented below.
+     !
      !density-density interaction: same orbital, opposite spins:
      ! = \sum_\a U_\a*(n_{\a,up}*n_{\a,dw})
-     htmp = zero
      do iorb=1,Norb
         htmp = htmp + Uloc(iorb)*nup(iorb)*ndw(iorb)
      enddo
@@ -64,6 +60,17 @@
         endif
      endif
      !
+     !
+     !> H_Bath: local bath energy contribution.
+     !diagonal bath hamiltonian: +energy of the bath=\sum_a=1,Norb\sum_{l=1,Nbath}\e^a_l n^a_l
+     do iorb=1,size(bath_diag,2)
+        do kp=1,Nbath
+           ialfa = getBathStride(iorb,kp)
+           htmp =htmp + bath_diag(1    ,iorb,kp)*Nup(ialfa) !UP
+           htmp =htmp + bath_diag(Nspin,iorb,kp)*Ndw(ialfa) !DW
+        enddo
+     enddo
+     !
      select case(MpiStatus)
      case (.true.)
         call sp_insert_element(MpiComm,spH0d,htmp,i,i)
@@ -71,8 +78,14 @@
         call sp_insert_element(spH0d,htmp,i,i)
      end select
      !
-     !
   enddo
+
+
+
+
+
+
+
 
 
 
@@ -154,4 +167,22 @@
   !       enddo
   !    enddo
   !    !
+  ! endif
+
+  ! if(bath_type/="replica") then
+  !    do iorb=1,size(dmft_bath%e,2)
+  !       do kp=1,Nbath
+  !          ialfa = getBathStride(iorb,kp)
+  !          htmp =htmp + dmft_bath%e(1    ,iorb,kp)*Nup(ialfa) !UP
+  !          htmp =htmp + dmft_bath%e(Nspin,iorb,kp)*Ndw(ialfa) !DW
+  !       enddo
+  !    enddo
+  ! else
+  !    do iorb=1,Norb
+  !       do kp=1,Nbath
+  !          ialfa = getBathStride(iorb,kp)
+  !          htmp = htmp + dmft_bath%h(1    ,    1,iorb,iorb,kp)*Nup(ialfa) !UP
+  !          htmp = htmp + dmft_bath%h(Nspin,Nspin,iorb,iorb,kp)*Ndw(ialfa) !DW
+  !       enddo
+  !    enddo
   ! endif

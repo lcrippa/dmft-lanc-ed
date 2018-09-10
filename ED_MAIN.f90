@@ -6,8 +6,7 @@ module ED_MAIN
   USE ED_IO,only: ed_print_impSigma
   USE ED_SETUP
   USE ED_BATH
-  USE ED_HAMILTONIAN_MATVEC
-  USE ED_GF_SHARED,only: ed_greens_functions_set_MPI,ed_greens_functions_del_MPI
+  USE ED_HAMILTONIAN
   USE ED_GREENS_FUNCTIONS
   USE ED_OBSERVABLES
   USE ED_DIAG
@@ -260,13 +259,6 @@ contains
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
     !
-    select case(ed_sparse_H)
-    case (.true.)
-       spHtimesV_p => spMatVec_main
-    case (.false.)
-       spHtimesV_p => directMatVec_main
-    end select
-    !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
     call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
@@ -306,13 +298,6 @@ contains
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
     !
-    select case(ed_sparse_H)
-    case (.true.)
-       spHtimesV_p => spMatVec_MPI_main
-    case (.false.)
-       spHtimesV_p => directMatVec_MPI_main
-    end select
-    !
     !SET THE LOCAL COMMUNICATORS IN ALL THE RELEVANT PARTS OF THE CODE:
     call ed_hamiltonian_matvec_set_MPI(MpiComm)
     call ed_diag_set_MPI(MpiComm)
@@ -322,11 +307,13 @@ contains
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
     call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
-    if(chiflag)call buildchi_impurity() !build the local susceptibilities (spin [todo charge])
-    call observables_impurity()         !obtain impurity observables as thermal averages.          
+    if(chiflag)call buildchi_impurity() !build the local susceptibilities (spin [todo charge])    
+    call observables_impurity()         !obtain impurity observables as thermal averages.
+    ! print*,"Enter local_energy_imp"
     call local_energy_impurity()        !obtain the local energy of the effective impurity problem.
+    ! print*,"Exit local_energy_imp"
     !
-    call deallocate_dmft_bath(dmft_bath)   
+    call deallocate_dmft_bath(dmft_bath)
     call es_delete_espace(state_list)
     !
     !DELETE THE LOCAL COMMUNICATORS IN ALL THE RELEVANT PARTS OF THE CODE:
@@ -334,6 +321,7 @@ contains
     call ed_diag_del_MPI()
     call ed_greens_functions_del_MPI()
     call ed_observables_del_MPI()
+    !
     nullify(spHtimesV_p)
   end subroutine ed_solve_single_mpi
 #endif

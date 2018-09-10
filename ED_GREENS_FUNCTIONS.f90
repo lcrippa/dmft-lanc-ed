@@ -8,6 +8,8 @@ MODULE ED_GREENS_FUNCTIONS
   implicit none
   private 
 
+  public :: ed_greens_functions_set_MPI
+  public :: ed_greens_functions_del_MPI
   public :: buildGf_impurity
   public :: buildChi_impurity
 

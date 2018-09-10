@@ -11,7 +11,7 @@ MODULE ED_GF_SHARED
   USE ED_EIGENSPACE
   USE ED_BATH_FUNCTIONS
   USE ED_SETUP
-  USE ED_HAMILTONIAN_MATVEC
+  USE ED_HAMILTONIAN
   USE ED_AUX_FUNX
 #ifdef _MPI
   USE MPI
@@ -49,7 +49,7 @@ MODULE ED_GF_SHARED
   logical                                     :: MpiMaster=.true.
   integer                                     :: MpiIerr
 
-  
+
 contains
 
   subroutine ed_greens_functions_set_MPI(comm)

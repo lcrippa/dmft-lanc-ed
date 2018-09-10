@@ -6,6 +6,22 @@ MODULE ED_GF_CHISPIN
 
   public :: build_chi_spin
 
+  integer             :: istate,iorb,jorb,ispin,jspin
+  integer             :: isector,jsector
+  integer             :: idim,idimUP,idimDW
+  integer             :: jdim,jdimUP,jdimDW
+  real(8),allocatable :: vvinit(:),vvloc(:)
+  real(8),allocatable :: alfa_(:),beta_(:)
+  integer             :: ialfa,ibeta
+  integer             :: iorb1,jorb1
+  integer             :: r
+  integer             :: i,iup,idw
+  integer             :: j,jup,jdw  
+  integer             :: m,mup,mdw
+  real(8)             :: sgn,norm2,norm0
+  integer             :: Nitermax,Nlanc,vecDim
+
+
 contains
 
 
@@ -53,21 +69,23 @@ contains
 
 
   subroutine lanc_ed_build_spinChi_main(iorb)
-    integer             :: iorb,isite,isector,istate
-    integer             :: numstates,vecDim
-    integer             :: nlanc
-    integer             :: isign
-    integer             :: idim,idimUP,idimDW,iDimUPs(Ns_Ud),iDimDws(Ns_Ud)
-    integer             :: nup(Ns),ndw(Ns)
-    integer             :: m,i,j,r
-    integer             :: iup,idw,jup,jdw,mup,mdw
-    real(8)             :: norm2,sgn
-    real(8),allocatable :: alfa_(:),beta_(:)
-    real(8),allocatable :: vvinit(:),vvloc(:)
-    integer             :: Nitermax
-    type(sector_map)    :: HI(2)    !map of the Sector S to Hilbert space H
+    integer                     :: iorb
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
     !
-    !
+    if(ed_total_ud)then
+       ialfa = 1
+       iorb1 = iorb
+    else
+       ialfa = iorb
+       iorb1 = 1
+    endif
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
     !
     do istate=1,state_list%size
        isector    =  es_return_sector(state_list,istate)
@@ -90,25 +108,22 @@ contains
        iDimDw = product(iDimDws)
        !
        if(MpiMaster)then
-          call build_sector(isector,HI)
           !
           if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply Sz:',isector
           !
           allocate(vvinit(idim));vvinit=0.d0
-          do iup=1,idimUP
-             mup = HI(1)%map(iup)
-             nup = bdecomp(mup,Ns)
+          !
+          call build_sector(isector,HI)
+          do i=1,iDim
+             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iud(1)   = HI(ialfa)%map(Indices(ialfa))
+             iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
              !
-             do idw=1,idimDW
-                mdw = HI(2)%map(idw)
-                ndw = bdecomp(mdw,Ns)
-                !
-                i = iup + (idw-1)*idimUP
-                !
-                sgn = nup(iorb)-ndw(iorb)
-                !
-                vvinit(i) = 0.5d0*sgn*state_cvec(i)   !build the cdg_up|gs> state
-             enddo
+             sgn = nud(1,iorb1)-nud(2,iorb1)
+             !
+             vvinit(i) = sgn*state_cvec(i)
           enddo
           call delete_sector(isector,HI)
           !
@@ -161,22 +176,23 @@ contains
 
 
   subroutine lanc_ed_build_spinChi_tot_main()
-    integer                  :: iorb,isite,isector,istate
-    integer                  :: numstates,vecDim
-    integer                  :: nlanc
-    integer                  :: isign
-    integer                  :: idim,idimUP,idimDW
-    integer,dimension(Ns_Ud) :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud) :: Jdimups,jDimDws
-    integer                  :: nup(Ns),ndw(Ns)
-    integer                  :: m,i,j,r
-    integer                  :: iup,idw,jup,jdw,mup,mdw
-    real(8)                  :: norm2,sgn,Sup,Sdw
-    real(8),allocatable      :: alfa_(:),beta_(:)
-    real(8),allocatable      :: vvinit(:),vvloc(:)
-    integer                  :: Nitermax
-    type(sector_map)         :: HI(2)    !map of the Sector S to Hilbert space H
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    real(8)                     :: Sup,Sdw
+    type(sector_map)            :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
     !
+    if(ed_total_ud)then
+       ialfa = 1
+       iorb1 = iorb
+    else
+       ialfa = iorb
+       iorb1 = 1
+    endif
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
     !
     do istate=1,state_list%size
        isector     =  es_return_sector(state_list,istate)
@@ -202,26 +218,23 @@ contains
        call build_sector(isector,HI)
        !
        if(MpiMaster)then
-          call build_sector(isector,HI)
-          !
           if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Sz:',isector
           !
           allocate(vvinit(idim));vvinit=0.d0
-          do iup=1,idimUP
-             mup = HI(1)%map(iup)
-             nup = bdecomp(mup,Ns)
+          !
+          call build_sector(isector,HI)
+          do i=1,iDim
+             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iud(1)   = HI(ialfa)%map(Indices(ialfa))
+             iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
              !
-             do idw=1,idimDW
-                mdw = HI(2)%map(idw)
-                ndw = bdecomp(mdw,Ns)
-                !
-                i = iup + (idw-1)*idimUP
-                !
-                Sup = sum(nup(1:Norb))
-                Sdw = sum(ndw(1:Norb))
-                sgn = Sup - Sdw
-                vvinit(m) = 0.5d0*sgn*state_cvec(m) 
-             enddo
+             Sup = sum(nud(1,1:Norb))
+             Sdw = sum(nud(2,1:Norb))
+             sgn = Sup - Sdw
+             !
+             vvinit(i) = sgn*state_cvec(i)
           enddo
           call delete_sector(isector,HI)
           norm2=dot_product(vvinit,vvinit)

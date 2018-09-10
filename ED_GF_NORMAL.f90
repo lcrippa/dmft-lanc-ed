@@ -8,6 +8,23 @@ MODULE ED_GF_NORMAL
   public :: build_sigma_normal
 
 
+  integer             :: istate
+  integer             :: isector,jsector
+  integer             :: idim,idimUP,idimDW
+  integer             :: jdim,jdimUP,jdimDW
+  real(8),allocatable :: vvinit(:),vvloc(:)
+  real(8),allocatable :: alfa_(:),beta_(:)
+  integer             :: ialfa,ibeta
+  integer             :: jalfa,jbeta
+  integer             :: iorb1,jorb1
+  integer             :: r
+  integer             :: i,iup,idw
+  integer             :: j,jup,jdw  
+  integer             :: m,mup,mdw
+  real(8)             :: sgn,norm2,norm0
+  integer             :: Nitermax,Nlanc,vecDim
+
+
 contains
 
 
@@ -28,7 +45,6 @@ contains
        enddo
     enddo
     !
-    ! if(bath_type/="normal".AND.(ed_total_ud))then !we get off=diagonal GF only for the total NupNdw case
     if(offdiag_gf_flag)then
        do ispin=1,Nspin
           do iorb=1,Norb
@@ -88,21 +104,23 @@ contains
 
 
   subroutine lanc_build_gf_normal_main(iorb,ispin)
-    real(8),allocatable    :: vvinit(:),vvloc(:)
-    real(8),allocatable    :: alfa_(:),beta_(:)
-    integer                :: iorb,ispin,istate
-    integer                :: isector,jsector
-    integer                :: iDimUPs(Ns_Ud),iDimDws(Ns_Ud)
-    integer                :: jDimUPs(Ns_Ud),jDimDws(Ns_Ud)  
-    integer                :: idim,idimUP,idimDW
-    integer                :: jdim,jdimUP,jdimDW
-    integer                :: nud(2,Ns),iud(2),jud(2)
-    integer                :: m,i,j,r
-    integer                :: iup,idw,jup,jdw,mup,mdw
-    real(8)                :: sgn,norm2,norm0
-    integer                :: Nitermax,Nlanc,vecDim
-    type(sector_map)       :: HI(2),HJ(2)
+    integer,intent(in)          :: iorb,ispin
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer,dimension(2)        :: Iud,Jud
+    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
     !
+    if(ed_total_ud)then
+       ialfa = 1
+       iorb1 = iorb
+    else
+       ialfa = iorb
+       iorb1 = 1
+    endif
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
     !
     !
     do istate=1,state_list%size
@@ -142,26 +160,20 @@ contains
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
-             do iup=1,idimUP
-                iud(1)    = HI(1)%map(iup)
-                nud(1,:) = bdecomp(iud(1),Ns)
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
-                do idw=1,idimDW
-                   iud(2)    = HI(2)%map(idw)
-                   nud(2,:) = bdecomp(iud(2),Ns)
-                   !
-                   i = iup + (idw-1)*idimUP
-                   !
-                   if(nud(ispin,iorb)/=0)cycle
-                   call cdg(iorb,iud(ispin),r,sgn)
-                   !
-                   jud = [iup,idw]
-                   jud(ispin) = binary_search(HJ(ispin)%map,r)
-                   !
-                   j = jud(1) + (jud(2)-1)*jdimUP
-                   vvinit(j) = sgn*state_cvec(i)
-                   !
-                enddo
+                if(Nud(ispin,iorb1)/=0)cycle
+                call cdg(iorb,iud(ispin),r,sgn)
+                Jndices        = Indices
+                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
+                call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                vvinit(j) = sgn*state_cvec(i)
              enddo
              call delete_sector(jsector,HJ)
              !
@@ -209,26 +221,20 @@ contains
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
-             do iup=1,idimUP
-                iud(1)   = HI(1)%map(iup)
-                nud(1,:) = bdecomp(iud(1),Ns)
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
-                do idw=1,idimDW
-                   iud(2)   = HI(2)%map(idw)
-                   nud(2,:) = bdecomp(iud(2),Ns)
-                   !
-                   i = iup + (idw-1)*idimUP
-                   !
-                   if(nud(ispin,iorb)/=1)cycle
-                   call c(iorb,iud(ispin),r,sgn)
-                   !
-                   jud = [iup,idw]
-                   jud(ispin) = binary_search(HJ(ispin)%map,r)
-                   !
-                   j = jud(1) + (jud(2)-1)*jdimUP
-                   vvinit(j) = sgn*state_cvec(i)
-                   !
-                enddo
+                if(nud(ispin,iorb1)/=1)cycle
+                call c(iorb,iud(ispin),r,sgn)
+                Jndices        = Indices
+                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
+                call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                vvinit(j) = sgn*state_cvec(i)
              enddo
              call delete_sector(jsector,HJ)
              !
@@ -284,21 +290,28 @@ contains
 
 
   subroutine lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
-    integer                  :: iorb,jorb,ispin,istate
-    integer                  :: isector,jsector
-    integer,dimension(Ns_Ud) :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud) :: jDimUps,jDimDws
-    integer                  :: idim,idimUP,idimDW
-    integer                  :: jdim,jdimUP,jdimDW
-    integer                  :: nud(2,Ns),iud(2),jud(2)
-    integer                  :: iup,idw,jup,jdw,mup,mdw
-    integer                  :: m,i,j,r,numstates
-    real(8)                  :: sgn,norm2,norm0
-    real(8),allocatable      :: vvinit(:),vvloc(:)
-    real(8),allocatable      :: alfa_(:),beta_(:)
-    integer                  :: Nitermax,Nlanc,vecDim
-    type(sector_map)         :: HI(2),HJ(2)
+    integer                     :: iorb,jorb,ispin,istate
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer,dimension(2)        :: iud,jud
+    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
     !
+    if(ed_total_ud)then
+       ialfa = 1
+       jalfa = 1
+       iorb1 = iorb
+       jorb1 = jorb
+    else
+       ialfa = iorb
+       jalfa = jorb
+       iorb1 = 1
+       jorb1 = 1
+    endif
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    jbeta  = jalfa + (ispin-1)*Ns_Ud
     !
     do istate=1,state_list%size
        isector    =  es_return_sector(state_list,istate)
@@ -333,45 +346,37 @@ contains
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
-             do iup=1,idimUP
-                iud(1)    = HI(1)%map(iup)
-                nud(1,:) = bdecomp(iud(1),Ns)
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
-                do idw=1,idimDW
-                   iud(2)    = HI(2)%map(idw)
-                   nud(2,:) = bdecomp(iud(2),Ns)
-                   !
-                   i = iup + (idw-1)*idimUP
-                   !
-                   if(nud(ispin,iorb)/=0)cycle
-                   call cdg(iorb,iud(ispin),r,sgn)
-                   !
-                   jud = [iup,idw]
-                   jud(ispin) = binary_search(HJ(ispin)%map,r)
-                   !
-                   j = jud(1) + (jud(2)-1)*jdimUP
-                   vvinit(j) = sgn*state_cvec(i)
-                enddo
+                if(nud(ispin,iorb1)/=0)cycle
+                call cdg(iorb,iud(ispin),r,sgn)
+                !
+                Jndices        = Indices
+                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
+                call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                vvinit(j) = sgn*state_cvec(i)
              enddo
-             do iup=1,idimUP
-                iud(1)    = HI(1)%map(iup)
-                nud(1,:) = bdecomp(iud(1),Ns)
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(jalfa)%map(Indices(jalfa))
+                iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
-                do idw=1,idimDW
-                   iud(2)    = HI(2)%map(idw)
-                   nud(2,:) = bdecomp(iud(2),Ns)
-                   !
-                   i = iup + (idw-1)*idimUP
-                   !
-                   if(nud(ispin,jorb)/=0)cycle
-                   call cdg(jorb,iud(ispin),r,sgn)
-                   !
-                   jud = [iup,idw]
-                   jud(ispin) = binary_search(HJ(ispin)%map,r)
-                   !
-                   j = jud(1) + (jud(2)-1)*jdimUP
-                   vvinit(j) = vvinit(j) + sgn*state_cvec(i)
-                enddo
+                if(nud(ispin,jorb1)/=0)cycle
+                call cdg(jorb,iud(ispin),r,sgn)
+                !
+                Jndices        = Indices
+                Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
+                call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
              call delete_sector(jsector,HJ)
              !
@@ -418,49 +423,37 @@ contains
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
-             do iup=1,idimUP
-                iud(1)    = HI(1)%map(iup)
-                nud(1,:) = bdecomp(iud(1),Ns)
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
-                do idw=1,idimDW
-                   iud(2)    = HI(2)%map(idw)
-                   nud(2,:) = bdecomp(iud(2),Ns)
-                   !
-                   i = iup + (idw-1)*idimUP
-                   !
-                   !
-                   if(nud(ispin,iorb)/=1)cycle
-                   call c(iorb,iud(ispin),r,sgn)
-                   !
-                   jud = [iup,idw]
-                   jud(ispin) = binary_search(HJ(ispin)%map,r)
-                   !
-                   j = jud(1) + (jud(2)-1)*jdimUP
-                   vvinit(j) = sgn*state_cvec(i)
-                   !
-                enddo
+                if(nud(ispin,iorb1)/=1)cycle
+                call c(iorb,iud(ispin),r,sgn)
+                !
+                Jndices        = Indices
+                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
+                call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                vvinit(j) = sgn*state_cvec(i)
              enddo
-             do iup=1,idimUP
-                iud(1)    = HI(1)%map(iup)
-                nud(1,:) = bdecomp(iud(1),Ns)
+             do i=1,iDim
+                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(jalfa)%map(Indices(jalfa))
+                iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
                 !
-                do idw=1,idimDW
-                   iud(2)    = HI(2)%map(idw)
-                   nud(2,:) = bdecomp(iud(2),Ns)
-                   !
-                   i = iup + (idw-1)*idimUP
-                   !
-                   !
-                   if(nud(ispin,jorb)/=1)cycle
-                   call c(jorb,iud(ispin),r,sgn)
-                   !
-                   jud = [iup,idw]
-                   jud(ispin) = binary_search(HJ(ispin)%map,r)
-                   !
-                   j = jud(1) + (jud(2)-1)*jdimUP
-                   vvinit(j) = vvinit(j) + sgn*state_cvec(i)
-                   !
-                enddo
+                if(nud(ispin,jorb1)/=1)cycle
+                call c(jorb,iud(ispin),r,sgn)
+                !
+                Jndices        = Indices
+                Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
+                call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
              call delete_sector(jsector,HJ)
              !
@@ -565,12 +558,12 @@ contains
 
 
 
-  !###################################################################################################
-  !###################################################################################################
-  !###################################################################################################
-  !###################################################################################################
-  !###################################################################################################
-  !###################################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
 
 
 
@@ -664,531 +657,3 @@ END MODULE ED_GF_NORMAL
 
 
 
-
-!   subroutine lanc_build_gf_normal_orbs(iorb,ispin)
-!     real(8),allocatable     :: vvinit(:)
-!     real(8),allocatable        :: alfa_(:),beta_(:)
-!     integer                    :: iorb,ispin,istate,ialfa
-!     integer                    :: isector,jsector
-!     integer,dimension(2*Ns_Ud) :: Indices
-!     integer,dimension(2*Ns_Ud) :: Jndices
-!     integer,dimension(Ns_Ud)   :: iDimUps,iDimDws
-!     integer,dimension(Ns_Ud)   :: jDimUps,jDimDws
-!     integer                    :: idim,idimUP,idimDW
-!     integer                    :: jdim,jdimUP,jdimDW
-!     integer                    :: nud(2,Ns_Orb),iud(2),jud(2)
-!     integer                    :: m,i,j,r
-!     integer                    :: iup,idw,jup,jdw,mup,mdw
-!     real(8)                    :: sgn,norm2,norm0
-!     integer                    :: Nitermax,Nlanc
-!     type(sector_map)           :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
-!     !
-!     do istate=1,state_list%size
-!        isector    =  es_return_sector(state_list,istate)
-!        state_e    =  es_return_energy(state_list,istate)
-! #ifdef _MPI
-!        if(MpiStatus)then
-!           state_cvec => es_return_cvector(MpiComm,state_list,istate)
-!        else
-!           state_cvec => es_return_cvector(state_list,istate)
-!        endif
-! #else
-!        state_cvec => es_return_cvector(state_list,istate)
-! #endif
-!        !
-!        idim  = getdim(isector)
-!        call get_DimUp(isector,iDimUps)
-!        call get_DimDw(isector,iDimDws)
-!        call build_sector(isector,HI)
-!        !
-!        !
-!        !ADD ONE PARTICLE:
-!        jsector = getCDGsector(iorb,ispin,isector)
-!        if(jsector/=0)then 
-!           if(ed_verbose==3)write(LOGfile,"(A,I12)")' add particle:',jsector
-!           !
-!           jdim   = getdim(jsector)
-!           call get_DimUp(jsector,jDimUps)
-!           call get_DImDw(jsector,jDimDws)
-!           allocate(vvinit(jdim)) ; vvinit=zero
-!           !
-!           call build_sector(jsector,HJ)
-!           do i=1,iDim
-!              call state2indices(i,[iDimUps,iDimDws],Indices)
-!              iup = Indices(iorb)
-!              idw = Indices(Norb+iorb)
-!              !
-!              iud(1)    = HI(iorb)%map(iup)
-!              nud(1,:) = bdecomp(iud(1),Ns_Orb)
-!              !
-!              iud(2)    = HI(Norb+iorb)%map(idw)
-!              nud(2,:) = bdecomp(iud(2),Ns_Orb)
-!              !
-!              if(nud(ispin,iorb)/=0)cycle
-!              call cdg(iorb,iud(ispin),r,sgn)
-!              !
-!              ialfa = iorb + (ispin-1)*Norb
-!              Jndices        = Indices
-!              Jndices(ialfa) = binary_search(HJ(ialfa)%map,r)
-!              !
-!              call indices2state(Jndices,[jDimUps,jDimDws],j)
-!              !
-!              vvinit(j) = sgn*state_cvec(i)
-!              !
-!           enddo
-!           call delete_sector(jsector,HJ)
-!           !
-!           norm2=dot_product(vvinit,vvinit)
-!           vvinit=vvinit/sqrt(norm2)
-!           !
-!           nlanc=min(jdim,lanc_nGFiter)
-!           allocate(alfa_(nlanc),beta_(nlanc))
-!           !
-!           call build_Hv_sector(jsector)
-! #ifdef _MPI
-!           if(MpiStatus)then
-!              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!           else
-!              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!           endif
-! #else
-!           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-! #endif
-!           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,iorb,ispin)
-!           call delete_Hv_sector()
-!           !
-!           deallocate(vvinit,alfa_,beta_)
-!        endif
-!        !
-!        !REMOVE ONE PARTICLE:
-!        jsector = getCsector(iorb,ispin,isector)
-!        if(jsector/=0)then
-!           if(ed_verbose==3)write(LOGfile,"(A,I6)")' del particle:',jsector
-!           !            
-!           jdim   = getdim(jsector)
-!           call get_DimUp(jsector,jDimUps)
-!           call get_DImDw(jsector,jDimDws)
-!           allocate(vvinit(jdim)) ; vvinit=zero
-!           !
-!           call build_sector(jsector,HJ)
-!           do i=1,iDim
-!              call state2indices(i,[iDimUps,iDimDws],Indices)
-!              iup = Indices(iorb)
-!              idw = Indices(Norb+iorb)
-!              !
-!              iud(1)    = HI(iorb)%map(iup)
-!              nud(1,:) = bdecomp(iud(1),Ns_Orb)
-!              !
-!              iud(2)    = HI(Norb+iorb)%map(idw)
-!              nud(2,:) = bdecomp(iud(2),Ns_Orb)
-!              !
-!              if(nud(ispin,iorb)/=1)cycle
-!              call c(iorb,iud(ispin),r,sgn)
-!              !
-!              ialfa = iorb + (ispin-1)*Norb
-!              Jndices        = Indices
-!              Jndices(ialfa) = binary_search(HJ(ialfa)%map,r)
-!              !
-!              call indices2state(Jndices,[jDimUps,jDimDws],j)
-!              !
-!              vvinit(j) = sgn*state_cvec(i)
-!              !
-!           enddo
-!           call delete_sector(jsector,HJ)
-!           !
-!           norm2=dot_product(vvinit,vvinit)
-!           vvinit=vvinit/sqrt(norm2)
-!           !
-!           nlanc=min(jdim,lanc_nGFiter)
-!           allocate(alfa_(nlanc),beta_(nlanc))
-!           !
-!           call build_Hv_sector(jsector)
-! #ifdef _MPI        
-!           if(MpiStatus)then
-!              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!           else
-!              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!           endif
-! #else
-!           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-! #endif
-!           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,iorb,ispin)
-!           !
-!           call delete_Hv_sector()
-!           !
-!           deallocate(vvinit,alfa_,beta_)
-!        endif
-!        !
-!        !
-!        nullify(state_cvec)
-!        call delete_sector(isector,HI)
-!        !
-!     enddo
-!     return
-!   end subroutine lanc_build_gf_normal_orbs
-
-
-
-
-!   subroutine lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
-!     integer                  :: iorb,jorb,ispin,istate
-!     integer                  :: isector,jsector
-!     integer,dimension(Ns_Ud) :: iDimUps,iDimDws
-!     integer,dimension(Ns_Ud) :: jDimUps,jDimDws
-!     integer                  :: idim,idimUP,idimDW
-!     integer                  :: jdim,jdimUP,jdimDW
-!     integer                  :: nud(2,Ns),iud(2),jud(2)
-!     integer                  :: iup,idw,jup,jdw,mup,mdw
-!     integer                  :: m,i,j,r,numstates
-!     real(8)                  :: sgn,norm2,norm0
-!     real(8),allocatable      :: vvinit(:)
-!     ! complex(8),allocatable :: vvinit(:)
-!     real(8),allocatable      :: alfa_(:),beta_(:)
-!     integer                  :: Nitermax,Nlanc
-!     type(sector_map)         :: HI(2),HJ(2)
-!     !
-!     !
-!     do istate=1,state_list%size
-!        isector    =  es_return_sector(state_list,istate)
-!        state_e    =  es_return_energy(state_list,istate)
-! #ifdef _MPI
-!        if(MpiStatus)then
-!           state_cvec => es_return_cvector(MpiComm,state_list,istate)
-!        else
-!           state_cvec => es_return_cvector(state_list,istate)
-!        endif
-! #else
-!        state_cvec => es_return_cvector(state_list,istate)
-! #endif
-!        !
-!        !
-!        idim  = getdim(isector)
-!        call get_DimUp(isector,iDimUps)
-!        call get_DimDw(isector,iDimDws)
-!        call build_sector(isector,HI)
-!        !
-!        !
-!        !EVALUATE (c^+_iorb + c^+_jorb)|gs>
-!        jsector = getCDGsector(1,ispin,isector)
-!        if(jsector/=0)then
-!           if(ed_verbose==3)write(LOGfile,"(A,I15)")' add particle:',jsector
-!           !
-!           jdim   = getdim(jsector)
-!           call get_DimUp(jsector,jDimUps)
-!           call get_DImDw(jsector,jDimDws)
-!           allocate(vvinit(jdim)) ; vvinit=zero
-!           !
-!           call build_sector(jsector,HJ)
-!           do iup=1,idimUP
-!              iud(1)    = HI(1)%map(iup)
-!              nud(1,:) = bdecomp(iud(1),Ns)
-!              !
-!              do idw=1,idimDW
-!                 iud(2)    = HI(2)%map(idw)
-!                 nud(2,:) = bdecomp(iud(2),Ns)
-!                 !
-!                 i = iup + (idw-1)*idimUP
-!                 !
-!                 if(nud(ispin,iorb)/=0)cycle
-!                 call cdg(iorb,iud(ispin),r,sgn)
-!                 !
-!                 jud = [iup,idw]
-!                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!                 !
-!                 j = jud(1) + (jud(2)-1)*jdimUP
-!                 vvinit(j) = sgn*state_cvec(i)
-!              enddo
-!           enddo
-!           do iup=1,idimUP
-!              iud(1)    = HI(1)%map(iup)
-!              nud(1,:) = bdecomp(iud(1),Ns)
-!              !
-!              do idw=1,idimDW
-!                 iud(2)    = HI(2)%map(idw)
-!                 nud(2,:) = bdecomp(iud(2),Ns)
-!                 !
-!                 i = iup + (idw-1)*idimUP
-!                 !
-!                 if(nud(ispin,jorb)/=0)cycle
-!                 call cdg(jorb,iud(ispin),r,sgn)
-!                 !
-!                 jud = [iup,idw]
-!                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!                 !
-!                 j = jud(1) + (jud(2)-1)*jdimUP
-!                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
-!              enddo
-!           enddo
-!           call delete_sector(jsector,HJ)
-!           !
-!           norm2=dot_product(vvinit,vvinit)
-!           vvinit=vvinit/sqrt(norm2)
-!           !
-!           nlanc=min(jdim,lanc_nGFiter)
-!           allocate(alfa_(nlanc),beta_(nlanc))
-!           !           
-!           call build_Hv_sector(jsector)
-! #ifdef _MPI
-!           if(MpiStatus)then
-!              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!           else
-!              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!           endif
-! #else
-!           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-! #endif
-!           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,jorb,ispin)
-!           !
-!           call delete_Hv_sector()
-!           !
-!           deallocate(vvinit,alfa_,beta_)
-!        endif
-!        !
-!        !EVALUATE (c_iorb + c_jorb)|gs>
-!        jsector = getCsector(1,ispin,isector)
-!        if(jsector/=0)then
-!           if(ed_verbose==3)write(LOGfile,"(A,I15)")' del particle:',jsector
-!           !
-!           jdim   = getdim(jsector)
-!           call get_DimUp(jsector,jDimUps)
-!           call get_DImDw(jsector,jDimDws)
-!           allocate(vvinit(jdim)) ; vvinit=zero
-!           !
-!           call build_sector(jsector,HJ)
-!           do iup=1,idimUP
-!              iud(1)    = HI(1)%map(iup)
-!              nud(1,:) = bdecomp(iud(1),Ns)
-!              !
-!              do idw=1,idimDW
-!                 iud(2)    = HI(2)%map(idw)
-!                 nud(2,:) = bdecomp(iud(2),Ns)
-!                 !
-!                 i = iup + (idw-1)*idimUP
-!                 !
-!                 !
-!                 if(nud(ispin,iorb)/=1)cycle
-!                 call c(iorb,iud(ispin),r,sgn)
-!                 !
-!                 jud = [iup,idw]
-!                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!                 !
-!                 j = jud(1) + (jud(2)-1)*jdimUP
-!                 vvinit(j) = sgn*state_cvec(i)
-!                 !
-!              enddo
-!           enddo
-!           do iup=1,idimUP
-!              iud(1)    = HI(1)%map(iup)
-!              nud(1,:) = bdecomp(iud(1),Ns)
-!              !
-!              do idw=1,idimDW
-!                 iud(2)    = HI(2)%map(idw)
-!                 nud(2,:) = bdecomp(iud(2),Ns)
-!                 !
-!                 i = iup + (idw-1)*idimUP
-!                 !
-!                 !
-!                 if(nud(ispin,jorb)/=1)cycle
-!                 call c(jorb,iud(ispin),r,sgn)
-!                 !
-!                 jud = [iup,idw]
-!                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!                 !
-!                 j = jud(1) + (jud(2)-1)*jdimUP
-!                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
-!                 !
-!              enddo
-!           enddo
-!           call delete_sector(jsector,HJ)
-!           !
-!           norm2=dot_product(vvinit,vvinit)
-!           vvinit=vvinit/sqrt(norm2)
-!           !
-!           nlanc=min(jdim,lanc_nGFiter)
-!           allocate(alfa_(nlanc),beta_(nlanc))
-!           !
-!           call build_Hv_sector(jsector)
-! #ifdef _MPI
-!           if(MpiStatus)then
-!              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!           else
-!              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!           endif
-! #else
-!           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-! #endif
-!           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,jorb,ispin)
-!           !
-!           call delete_Hv_sector()
-!           !
-!           deallocate(vvinit,alfa_,beta_)
-!        endif
-!        !
-!        !
-!        !
-!        !        !EVALUATE (c^+_iorb + i*c^+_jorb)|gs>
-!        !        jsector = getCDGsector(1,ispin,isector)
-!        !        if(jsector/=0)then 
-!        !           if(ed_verbose==3)write(LOGfile,"(A,I15)")' add particle:',jsector
-!        !           jdim   = getdim(jsector)
-!        !           call get_DimUp(jsector,jDimUps)
-!        !           call get_DImDw(jsector,jDimDws)
-!        !           allocate(vvinit(jdim)) ; vvinit=zero
-!        !           !
-!        !           call build_sector(jsector,HJ)
-!        !           do iup=1,idimUP
-!        !              iud(1)   = HI(1)%map(iup)
-!        !              nud(1,:) = bdecomp(iud(1),Ns)
-!        !              !
-!        !              do idw=1,idimDW
-!        !                 iud(2)   = HI(2)%map(idw)
-!        !                 nud(2,:) = bdecomp(iud(2),Ns)
-!        !                 !
-!        !                 i = iup + (idw-1)*idimUP
-!        !                 !
-!        !                 !
-!        !                 if(nud(ispin,iorb)/=0)cycle
-!        !                 call cdg(iorb,iud(ispin),r,sgn)
-!        !                 !
-!        !                 jud = [iup,idw]
-!        !                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!        !                 !
-!        !                 j = jud(1) + (jud(2)-1)*jdimUP
-!        !                 vvinit(j) = sgn*state_cvec(i)
-!        !                 !
-!        !              enddo
-!        !           enddo
-!        !           do iup=1,idimUP
-!        !              iud(1)   = HI(1)%map(iup)
-!        !              nud(1,:) = bdecomp(iud(1),Ns)
-!        !              !
-!        !              do idw=1,idimDW
-!        !                 iud(2)   = HI(2)%map(idw)
-!        !                 nud(2,:) = bdecomp(iud(2),Ns)
-!        !                 !
-!        !                 i = iup + (idw-1)*idimUP
-!        !                 !
-!        !                 !
-!        !                 if(nud(ispin,jorb)/=0)cycle
-!        !                 call cdg(jorb,iud(ispin),r,sgn)
-!        !                 !
-!        !                 jud = [iup,idw]
-!        !                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!        !                 !
-!        !                 j = jud(1) + (jud(2)-1)*jdimUP
-!        !                 vvinit(j) = vvinit(j) + xi*sgn*state_cvec(i)
-!        !                 !
-!        !              enddo
-!        !           enddo
-!        !           call delete_sector(jsector,HJ)
-!        !           !
-!        !           norm2=dot_product(vvinit,vvinit)
-!        !           vvinit=vvinit/sqrt(norm2)
-!        !           !
-!        !           nlanc=min(jdim,lanc_nGFiter)
-!        !           allocate(alfa_(nlanc),beta_(nlanc))
-!        !           !
-!        !           call build_Hv_sector(jsector)
-!        ! #ifdef _MPI
-!        !           if(MpiStatus)then
-!        !              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!        !           else
-!        !              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!        !           endif
-!        ! #else
-!        !           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!        ! #endif
-!        !           call add_to_lanczos_gf_normal(-xi*norm2,state_e,alfa_,beta_,1,iorb,jorb,ispin)
-!        !           !
-!        !           call delete_Hv_sector()
-!        !           !
-!        !           deallocate(vvinit,alfa_,beta_)
-!        !        endif
-!        !        !
-!        !        !EVALUATE (c_iorb - xi*c_jorb)|gs>
-!        !        jsector = getCsector(1,ispin,isector)
-!        !        if(jsector/=0)then
-!        !           if(ed_verbose==3)write(LOGfile,"(A,I15)")' del particle:',jsector
-!        !           !
-!        !           jdim   = getdim(jsector)
-!        !           call get_DimUp(jsector,jDimUps)
-!        !           call get_DImDw(jsector,jDimDws)
-!        !           allocate(vvinit(jdim)); vvinit=zero
-!        !           !
-!        !           call build_sector(jsector,HJ)
-!        !           do iup=1,idimUP
-!        !              iud(1)   = HI(1)%map(iup)
-!        !              nud(1,:) = bdecomp(iud(1),Ns)
-!        !              !
-!        !              do idw=1,idimDW
-!        !                 iud(2)   = HI(2)%map(idw)
-!        !                 nud(2,:) = bdecomp(iud(2),Ns)
-!        !                 !
-!        !                 i = iup + (idw-1)*idimUP
-!        !                 !
-!        !                 !
-!        !                 if(nud(ispin,iorb)/=1)cycle
-!        !                 call c(iorb,iud(ispin),r,sgn)
-!        !                 !
-!        !                 jud = [iup,idw]
-!        !                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!        !                 !
-!        !                 j = jud(1) + (jud(2)-1)*jdimUP
-!        !                 vvinit(j)  = sgn*state_cvec(i)
-!        !                 !
-!        !              enddo
-!        !           enddo
-!        !           do iup=1,idimUP
-!        !              iud(1)   = HI(1)%map(iup)
-!        !              nud(1,:) = bdecomp(iud(1),Ns)
-!        !              !
-!        !              do idw=1,idimDW
-!        !                 iud(2)   = HI(2)%map(idw)
-!        !                 nud(2,:) = bdecomp(iud(2),Ns)
-!        !                 !
-!        !                 i = iup + (idw-1)*idimUP
-!        !                 !
-!        !                 !
-!        !                 if(nud(ispin,jorb)/=1)cycle
-!        !                 call c(jorb,iud(ispin),r,sgn)
-!        !                 !
-!        !                 jud = [iup,idw]
-!        !                 jud(ispin) = binary_search(HJ(ispin)%map,r)
-!        !                 !
-!        !                 j = jud(1) + (jud(2)-1)*jdimUP
-!        !                 vvinit(j)  = vvinit(j) - xi*sgn*state_cvec(i)
-!        !                 !
-!        !              enddo
-!        !           enddo
-!        !           call delete_sector(jsector,HJ)
-!        !           !
-!        !           norm2=dot_product(vvinit,vvinit)
-!        !           vvinit=vvinit/sqrt(norm2)
-!        !           !
-!        !           nlanc=min(jdim,lanc_nGFiter)
-!        !           allocate(alfa_(nlanc),beta_(nlanc))
-!        !           !
-!        !           call build_Hv_sector(jsector)
-!        ! #ifdef _MPI
-!        !           if(MpiStatus)then
-!        !              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!        !           else
-!        !              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!        !           endif
-!        ! #else
-!        !           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!        ! #endif
-!        !           call add_to_lanczos_gf_normal(-xi*norm2,state_e,alfa_,beta_,-1,iorb,jorb,ispin)
-!        !           !
-!        !           call delete_Hv_sector()
-!        !           !
-!        !           deallocate(vvinit,alfa_,beta_)
-!        !        endif
-!        !
-!        !
-!        nullify(state_cvec)
-!        call delete_sector(isector,HI)
-!        !
-!     enddo
-!     return
-!   end subroutine lanc_build_gf_normal_mix_main

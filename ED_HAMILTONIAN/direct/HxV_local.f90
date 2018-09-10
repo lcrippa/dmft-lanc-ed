@@ -1,20 +1,15 @@
-  do i=1,Dim
-     call state2indices(i,[DimUps,DimDws],Indices)
+  do i=1,Nloc
+     iup = iup_index(i+mpiIshift,DimUp)
+     idw = idw_index(i+mpiIshift,DimUp)
      !
-     do iud=1,Ns_Ud
-        mup = Hs(iud)%map(Indices(iud))
-        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
-        !
-        Nups(iud,:) = Bdecomp(mup,Ns_Orb) ![1+Nbath]*Norb
-        Ndws(iud,:) = Bdecomp(mdw,Ns_Orb) ![1+Nbath]*Norb
-     enddo
+     mup = Hs(1)%map(iup)
+     mdw = Hs(2)%map(idw)
      !
-     Nup = Breorder(Nups)
-     Ndw = Breorder(Ndws)
+     nup = bdecomp(mup,Ns)
+     ndw = bdecomp(mdw,Ns)
      !
      !
-     !
-     ! HxV_imp: Diagonal Elements, i.e. local part
+     !> HxV_imp: Diagonal Elements, i.e. local part
      htmp = zero
      do iorb=1,Norb
         htmp = htmp + impHloc(1,1,iorb,iorb)*Nup(iorb)
@@ -22,15 +17,11 @@
         htmp = htmp - xmu*(Nup(iorb)+Ndw(iorb))
      enddo
      !
-     hv(i) = hv(i) + htmp*vin(i)
      !
+     !> H_Int: Kanamori interaction part. non-local S-E and P-H terms commented below.
      !
-     !
-     ! HxV_int:
      ! density-density interaction: same orbital, opposite spins:
      !  = \sum_\a U_\a*(n_{\a,up}*n_{\a,dw})
-     htmp = zero
-     !
      do iorb=1,Norb
         htmp = htmp + Uloc(iorb)*Nup(iorb)*Ndw(iorb)
      enddo
@@ -68,41 +59,18 @@
         endif
      endif
      !
-     hv(i) = hv(i) + htmp*vin(i)
      !
-     !
-     !
-     ! HxV_bath:
-     !
-     if(bath_type/="replica") then
-        !
-        !diagonal bath hamiltonian: +energy of the bath=\sum_a=1,Norb\sum_{l=1,Nbath}\e^a_l n^a_l
-        htmp=zero
-        do iorb=1,size(dmft_bath%e,2)
-           do kp=1,Nbath
-              alfa = getBathStride(iorb,kp)
-              htmp =htmp + dmft_bath%e(1    ,iorb,kp)*Nup(alfa) !UP
-              htmp =htmp + dmft_bath%e(Nspin,iorb,kp)*Ndw(alfa) !DW
-           enddo
-        enddo
-        !
-        hv(i) = hv(i) + htmp*vin(i)
-        !
-     else
-        !
-        !diagonal bath hamiltonian: +energy of the bath=\sum_a=1,Norb\sum_{l=1,Nbath}\e^a_l n^a_l
-        htmp=zero
+     !> H_Bath: local bath energy contribution.
+     !diagonal bath hamiltonian: +energy of the bath=\sum_a=1,Norb\sum_{l=1,Nbath}\e^a_l n^a_l
+     do iorb=1,size(bath_diag,2)
         do kp=1,Nbath
-           do iorb=1,Norb
-              alfa = getBathStride(iorb,kp)
-              htmp = htmp + dmft_bath%h(1    ,    1,iorb,iorb,kp)*Nup(alfa) !UP
-              htmp = htmp + dmft_bath%h(Nspin,Nspin,iorb,iorb,kp)*Ndw(alfa) !DW
-           enddo
+           ialfa = getBathStride(iorb,kp)
+           htmp =htmp + bath_diag(1    ,iorb,kp)*Nup(ialfa) !UP
+           htmp =htmp + bath_diag(Nspin,iorb,kp)*Ndw(ialfa) !DW
         enddo
-        !
-        hv(i) = hv(i) + htmp*vin(i)
-        !
-     endif
+     enddo
+     !
+     hv(i) = hv(i) + htmp*vin(i)
      !
   enddo
 

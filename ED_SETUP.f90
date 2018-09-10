@@ -145,6 +145,9 @@ contains
     allocate(impHloc(Nspin,Nspin,Norb,Norb))
     impHloc=zero
     !
+    allocate(spH0ups(Ns_Ud))
+    allocate(spH0dws(Ns_Ud))
+    !
     !Allocate indexing arrays
     allocate(getCsector(Ns_Ud,2,Nsectors))  ;getCsector  =0
     allocate(getCDGsector(Ns_Ud,2,Nsectors));getCDGsector=0
@@ -190,7 +193,6 @@ contains
     !
     offdiag_gf_flag=ed_solve_offdiag_gf
     if(bath_type/="normal")offdiag_gf_flag=.true.
-    if(.not.ed_total_ud)offdiag_gf_flag=.false.
     !
     !
     if(nread/=0.d0)then
@@ -785,8 +787,8 @@ contains
     integer,dimension(Ns_Ud)   :: jups,jdws
     integer,dimension(2*Ns_Ud) :: dims
     !
-    jups = istate(Norb+1:2*Norb)
-    jdws = istate(1:Norb)
+    jups = istate(Ns_Ud+1:2*Ns_Ud)
+    jdws = istate(1:Ns_Ud)
     dims = 2**Ns_Orb
     call indices2state([jups,jdws],Dims,j)
     !
