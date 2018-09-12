@@ -52,7 +52,6 @@ MODULE ED_OBSERVABLES
   integer                            :: i,j,ii
   integer                            :: isector,jsector
   integer                            :: idim,idimUP,idimDW
-  integer                            :: jdim,jdimUP,jdimDW
   !
   real(8),dimension(:),pointer       :: gscvec
   logical                            :: Jcondition
@@ -95,7 +94,6 @@ contains
     integer                             :: istate,Nud(2,Ns),iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
     integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud)            :: jDimUps,jDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: IbUp,IbDw  ![Ns]
     real(8),dimension(Norb)             :: nup,ndw,Sz,nt
@@ -247,7 +245,7 @@ contains
                             Jndices = Indices
                             Jndices(1+(ispin-1)*Ns_Ud) = &
                                  binary_search(HI(1+(ispin-1)*Ns_Ud)%map,k)
-                            call indices2state(Jndices,[jDimUps,jDimDws],j)
+                            call indices2state(Jndices,[iDimUps,iDimDws],j)
                             !
                             imp_density_matrix(ispin,ispin,iorb,jorb) = &
                                  imp_density_matrix(ispin,ispin,iorb,jorb) + &
@@ -317,7 +315,6 @@ contains
     integer                             :: istate,iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
     integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud)            :: jDimUps,jDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     real(8),dimension(Ns)               :: Nup,Ndw
     type(sector_map),dimension(2*Ns_Ud) :: H
@@ -505,12 +502,12 @@ contains
 
 
 
-!####################################################################
-!                    COMPUTATIONAL ROUTINES
-!####################################################################
-!+-------------------------------------------------------------------+
-!PURPOSE  : get scattering rate and renormalization constant Z
-!+-------------------------------------------------------------------+
+  !####################################################################
+  !                    COMPUTATIONAL ROUTINES
+  !####################################################################
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : get scattering rate and renormalization constant Z
+  !+-------------------------------------------------------------------+
   subroutine get_szr()
     integer                  :: ispin,iorb
     real(8)                  :: wm1,wm2
@@ -526,9 +523,9 @@ contains
 
 
 
-!+-------------------------------------------------------------------+
-!PURPOSE  : write legend, i.e. info about columns 
-!+-------------------------------------------------------------------+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : write legend, i.e. info about columns 
+  !+-------------------------------------------------------------------+
   subroutine write_legend()
     integer :: unit,iorb,jorb,ispin
     unit = free_unit()
@@ -573,9 +570,9 @@ contains
   end subroutine write_energy_info
 
 
-!+-------------------------------------------------------------------+
-!PURPOSE  : write observables to file
-!+-------------------------------------------------------------------+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : write observables to file
+  !+-------------------------------------------------------------------+
   subroutine write_observables()
     integer :: unit
     integer :: iorb,jorb,ispin

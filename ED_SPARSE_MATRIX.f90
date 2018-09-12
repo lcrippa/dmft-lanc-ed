@@ -405,6 +405,7 @@ contains
     integer                              :: MpiComm
     type(sparse_matrix_csr),intent(in)   :: sparse
     real(8),dimension(:,:),intent(inout) :: matrix
+    real(8),dimension(:,:),allocatable   :: matrix_tmp
     integer                              :: i,impi,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
     call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_dump_matrix_csr")
@@ -421,13 +422,17 @@ contains
     !
     if(Nrow>Ndim1 .OR. Ncol>Ndim2)stop "Warning SPARSE/mpi_dump_matrix: dimensions error"
     !
-    matrix=0d0
+    allocate(matrix_tmp(Ndim1,Ndim2))
+    matrix_tmp=0d0
     do i=sparse%Istart,sparse%Iend
        impi = i - sparse%Ishift
        do j=1,sparse%row(impi)%Size
-          matrix(i,sparse%row(impi)%cols(j))=matrix(i,sparse%row(impi)%cols(j))+sparse%row(impi)%vals(j)
+          matrix_tmp(i,sparse%row(impi)%cols(j))=matrix_tmp(i,sparse%row(impi)%cols(j))+sparse%row(impi)%vals(j)
        enddo
     enddo
+    !
+    call AllReduce_Mpi(MpiComm,Matrix_tmp,Matrix)
+    !   
   end subroutine mpi_sp_dump_matrix_csr
 #endif
 
