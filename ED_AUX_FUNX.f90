@@ -66,40 +66,30 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE  : Print Hloc
   !+------------------------------------------------------------------+
-  subroutine print_Hloc_nn(hloc,file)
+  subroutine print_Hloc_nn(hloc,file)![Nspin][Nspin][Norb][Norb]
     real(8),dimension(Nspin,Nspin,Norb,Norb) :: hloc
-    character(len=*),optional                :: file
-    integer                                  :: iorb,jorb,ispin,jspin,Nso,unit
-    character(len=32)                        :: fmt
-    !
+    character(len=*),optional     :: file
+    integer                       :: iorb,jorb,ispin,jspin
+    integer                       :: unit
     unit=LOGfile
     if(present(file))then
        open(free_unit(unit),file=reg(file))
        write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
     endif
-    !
-    Nso = Nspin*Norb
-    write(fmt,"(A,I0,A)")"(",Nso,"(A,2X))"
     do ispin=1,Nspin
        do iorb=1,Norb
-          do jspin=1,Nspin
-             do jorb=1,Norb
-                write(unit,fmt,advance='no')str(Hloc(ispin,jspin,iorb,jorb),d=4)
-             enddo
-          enddo
-          write(unit,"(A)",advance='yes')
+          write(unit,"(20(F7.3,2x))")&
+               ((Hloc(ispin,jspin,iorb,jorb),jorb =1,Norb),jspin=1,Nspin)
        enddo
     enddo
-    write(unit,"(A)",advance='yes')
+    write(unit,*)""
     if(present(file))close(unit)
   end subroutine print_Hloc_nn
-  !
-  subroutine print_Hloc_so(hloc,file)
+
+  subroutine print_Hloc_so(hloc,file) ![Nlso][Nlso]
     real(8),dimension(Nspin*Norb,Nspin*Norb) :: hloc
     character(len=*),optional                :: file
-    integer                                  :: is,js,Nso,unit
-    character(len=32)                        :: fmt
-    !
+    integer                                  :: iorb,jorb,unit,Nso
     unit=LOGfile
     if(present(file))then
        open(free_unit(unit),file=reg(file))
@@ -107,17 +97,12 @@ contains
     endif
     !
     Nso = Nspin*Norb
-    write(fmt,"(A,I0,A)")"(",Nso,"(A,2X))"
-    do is=1,Nso
-       do js=1,Nso
-          write(unit,fmt,advance='no')str(Hloc(is,js),d=4)
-       enddo
-       write(unit,"(A)",advance='yes')
+    do iorb=1,Nso
+       write(unit,"(20(F7.3,2x))")(Hloc(iorb,jorb),jorb =1,Nso)
     enddo
-    write(unit,"(A)",advance='yes')
+    write(unit,*)""
     if(present(file))close(unit)
   end subroutine print_Hloc_so
-  !
 
 
 

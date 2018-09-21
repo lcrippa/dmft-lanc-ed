@@ -105,8 +105,7 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY DBLE ELEMENT: (SYMMETRIC MA
 #endif
 
 
-
-
+  
 
   interface add_to
      module procedure :: add_to_I
@@ -116,11 +115,7 @@ MODULE ED_SPARSE_MATRIX  !THIS VERSION CONTAINS ONLY DBLE ELEMENT: (SYMMETRIC MA
 
 
 
-  integer :: MpiRank=0
-  integer :: MpiSize=1
   integer :: MpiIerr
-  logical :: MpiMaster=.true.
-
 
 
 contains       
@@ -163,6 +158,8 @@ contains
     integer,optional                     :: N1
     integer                              :: i,Ncol,Nloc
     !
+    if(MpiComm==Mpi_Comm_Null)return
+    !
     call sp_test_matrix_mpi(MpiComm,sparse,"mpi_sp_init_matrix_csr")
     !
     Ncol = N
@@ -186,10 +183,10 @@ contains
   !+------------------------------------------------------------------+
   subroutine sp_delete_matrix_csr(sparse)    
     type(sparse_matrix_csr),intent(inout) :: sparse
-    integer                           :: i
+    integer                               :: i
     type(sparse_row_csr),pointer          :: row
     !
-    if(.not.sparse%status)stop "Warning SPARSE/sp_delete_matrix: sparse not allocated already."
+    if(.not.sparse%status)return !stop "Warning SPARSE/sp_delete_matrix: sparse not allocated already."
     !
     do i=1,sparse%Nrow
        deallocate(sparse%row(i)%vals)
@@ -218,7 +215,9 @@ contains
     integer                              :: i
     type(sparse_row_csr),pointer          :: row
     !
-    if(.not.sparse%status)stop "Error SPARSE/mpi_sp_delete_matrix: sparse is not allocated."
+    if(MpiComm==Mpi_Comm_Null)return
+    !
+    if(.not.sparse%status)return !stop "Error SPARSE/mpi_sp_delete_matrix: sparse is not allocated."
     !
     do i=1,sparse%Nrow
        deallocate(sparse%row(i)%vals)
@@ -297,6 +296,8 @@ contains
     integer                               :: column,pos
     logical                               :: iadd
     !
+    if(MpiComm==Mpi_Comm_Null)return
+    !
     call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_insert_element_csr")
     !
     column = j
@@ -358,6 +359,8 @@ contains
     type(sparse_matrix_csr),intent(inout) :: sparse    
     integer                               :: i,j,Ndim1,Ndim2
     !
+    if(MpiComm==Mpi_Comm_Null)return
+    !
     call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_load_matrix_csr")
     !
     Ndim1=size(matrix,1)
@@ -408,6 +411,8 @@ contains
     real(8),dimension(:,:),allocatable   :: matrix_tmp
     integer                              :: i,impi,j,N1_,N2_,Ndim1,Ndim2,Nrow,Ncol
     !
+    if(MpiComm==Mpi_Comm_Null)return
+    !
     call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_dump_matrix_csr")
     !
     Ndim1=size(matrix,1)
@@ -436,60 +441,6 @@ contains
   end subroutine mpi_sp_dump_matrix_csr
 #endif
 
-
-
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE: pretty print a sparse matrix on a given unit using format fmt
-  !+------------------------------------------------------------------+
-  subroutine sp_print_matrix_csr(sparse,unit,fmt)
-    type(sparse_matrix_csr)          :: sparse
-    integer,optional             :: unit
-    integer                      :: unit_
-    integer                      :: i,j,Ns
-    character(len=*),optional    :: fmt
-    character(len=64)            :: fmt_
-    type(sparse_row_csr),pointer     :: row
-    integer                      :: count=0
-    unit_=6;if(present(unit))unit_=unit
-    fmt_='F15.9';if(present(fmt))fmt_=fmt
-    write(*,*)"Print sparse matrix (compact mode) ->",unit_
-    do i=1,sparse%Nrow
-       row => sparse%row(i)
-       do j=1,row%Size
-          write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')row%vals(j),',',row%cols(j)
-       end do
-       write(unit_,*)
-    enddo
-    write(unit_,*)
-  end subroutine sp_print_matrix_csr
-
-#ifdef _MPI
-  subroutine mpi_sp_print_matrix_csr(MpiComm,sparse,unit,fmt)
-    integer                         :: MpiComm
-    type(sparse_matrix_csr)          :: sparse
-    integer,optional                :: unit
-    integer                         :: unit_
-    integer                         :: i,j,Ns
-    character(len=*),optional       :: fmt
-    character(len=64)               :: fmt_
-    type(sparse_row_csr),pointer     :: row
-    integer                         :: count=0
-    unit_=6;if(present(unit))unit_=unit
-    fmt_='F15.9';if(present(fmt))fmt_=fmt
-    write(*,*)"Print sparse matrix (compact mode) ->",unit_
-    do i=1,sparse%Nrow
-       row => sparse%row(i)
-       do j=1,row%Size
-          write(unit_,"("//trim(fmt_)//",A1,I0,3X)",advance='no')row%vals(j),',',row%cols(j)
-       end do
-       write(unit_,*)
-       !
-    enddo
-    write(unit_,*)
-  end subroutine mpi_sp_print_matrix_csr
-#endif
 
 
 
@@ -562,8 +513,10 @@ contains
     integer                         :: data_unit
     integer                         :: i, j
     character ( len = 6 )           :: n1_s,n2_s,n1_i,n2_i
-    integer                         :: nz_num
+    integer                         :: nz_num,mpirank
     character ( len = 255 )         :: png_filename
+    !
+    if(MpiComm==Mpi_Comm_Null)return
     !
     call sp_test_matrix_mpi(MpiComm,sparse," mpi_sp_spy_matrix_csr")
     !
@@ -625,6 +578,9 @@ contains
     integer                              :: MpiComm
     type(sparse_matrix_csr),intent(inout) :: sparse
     integer                              :: istart,iend,ishift
+    !
+    if(MpiComm==Mpi_Comm_Null)return
+    !
     sparse%istart = istart
     sparse%iend   = iend
     sparse%ishift = ishift
@@ -636,6 +592,9 @@ contains
     type(sparse_matrix_csr),intent(in)    :: sparse
     character(len=*)                     :: text
     integer                              :: MpiRank
+    !
+    if(MpiComm==Mpi_Comm_Null)stop "sp_test_matrix_mpi ERROR: called in with MpiComm = Mpi_Comm_Null"
+    !
     MpiRank = get_Rank_MPI(MpiComm)
     if(.not.sparse%mpi)then
        print*,"Rank, Error in "//trim(text)//": mpi no set"

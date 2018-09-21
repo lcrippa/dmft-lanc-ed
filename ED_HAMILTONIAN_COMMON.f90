@@ -5,33 +5,29 @@ MODULE ED_HAMILTONIAN_COMMON
   USE ED_VARS_GLOBAL
   USE ED_BATH
   USE ED_SETUP
-#ifdef _MPI
-  USE MPI
-  USE SF_MPI
-#endif
   implicit none
 
 
   !> MPI local variables (shared)
-#ifdef _MPI
-  integer                                   :: MpiComm=MPI_UNDEFINED
-#else
-  integer                                   :: MpiComm=0
-#endif
-  logical                                   :: MpiStatus=.false.
-  logical                                   :: MpiMaster=.true.
-  integer                                   :: MpiIerr
-  integer                                   :: MpiRank=0
-  integer                                   :: MpiSize=1
-  integer                                   :: MpiQ=1
-  integer                                   :: MpiQup=1
-  integer                                   :: MpiQdw=1
-  integer                                   :: MpiR=0
-  integer                                   :: MpiRup=0
-  integer                                   :: MpiRdw=0
-  integer                                   :: MpiIstart
-  integer                                   :: MpiIend
-  integer                                   :: MpiIshift
+  ! #ifdef _MPI
+  !   integer                                   :: MpiComm=MPI_UNDEFINED
+  ! #else
+  !   integer                                   :: MpiComm=0
+  ! #endif
+  !   logical                                   :: MpiStatus=.false.
+  !   logical                                   :: MpiMaster=.true.
+  !   integer                                   :: MpiIerr
+  !   integer                                   :: MpiRank=0
+  !   integer                                   :: MpiSize=1
+  !   integer                                   :: MpiQ=1
+  !   integer                                   :: MpiQup=1
+  !   integer                                   :: MpiQdw=1
+  !   integer                                   :: MpiR=0
+  !   integer                                   :: MpiRup=0
+  !   integer                                   :: MpiRdw=0
+  !   integer                                   :: MpiIstart
+  !   integer                                   :: MpiIend
+  !   integer                                   :: MpiIshift
   !
   integer                                   :: Dim
   integer                                   :: DimUp

@@ -10,18 +10,13 @@ MODULE ED_OBSERVABLES
   USE ED_HAMILTONIAN
   USE ED_BATH
   USE ED_AUX_FUNX
-#ifdef _MPI
-  USE MPI
-  USE SF_MPI
-#endif
 
   implicit none
   private
   !
   public :: observables_impurity
   public :: local_energy_impurity
-  public :: ed_observables_set_MPI
-  public :: ed_observables_del_MPI
+
 
 
   logical,save                       :: iolegend=.true.
@@ -38,7 +33,6 @@ MODULE ED_OBSERVABLES
   integer                            :: ispin,jspin
   integer                            :: isite,jsite
   integer                            :: ibath
-  integer                            :: numstates
   integer                            :: r,m,k,k1,k2
   integer                            :: iup,idw
   integer                            :: jup,jdw
@@ -56,35 +50,15 @@ MODULE ED_OBSERVABLES
   real(8),dimension(:),pointer       :: gscvec
   logical                            :: Jcondition
   !
-  !
-#ifdef _MPI
-  integer                            :: MpiComm=MPI_UNDEFINED
-#endif
-  logical                            :: MpiStatus=.false.
-  logical                            :: MPI_MASTER=.true.  !
+
 
 
 contains 
 
-  subroutine ed_observables_set_MPI(comm)
-#ifdef _MPI
-    integer :: comm
-    MpiComm  = comm
-    MpiStatus = .true.
-    MPI_MASTER= get_Master_MPI(MpiComm)
-#else
-    integer,optional :: comm
-#endif
-  end subroutine ed_observables_set_MPI
 
 
-  subroutine ed_observables_del_MPI()
-#ifdef _MPI
-    MpiComm  = MPI_UNDEFINED
-    MpiStatus = .false.
-#endif
-  end subroutine ed_observables_del_MPI
 
+  
 
 
   !+-------------------------------------------------------------------+
@@ -114,8 +88,7 @@ contains
     n2      = 0.d0
     s2tot   = 0.d0
     !
-    numstates=state_list%size
-    do istate=1,numstates
+    do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
        !
@@ -138,7 +111,7 @@ contains
        call get_DimDw(isector,iDimDws)
        iDimUp = product(iDimUps)
        iDimDw = product(iDimDws)
-       if(Mpi_Master)then
+       if(MpiMaster)then
           call build_sector(isector,HI)
           do i = 1,iDim
              call state2indices(i,[iDimUps,iDimDws],Indices)
@@ -209,7 +182,7 @@ contains
        iDimUp = product(iDimUps)
        iDimDw = product(iDimDws)
        !
-       if(Mpi_Master)then
+       if(MpiMaster)then
           call build_sector(isector,HI)
           do i=1,iDim
              call state2indices(i,[iDimUps,iDimDws],Indices)
@@ -267,7 +240,7 @@ contains
     !
     !
     !
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        call get_szr
        if(iolegend)call write_legend
        call write_observables()
@@ -354,7 +327,7 @@ contains
        peso = peso/zeta_function
        !
        !Master:
-       if(Mpi_Master)then
+       if(MpiMaster)then
           call build_sector(isector,H)
           do i=1,iDim
              call state2indices(i,[iDimUps,iDimDws],Indices)
@@ -464,7 +437,6 @@ contains
     enddo
     !
     if(associated(gscvec))nullify(gscvec)
-    print*,"ciao"
     !
 #ifdef _MPI
     if(MpiStatus)then
@@ -476,7 +448,6 @@ contains
     endif
 #endif
     !
-    print*,"Sum Epot+Ehf"
     ed_Epot = ed_Epot + ed_Ehartree
     !
     if(ed_verbose==3)then
@@ -488,7 +459,7 @@ contains
        write(LOGfile,"(A,10f18.12)")"Dund    =",ed_Dund
     endif
     !
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        call write_energy_info()
        call write_energy()
     endif

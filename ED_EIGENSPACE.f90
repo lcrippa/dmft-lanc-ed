@@ -1,10 +1,6 @@
 module ED_EIGENSPACE
   USE ED_VARS_GLOBAL
   USE ED_SETUP
-#ifdef _MPI
-  USE SF_MPI
-  USE MPI
-#endif
   implicit none
   private
 
@@ -488,7 +484,7 @@ contains        !some routine to perform simple operation on the lists
           allocate(Vector(1))
        endif
        Vector = 0d0
-       call gather_vector_MPI(MpiComm,c%cvec(1:Nloc),Vector)
+       call gather_vector_MPI(MpiComm,c%cvec,Vector)
     else
        !
        if(MpiMaster)then
@@ -499,7 +495,7 @@ contains        !some routine to perform simple operation on the lists
           allocate(Vtmp(1))
        endif
        Vtmp = 0d0
-       call gather_vector_MPI(MpiComm,c%twin%cvec(1:Nloc),Vtmp)
+       call gather_vector_MPI(MpiComm,c%twin%cvec,Vtmp)
        if(MpiMaster)then
           allocate(Vector(Ndim))
           forall(i=1:Dim)Vector(i) = Vtmp(Order(i))

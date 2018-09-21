@@ -13,10 +13,6 @@ MODULE ED_GF_SHARED
   USE ED_SETUP
   USE ED_HAMILTONIAN
   USE ED_AUX_FUNX
-#ifdef _MPI
-  USE MPI
-  USE SF_MPI
-#endif
   !
   implicit none
 
@@ -38,43 +34,9 @@ MODULE ED_GF_SHARED
   complex(8),allocatable,dimension(:,:)       :: auxGmats,auxGreal
 
 
-#ifdef _MPI
-  integer                                     :: MpiComm=MPI_UNDEFINED
-#else
-  integer                                     :: MpiComm=0
-#endif
-  logical                                     :: MpiStatus=.false.  
-  integer                                     :: MpiRank=0
-  integer                                     :: MpiSize=1
-  logical                                     :: MpiMaster=.true.
-  integer                                     :: MpiIerr
-
 
 contains
 
-  subroutine ed_greens_functions_set_MPI(comm)
-#ifdef _MPI
-    integer :: comm
-    MpiComm  = comm
-    MpiStatus = .true.
-    MPIRANK = get_Rank_MPI(MpiComm)
-    MPISIZE = get_Size_MPI(MpiComm)
-    MPIMASTER=get_Master_MPI(MpiComm)
-#else
-    integer,optional :: comm
-#endif
-  end subroutine ed_greens_functions_set_MPI
-
-
-  subroutine ed_greens_functions_del_MPI()
-#ifdef _MPI
-    MpiComm  = MPI_UNDEFINED
-    MpiStatus = .false.
-    MPIRANK=0
-    MPISIZE=1
-    MPIMASTER=.true.
-#endif
-  end subroutine ed_greens_functions_del_MPI
 
   !+------------------------------------------------------------------+
   !PURPOSE  : Allocate arrays and setup frequencies and times

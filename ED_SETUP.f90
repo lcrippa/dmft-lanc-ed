@@ -41,6 +41,7 @@ MODULE ED_SETUP
   public :: flip_state
   !
   public :: binary_search
+  
 #ifdef _MPI
   public :: scatter_vector_MPI
   public :: gather_vector_MPI
@@ -526,7 +527,7 @@ contains
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
     !
-    if( MpiComm == MPI_UNDEFINED ) stop "scatter_vector_MPI error: MpiComm == MPI_UNDEFINED"
+    if( MpiComm == MPI_UNDEFINED )return ! stop "scatter_vector_MPI error: MpiComm == MPI_UNDEFINED"
     !
     MpiSize   = get_size_MPI(MpiComm)
     MpiMaster = get_master_MPI(MpiComm)

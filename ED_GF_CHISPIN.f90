@@ -305,6 +305,12 @@ contains
     pesoBZ = 1d0
     if(finiteT)pesoBZ = exp(-beta*(Ei-Egs))
     !
+#ifdef _MPI
+    if(MpiStatus)then
+       call Bcast_MPI(MpiComm,alanc)
+       call Bcast_MPI(MpiComm,blanc)
+    endif
+#endif
     diag             = 0.d0
     subdiag          = 0.d0
     Z                = eye(Nlanc)

@@ -131,7 +131,6 @@ contains
     integer,dimension(Ns)               :: Nup,Ndw
     !
     integer,allocatable,dimension(:)    :: Counts,Displs
-    integer                             :: MpiQup,MpiQdw
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -140,8 +139,9 @@ contains
     include "ED_HAMILTONIAN/diag_hybr_bath.f90"
     !
     !    
-    if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
-    if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
+    if(MpiComm==MPI_UNDEFINED.OR.MpiComm==Mpi_Comm_Null)&
+         stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
+    ! if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
     !
     !
     Hv=0d0
@@ -151,16 +151,13 @@ contains
     include "ED_HAMILTONIAN/direct_mpi/HxV_local.f90"
     !
     !NON-LOCAL TERMS:
-    mpiQdw=DimDw/MpiSize
-    if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
-    !
-    mpiQup=DimUp/MpiSize
-    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     ! 
     !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
     include "ED_HAMILTONIAN/direct_mpi/HxV_up.f90"    
     !
     !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
+    mpiQup=DimUp/MpiSize
+    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     allocate(vt(mpiQup*DimDw)) ;vt=0d0
     allocate(Hvt(mpiQup*DimDw));Hvt=0d0
     call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt) !Vin^T --> Vt
@@ -186,7 +183,6 @@ contains
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: Nup,Ndw
     integer,allocatable,dimension(:)    :: Counts,Displs
-    integer                             :: MpiQup,MpiQdw
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -195,8 +191,8 @@ contains
     include "ED_HAMILTONIAN/diag_hybr_bath.f90"
     !
     !    
-    if(MpiComm==MPI_UNDEFINED)stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
-    if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
+    if(MpiComm==MPI_UNDEFINED.OR.MpiComm==Mpi_Comm_Null)&
+         stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
     !
     !
     Hv=0d0
@@ -206,16 +202,13 @@ contains
     include "ED_HAMILTONIAN/direct_mpi/Orbs/HxV_local.f90"
     !
     !NON-LOCAL TERMS:
-    mpiQdw=DimDw/MpiSize
-    if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
-    !
-    mpiQup=DimUp/MpiSize
-    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     ! 
     !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
     include "ED_HAMILTONIAN/direct_mpi/Orbs/HxV_up.f90"
     !
     !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
+    mpiQup=DimUp/MpiSize
+    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     allocate(vt(mpiQup*DimDw)) ;vt=0d0
     allocate(Hvt(mpiQup*DimDw));Hvt=0d0
     call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt) !Vin^T --> Vt
