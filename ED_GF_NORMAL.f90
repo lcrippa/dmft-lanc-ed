@@ -198,8 +198,8 @@ contains
 #else
           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,iorb,ispin)
           call delete_Hv_sector()
+          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,iorb,ispin)
           !
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
@@ -259,8 +259,8 @@ contains
 #else
           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,iorb,ispin)
           call delete_Hv_sector()
+          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,iorb,ispin)
           !
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
@@ -401,9 +401,8 @@ contains
 #else
           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,jorb,ispin)
-          !
           call delete_Hv_sector()
+          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,jorb,ispin)
           !
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
@@ -478,9 +477,8 @@ contains
 #else
           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
+          call delete_Hv_sector()    
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,jorb,ispin)
-          !
-          call delete_Hv_sector()
           !
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
@@ -533,6 +531,12 @@ contains
     !pesoBZ = vnorm2/zeta_function
     !if(finiteT)pesoBZ = vnorm2*exp(-beta*(Ei-Egs))/zeta_function
     !
+#ifdef _MPI
+    if(MpiStatus)then
+       call Bcast_MPI(MpiComm,alanc)
+       call Bcast_MPI(MpiComm,blanc)
+    endif
+#endif
     diag             = 0.d0
     subdiag          = 0.d0
     Z                = eye(Nlanc)

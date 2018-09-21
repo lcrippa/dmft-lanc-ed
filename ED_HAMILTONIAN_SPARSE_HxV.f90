@@ -45,6 +45,10 @@ contains
     integer,dimension(Ns_Ud,Ns_Orb)      :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)                :: Nup,Ndw    ![Ns]
     !
+#ifdef _MPI
+    if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
+#endif
+    !
     if(.not.Hstatus)stop "ed_buildh_main ERROR: Hsector NOT set"
     isector=Hsector
     !
@@ -114,6 +118,10 @@ contains
     integer,dimension(2*Ns_Ud)          :: Indices    ![2-2*Norb]
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: Nup,Ndw    ![Ns]
+    !
+#ifdef _MPI
+    if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
+#endif
     !
     if(.not.Hstatus)stop "ed_buildh_main ERROR: Hsector NOT set"
     isector=Hsector
@@ -343,7 +351,6 @@ contains
     integer                          :: i,iup,idw,j,jup,jdw,jj
     !local MPI
     integer                          :: irank
-    integer                          :: MpiQup,MpiQdw
     !
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     if(.not.MpiStatus)stop "spMatVec_mpi_cc ERROR: MpiStatus = F"
@@ -355,12 +362,6 @@ contains
           Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(i)
        end do
     end do
-    !
-    mpiQdw=DimDw/MpiSize
-    if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
-    !
-    mpiQup=DimUp/MpiSize
-    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     !
     !
     !Non-local terms.
@@ -380,6 +381,10 @@ contains
     !
     !DW part: non-contiguous in memory -> MPI transposition
     !Transpose the input vector as a whole:
+    !
+    mpiQup=DimUp/MpiSize
+    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
+    !
     allocate(vt(mpiQup*DimDw)) ;vt=0d0
     allocate(Hvt(mpiQup*DimDw));Hvt=0d0
     call vector_transpose_MPI(DimUp,MpiQdw,v,DimDw,MpiQup,vt)
@@ -415,7 +420,6 @@ contains
     integer,dimension(2*Ns_Ud)       :: Indices,Jndices
     !local MPI
     integer                          :: irank
-    integer                          :: MpiQup,MpiQdw
     !
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     if(.not.MpiStatus)stop "spMatVec_mpi_cc ERROR: MpiStatus = F"
@@ -427,12 +431,6 @@ contains
           Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(i)
        end do
     end do
-    !
-    mpiQdw=DimDw/MpiSize
-    if(MpiRank<mod(DimDw,MpiSize))MpiQdw=MpiQdw+1
-    !
-    mpiQup=DimUp/MpiSize
-    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     !
     !
     !Non-local terms.
@@ -457,6 +455,10 @@ contains
     !
     !DW part: non-contiguous in memory -> MPI transposition
     !Transpose the input vector as a whole:
+    !
+    mpiQup=DimUp/MpiSize
+    if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
+    !
     allocate(vt(mpiQup*DimDw)) ;vt=0d0
     allocate(Hvt(mpiQup*DimDw));Hvt=0d0
     call vector_transpose_MPI(DimUp,MpiQdw,v,DimDw,MpiQup,vt)

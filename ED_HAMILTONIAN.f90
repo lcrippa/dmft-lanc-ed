@@ -7,16 +7,10 @@ MODULE ED_HAMILTONIAN
   private
 
 
-  !>Related auxiliary routines:
-  public  :: ed_hamiltonian_matvec_set_MPI
-  public  :: ed_hamiltonian_matvec_del_MPI
-
-
   !>Build sparse hamiltonian of the sector
-  public  :: vecDim_Hv_sector
   public  :: build_Hv_sector
   public  :: delete_Hv_sector
-
+  public  :: vecDim_Hv_sector
 
   !>Sparse Mat-Vec product using stored sparse matrix
   public  :: spMatVec_main
@@ -35,39 +29,10 @@ MODULE ED_HAMILTONIAN
   public  :: directMatVec_MPI_orbs
 #endif
 
+
+
+
 contains
-
-
-
-  !####################################################################
-  !                      AUXILIARY MPI ROUTINES
-  !####################################################################
-  subroutine ed_hamiltonian_matvec_set_MPI(comm_)
-#ifdef _MPI
-    integer :: comm_
-    MpiComm = comm_
-    MpiStatus=.true.
-    MpiRank = get_Rank_MPI(MpiComm)
-    MpiSize = get_Size_MPI(MpiComm)
-    MpiMaster= get_Master_MPI(MpiComm)
-#else
-    integer,optional :: comm_
-#endif
-  end subroutine ed_hamiltonian_matvec_set_MPI
-
-
-  subroutine ed_hamiltonian_matvec_del_MPI()
-#ifdef _MPI
-    MpiComm = MPI_UNDEFINED
-#else
-    MpiComm = 0
-#endif
-    MpiStatus=.false.
-    MpiRank=0
-    MpiSize=1
-  end subroutine ed_hamiltonian_matvec_del_MPI
-
-
 
 
 
@@ -75,41 +40,10 @@ contains
   !####################################################################
   !                 MAIN ROUTINES: BUILD/DELETE SECTOR
   !####################################################################
-  function vecDim_Hv_sector(isector) result(vecDim)
-    integer :: isector
-    integer :: vecDim
-    integer :: mpiQdw
-    integer :: DimUps(Ns_Ud),DimUp
-    integer :: DimDws(Ns_Ud),DimDw
-    !
-    call get_DimUp(isector,DimUps) ; DimUp = product(DimUps)
-    call get_DimDw(isector,DimDws) ; DimDw = product(DimDws)
-    !
-#ifdef _MPI
-    if(MpiStatus)then
-       !Dw split:
-       mpiQdw = DimDw/MpiSize
-       if(MpiRank < mod(DimDw,MpiSize) ) MpiQdw = MpiQdw+1
-    else
-       mpiQdw = DimDw
-    endif
-#else
-    mpiQdw = DimDw
-#endif
-    !
-    vecDim=DimUp*mpiQdw
-    !
-  end function vecDim_Hv_sector
-
-
-
-
-
-
   subroutine build_Hv_sector(isector,Hmat)
     integer                         :: isector,SectorDim
     real(8),dimension(:,:),optional :: Hmat   
-    integer                         :: irank
+    integer                         :: irank,ierr
     integer                         :: i,iup,idw
     integer                         :: j,jup,jdw
     !
@@ -125,7 +59,27 @@ contains
     call get_DimDw(isector,DimDws)
     DimUp = product(DimUps)
     DimDw = product(DimDws)
-    Dim = getDim(isector)
+    Dim   = getDim(isector)
+    !
+    mpiAllThreads=.true.
+    !>PREAMBLE: check that split of the DW is performed with the minimum #cpu: no idle cpus allowed (with zero elements)
+#ifdef _MPI
+    if(DimDw < MpiSize)then
+       if(MpiMaster)then
+          write(*,*)"Reducing N_cpu to DimDw:",DimDw,MpiSize-DimDw
+       endif
+       allocate(MpiMembers(0:DimDw-1))
+       forall(irank=0:DimDw-1)MpiMembers(irank)=irank       
+       call Mpi_Group_Incl(MpiGroup_Global,DimDw,MpiMembers,MpiGroup,ierr)
+       call Mpi_Comm_create(MpiComm_Global,MpiGroup,MpiComm,ierr)
+       deallocate(MpiMembers)
+       mpiAllThreads=.false.
+    endif
+    if( MpiComm /= MPI_COMM_NULL )then
+       MpiRank = Get_Rank_MPI(MpiComm)
+       MpiSize = Get_Size_MPI(MpiComm)
+    endif
+#endif
     !
     !Dw split:
     mpiQdw = DimDw/MpiSize
@@ -134,21 +88,22 @@ contains
        mpiRdw = 0
        MpiQdw = MpiQdw+1
     endif
+    !
     !Total split: split DW \times UP
     mpiQ = DimUp*mpiQdw
     mpiR = DimUp*mpiRdw
     mpiIstart = 1 + MpiRank*mpiQ+mpiR
     mpiIend   = (MpiRank+1)*mpiQ+mpiR
     mpiIshift = MpiRank*mpiQ+mpiR
+    !
+    !
 #ifdef _MPI    
-    if(MpiStatus.AND.ed_verbose>4)then
+    if(MpiStatus.AND.ed_verbose>4.AND.(MpiComm/=Mpi_Comm_Null))then
        if(MpiMaster)write(LOGfile,*)&
-            "         mpiRank,   mpi_Q,   mpi_R,   mpi_Istart,   mpi_Iend,   mpi_Iend-mpi_Istart"
+            "         mpiRank,   mpi_Q,   mpi_R,      mpi_Qdw,      mpiR_dw,  mpi_Istart,  mpi_Iend,  mpi_Iend-mpi_Istart"
        do irank=0,MpiSize-1
           call Barrier_MPI(MpiComm)
-          if(MpiRank==irank)then
-             write(LOGfile,*)MpiRank,MpiQ,MpiR,MpiIstart,MpiIend,MpiIstart-MpiIend+1
-          endif
+          if(MpiRank==irank)write(*,*)MpiRank,MpiQ,MpiR,mpiQdw,MpiRdw,MpiIstart,MpiIend,MpiIend-MpiIstart+1
        enddo
        call Barrier_MPI(MpiComm)
     endif
@@ -198,8 +153,11 @@ contains
   end subroutine build_Hv_sector
 
 
+
+
+
   subroutine delete_Hv_sector()
-    integer :: iud
+    integer :: iud,ierr,i
     call delete_sector(Hsector,Hs)
     deallocate(Hs)
     deallocate(DimUps)
@@ -210,21 +168,63 @@ contains
     !There is no difference here between Mpi and serial version, as Local part was removed.
 #ifdef _MPI
     if(MpiStatus)then
-       if(spH0d%status)call sp_delete_matrix(MpiComm,spH0d)
+       call sp_delete_matrix(MpiComm,spH0d)
     else
-       if(spH0d%status)call sp_delete_matrix(spH0d)
+       call sp_delete_matrix(spH0d)
     endif
 #else
-    if(spH0d%status)call sp_delete_matrix(spH0d)
+    call sp_delete_matrix(spH0d)
 #endif
     do iud=1,Ns_Ud
-       if(spH0ups(iud)%status)call sp_delete_matrix(spH0ups(iud))
-       if(spH0dws(iud)%status)call sp_delete_matrix(spH0dws(iud))
+       call sp_delete_matrix(spH0ups(iud))
+       call sp_delete_matrix(spH0dws(iud))
     enddo
     !
     spHtimesV_p => null()
     !
+#ifdef _MPI
+    if(MpiStatus)then
+       if(MpiGroup/=Mpi_Group_Null)call Mpi_Group_free(MpiGroup,ierr)
+       if(MpiComm/=Mpi_Comm_Null.AND.MpiComm/=Mpi_Comm_World)&
+            call Mpi_Comm_Free(MpiComm,ierr)
+       MpiComm = MpiComm_Global
+       MpiSize = get_Size_MPI(MpiComm_Global)
+       MpiRank = get_Rank_MPI(MpiComm_Global)
+    endif
+#endif
+    !
   end subroutine delete_Hv_sector
+
+
+
+
+
+  
+  function vecDim_Hv_sector(isector) result(vecDim)
+    integer :: isector
+    integer :: vecDim
+    integer :: mpiQdw
+    integer :: DimUps(Ns_Ud),DimUp
+    integer :: DimDws(Ns_Ud),DimDw
+    !
+    call get_DimUp(isector,DimUps) ; DimUp = product(DimUps)
+    call get_DimDw(isector,DimDws) ; DimDw = product(DimDws)
+    !
+#ifdef _MPI
+    if(MpiStatus)then
+       !Dw split:
+       mpiQdw = DimDw/MpiSize
+       if(MpiRank < mod(DimDw,MpiSize) ) MpiQdw = MpiQdw+1
+    else
+       mpiQdw = DimDw
+    endif
+#else
+    mpiQdw = DimDw
+#endif
+    !
+    vecDim=DimUp*mpiQdw
+    !
+  end function vecDim_Hv_sector
 
 
 

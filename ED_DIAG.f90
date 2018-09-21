@@ -15,60 +15,16 @@ module ED_DIAG
   USE ED_EIGENSPACE
   USE ED_SETUP
   USE ED_HAMILTONIAN
-  !
-#ifdef _MPI
-  USE MPI
-  USE SF_MPI
-#endif
   implicit none
   private
 
 
   public :: diagonalize_impurity
 
-  public :: ed_diag_set_MPI
-  public :: ed_diag_del_MPI
 
-  !> MPI local variables (shared)
-#ifdef _MPI
-  integer :: MpiComm=MPI_UNDEFINED
-#else
-  integer :: MpiComm=0
-#endif
-  logical :: MpiStatus=.false.
-  integer :: Mpi_Size=1
-  integer :: Mpi_Rank=0
-  logical :: Mpi_Master=.true.  !
-  integer :: Mpi_Ierr
-
-  integer :: unit
 
 contains
 
-
-
-  !+-------------------------------------------------------------------+
-  !PURPOSE  : Setup the MPI-Parallel environment for ED_DIAG
-  !+------------------------------------------------------------------+
-  subroutine ed_diag_set_MPI(comm)
-#ifdef _MPI
-    integer :: comm
-    MpiComm  = comm
-    MpiStatus = .true.
-    Mpi_Size  = get_Size_MPI(MpiComm)
-    Mpi_Rank  = get_Rank_MPI(MpiComm)
-    Mpi_Master= get_Master_MPI(MpiComm)
-#else
-    integer,optional :: comm
-#endif
-  end subroutine ed_diag_set_MPI
-
-  subroutine ed_diag_del_MPI()
-#ifdef _MPI
-    MpiComm  = MPI_UNDEFINED
-    MpiStatus = .false.
-#endif
-  end subroutine ed_diag_del_MPI
 
 
 
@@ -79,7 +35,7 @@ contains
   ! GS, build the Green's functions calling all the necessary routines
   !+------------------------------------------------------------------+
   subroutine diagonalize_impurity()
-    call ed_diag_c
+    call ed_diag_d
     call ed_analysis
   end subroutine diagonalize_impurity
 
@@ -93,22 +49,23 @@ contains
   !PURPOSE  : diagonalize the Hamiltonian in each sector and find the 
   ! spectrum DOUBLE PRECISION
   !+------------------------------------------------------------------+
-  subroutine ed_diag_c
+  subroutine ed_diag_d
     integer             :: isector,Dim
+    integer             :: DimUps(Ns_Ud),DimUp
+    integer             :: DimDws(Ns_Ud),DimDw
     integer             :: Nups(Ns_Ud)
     integer             :: Ndws(Ns_Ud)
-    integer             :: i,j,iter,unit,vecDim
+    integer             :: i,j,iter,unit,vecDim,PvecDim
     integer             :: Nitermax,Neigen,Nblock
     real(8)             :: oldzero,enemin,Ei
     real(8),allocatable :: eig_values(:)
     real(8),allocatable :: eig_basis(:,:)
     logical             :: lanc_solve,Tflag,lanc_verbose,bool
-
     !
     if(state_list%status)call es_delete_espace(state_list)
     state_list=es_init_espace()
     oldzero=1000.d0
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        write(LOGfile,"(A)")"Diagonalize impurity H:"
        call start_timer()
     endif
@@ -138,18 +95,26 @@ contains
        !
        lanc_solve  = .true.
        if(Neigen==dim)lanc_solve=.false.
-       if(dim<=max(lanc_dim_threshold,MPI_SIZE))lanc_solve=.false.
+       if(dim<=max(lanc_dim_threshold,MPISIZE))lanc_solve=.false.
        !
-       if(MPI_MASTER)then
+       if(MPIMASTER)then
+          call get_DimUp(isector,DimUps) ; DimUp = product(DimUps)
+          call get_DimDw(isector,DimDws) ; DimDw = product(DimDws)
           if(ed_verbose>=3)then
              if(lanc_solve)then
-                write(LOGfile,"(1X,I4,A,I4,A6,"//str(Ns_Ud)//"I3,A6,"//str(Ns_Ud)//"I3,A6,I15,A12,3I6)")&
-                     iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
-                     getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
+                write(LOGfile,"(1X,I4,A,I4,A6,"&
+                     //str(Ns_Ud)//"I3,A6,"&
+                     //str(Ns_Ud)//"I3,A7,"&
+                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I15,A12,3I6)")&
+                     iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
+                     DimUps,DimDws,getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
              else
-                write(LOGfile,"(1X,I4,A,I4,A6,"//str(Ns_Ud)//"I3,A6,"//str(Ns_Ud)//"I3,A6,I15)")&
-                     iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dim=",&
-                     getdim(isector)
+                write(LOGfile,"(1X,I4,A,I4,A6,"&
+                     //str(Ns_Ud)//"I3,A6,"&
+                     //str(Ns_Ud)//"I3,A7,"&
+                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I15)")&
+                     iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
+                     DimUps,DimDws,getdim(isector)
              endif
           elseif(ed_verbose==1.OR.ed_verbose==2)then
              call eta(iter,count(twin_mask),LOGfile)
@@ -163,11 +128,11 @@ contains
           allocate(eig_values(Neigen))
           eig_values=0d0 
           !
+          call build_Hv_sector(isector)
+          !
           vecDim = vecDim_Hv_sector(isector)
           allocate(eig_basis(vecDim,Neigen))
           eig_basis=zero
-          !
-          call build_Hv_sector(isector)
           !
 #ifdef _MPI
           if(MpiStatus)then
@@ -184,6 +149,7 @@ contains
                tol=lanc_tolerance,&
                iverbose=(ed_verbose>3))
 #endif
+          if(MpiMaster.AND.ed_verbose>3)write(LOGfile,*)""
           call delete_Hv_sector()
        else
           allocate(eig_values(Dim))
@@ -194,11 +160,20 @@ contains
           eig_basis=0d0
           !
           call build_Hv_sector(isector,eig_basis)
-          call eigh(eig_basis,eig_values,'V','U')
-          if(dim==1)eig_basis(dim,dim)=one
+          !
+          if(MpiMaster)call eigh(eig_basis,eig_values,'V','U')
+          if(dim==1)eig_basis(dim,dim)=1d0
           !
           call delete_Hv_sector()
+#ifdef _MPI
+          if(MpiStatus)then
+             call Bcast_MPI(MpiComm,eig_values)
+             call Bcast_MPI(MpiComm,eig_basis)
+          endif
+#endif
        endif
+
+
        if(ed_verbose>=4)write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
        !
        if(finiteT)then
@@ -219,10 +194,10 @@ contains
           enddo
        endif
        !
-       if(MPI_MASTER)then
+       if(MPIMASTER)then
           unit=free_unit()
           open(unit,file="eigenvalues_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
-          call print_eigenvalues_list(isector,eig_values(1:Neigen),unit,lanc_solve)
+          call print_eigenvalues_list(isector,eig_values(1:Neigen),unit,lanc_solve,mpiAllThreads)
           close(unit)
        endif
        !
@@ -230,8 +205,8 @@ contains
        if(allocated(eig_basis))deallocate(eig_basis)
        !
     enddo sector
-    if(MPI_MASTER)call stop_timer(LOGfile)
-  end subroutine ed_diag_c
+    if(MPIMASTER)call stop_timer(LOGfile)
+  end subroutine ed_diag_d
 
 
 
@@ -264,7 +239,7 @@ contains
     integer             :: hist_n
     integer,allocatable :: list_sector(:),count_sector(:)    
     !POST PROCESSING:
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        open(free_unit(unit),file="state_list"//reg(ed_file_suffix)//".ed")
        call save_state_list(unit)
        close(unit)
@@ -285,7 +260,7 @@ contains
     !
     numgs=es_return_gs_degeneracy(state_list,gs_threshold)
     if(numgs>Nsectors)stop "ed_diag: too many gs"
-    if(MPI_MASTER.AND.ed_verbose>=2)then
+    if(MPIMASTER.AND.ed_verbose>=2)then
        do istate=1,numgs
           isector = es_return_sector(state_list,istate)
           Egs     = es_return_energy(state_list,istate)
@@ -301,7 +276,7 @@ contains
     !get histogram distribution of the sector contributing to the evaluated spectrum:
     !go through states list and update the neigen_sector(isector) sector-by-sector
     if(finiteT)then
-       if(MPI_MASTER)then
+       if(MPIMASTER)then
           unit=free_unit()
           open(unit,file="histogram_states"//reg(ed_file_suffix)//".ed",position='append')
           hist_n = Nsectors
@@ -354,19 +329,19 @@ contains
        Nsize= state_list%size
        if(exp(-beta*(Ec-Egs)) > cutoff)then
           lanc_nstates_total=lanc_nstates_total + lanc_nstates_step
-          if(MPI_MASTER)write(LOGfile,"(A,I4)")"Increasing lanc_nstates_total:",lanc_nstates_total
+          if(MPIMASTER)write(LOGfile,"(A,I4)")"Increasing lanc_nstates_total:",lanc_nstates_total
        else
           ! !Find the energy level beyond which cutoff condition is verified & cut the list to that size
           write(LOGfile,*)
           isector = es_return_sector(state_list,state_list%size)
           Ei      = es_return_energy(state_list,state_list%size)
           do while ( exp(-beta*(Ei-Egs)) <= cutoff )
-             if(ed_verbose>=1.AND.MPI_MASTER)write(LOGfile,"(A,I4,I5)")"Trimming state:",isector,state_list%size
+             if(ed_verbose>=1.AND.MPIMASTER)write(LOGfile,"(A,I4,I5)")"Trimming state:",isector,state_list%size
              call es_pop_state(state_list)
              isector = es_return_sector(state_list,state_list%size)
              Ei      = es_return_energy(state_list,state_list%size)
           enddo
-          if(ed_verbose>=1.AND.MPI_MASTER)then
+          if(ed_verbose>=1.AND.MPIMASTER)then
              write(LOGfile,*)"Trimmed state list:"          
              call print_state_list(LOGfile)
           endif
@@ -384,7 +359,7 @@ contains
     integer :: istate
     integer :: unit
     real(8) :: Estate
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        write(unit,"(A1,A6,A18,2x,A19,1x,2A10,A12)")"#","i","E_i","exp(-(E-E0)/T)","Sect","Dim","Indices:"
        do istate=1,state_list%size
           Estate  = es_return_energy(state_list,istate)
@@ -402,7 +377,7 @@ contains
     integer :: indices(2*Ns_Ud),isector
     integer :: istate
     integer :: unit
-    if(MPI_MASTER)then
+    if(MPIMASTER)then
        do istate=1,state_list%size
           isector = es_return_sector(state_list,istate)
           call get_Indices(isector,Ns_Orb,Indices)
@@ -412,14 +387,18 @@ contains
   end subroutine save_state_list
 
 
-  subroutine print_eigenvalues_list(isector,eig_values,unit,bool)
+  subroutine print_eigenvalues_list(isector,eig_values,unit,lanc,allt)
     integer              :: isector
     real(8),dimension(:) :: eig_values
     integer              :: unit,i,indices(2*Ns_Ud)
-    logical              :: bool
-    if(MPI_MASTER)then
-       if(bool)then
-          write(unit,"(A9,A15)")" # Sector","Indices"
+    logical              :: lanc,allt
+    if(MPIMASTER)then
+       if(lanc)then
+          if(allt)then
+             write(unit,"(A9,A15)")" # Sector","Indices"
+          else
+             write(unit,"(A10,A15)")" #T Sector","Indices"
+          endif
        else
           write(unit,"(A10,A15)")" #X Sector","Indices"
        endif
