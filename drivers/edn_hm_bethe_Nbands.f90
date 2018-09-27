@@ -14,7 +14,7 @@ program hm_Nbands_bethe
   real(8),dimension(:,:),allocatable          :: Dbands
   real(8),dimension(:,:),allocatable          :: Ebands
   real(8),dimension(:),allocatable            :: H0
-  real(8),dimension(:),allocatable            :: de
+  real(8),dimension(:),allocatable            :: de,dens
   !
   real(8),dimension(:),allocatable            :: Wband
   !
@@ -76,6 +76,7 @@ program hm_Nbands_bethe
   allocate(Sreal(Nspin,Nspin,Norb,Norb,Lreal))
   allocate(Greal(Nspin,Nspin,Norb,Norb,Lreal))
   allocate(Hloc(Nspin,Nspin,Norb,Norb))
+  allocate(dens(Norb))
   Hloc(1,1,:,:)=diag(H0)
 
 
@@ -103,15 +104,6 @@ program hm_Nbands_bethe
      !
      !Get the Weiss field/Delta function to be fitted
      call dmft_self_consistency(comm,Gmats,Smats,Weiss,Hloc,SCtype=cg_scheme)
-     ! if(master)then
-     !    if(cg_scheme=='weiss')then
-     !       call dmft_weiss(Gmats,Smats,Weiss,Hloc)
-     !    else
-     !       call dmft_delta(Gmats,Smats,Weiss,Hloc)
-     !    endif
-     ! endif
-     ! call Bcast_MPI(comm,Weiss)
-     !
      !
      !Perform the SELF-CONSISTENCY by fitting the new bath
      call ed_chi2_fitgf(comm,Weiss,bath,ispin=1)
@@ -121,8 +113,13 @@ program hm_Nbands_bethe
      Bath_=Bath
 
      !Check convergence (if required change chemical potential)
-     if(master)converged = check_convergence(Weiss(1,1,:,:,:),dmft_error,nsuccess,nloop,reset=.false.)
+     if(master)then
+        converged = check_convergence(Weiss(1,1,:,:,:),dmft_error,nsuccess,nloop,reset=.false.)
+        call ed_get_dens(dens)
+        call search_chemical_potential(xmu,sum(dens),converged)
+     endif
      call Bcast_MPI(comm,converged)
+     call Bcast_MPI(comm,xmu)
      !
      call end_loop
   enddo
@@ -134,7 +131,7 @@ program hm_Nbands_bethe
 
   call finalize_MPI()
 
-  
+
 end program hm_Nbands_bethe
 
 
