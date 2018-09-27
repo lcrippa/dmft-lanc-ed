@@ -114,7 +114,7 @@ program hm_Nbands_bethe
 
      !Check convergence (if required change chemical potential)
      if(master)then
-        converged = check_convergence(Weiss(1,1,:,:,:),dmft_error,nsuccess,nloop,reset=.false.)
+        converged = check_convergence(Weiss(1,1,1,1,:)+Weiss(1,1,2,2,:),dmft_error,nsuccess,nloop,reset=.false.)
         call ed_get_dens(dens)
         call search_chemical_potential(xmu,sum(dens),converged)
      endif
