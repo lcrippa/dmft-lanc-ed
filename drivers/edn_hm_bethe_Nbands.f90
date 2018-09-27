@@ -25,12 +25,12 @@ program hm_Nbands_bethe
   integer                                     :: comm,rank
   logical                                     :: master
 
+  
   call init_MPI()
   comm = MPI_COMM_WORLD
   call StartMsg_MPI(comm)
   rank = get_Rank_MPI(comm)
   master = get_Master_MPI(comm)
-
 
 
   call parse_cmd_variable(finput,"FINPUT",default='inputED.in')
