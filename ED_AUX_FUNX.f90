@@ -40,6 +40,9 @@ MODULE ED_AUX_FUNX
      module procedure c_nn2nso
   end interface nn2so_reshape
 
+  interface ed_search_variable
+     module procedure :: search_chemical_potential
+  end interface ed_search_variable
 
 
   public :: set_Hloc
@@ -50,9 +53,11 @@ MODULE ED_AUX_FUNX
   public :: nnn2lso_reshape
   public :: nn2so_reshape
   !
+  public :: ed_search_variable
   public :: search_chemical_potential
-  !
 
+
+  
 
 
 contains
@@ -376,6 +381,12 @@ contains
     logical,save          :: ireduce=.true.
     integer               :: unit
     !
+    inquire(file="var.restart",EXIST=bool)
+    if(bool)then
+       open(free_unit(unit),file="var.restart")
+       read(unit,*)var,ndelta
+    endif
+
     ndiff=ntmp-nread
     nratio = 0.5d0;!nratio = 1.d0/(6.d0/11.d0*pi)
     !
@@ -465,6 +476,10 @@ contains
     write(LOGfile,"(A,I5)")"count= ",count
     write(LOGfile,"(A,L2)")"Converged=",converged
     print*,""
+    !
+    open(free_unit(unit),file="var.restart")
+    write(unit,*)var,ndelta
+    close(unit)
     !
   end subroutine search_chemical_potential
 

@@ -25,7 +25,7 @@ program hm_Nbands_bethe
   integer                                     :: comm,rank
   logical                                     :: master
 
-  
+
   call init_MPI()
   comm = MPI_COMM_WORLD
   call StartMsg_MPI(comm)
@@ -121,7 +121,7 @@ program hm_Nbands_bethe
      call Bcast_MPI(comm,converged)
      call Bcast_MPI(comm,xmu)
      !
-     call end_loop
+     if(master)call end_loop
   enddo
 
 
