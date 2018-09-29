@@ -375,9 +375,9 @@ contains
     integer,save          :: count=0,totcount=0,i
     integer,save          :: nindex=0
     integer               :: nindex_old(3)
-    real(8)               :: ndelta_old,nratio
+    real(8)               :: ndelta_old,nratio,kcompr=0d0
     integer,save          :: nth_magnitude=-2,nth_magnitude_old=-2
-    real(8),save          :: nth=1.d-2
+    real(8),save          :: nth=1.d-2,var_old,ntmp_old
     logical,save          :: ireduce=.true.
     integer               :: unit
     !
@@ -386,11 +386,12 @@ contains
        if(bool)then
           open(free_unit(unit),file="var.restart")
           read(unit,*)var,ndelta
-          ndelta=abs(ndelta)
+          ndelta=abs(ndelta)*ncoeff
           close(unit)
        endif
     endif
     !
+
     ndiff=ntmp-nread
     nratio = 0.5d0;!nratio = 1.d0/(6.d0/11.d0*pi)
     !
@@ -430,6 +431,8 @@ contains
     !update chemical potential
     var=var+dble(nindex)*ndelta
     !
+    ! if(count>0)kcompr = (ntmp - ntmp_old)/(var - var_old)       
+    !
     !Print information
     write(LOGfile,"(A,f16.9,A,f15.9)")"n    = ",ntmp," /",nread
     if(nindex>0)then
@@ -440,9 +443,10 @@ contains
        write(LOGfile,"(A,I0,A1,es16.9,A)")"shift= ",nindex,"*",ndelta," ==="
     endif
     write(LOGfile,"(A,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nth
+    ! write(LOGfile,"(A,10F16.9)")"k    = ",kcompr,1d0/kcompr,ntmp,ntmp_old,ntmp-ntmp_old,var,var_old,var-var_old
     write(LOGfile,"(A,f15.9)")"var  = ",var
-    unit=free_unit()
-    open(unit,file="search_mu_iteration"//reg(ed_file_suffix)//".ed",position="append")
+
+    open(free_unit(unit),file="search_mu_iteration"//reg(ed_file_suffix)//".ed",position="append")
     write(unit,*)var,ntmp,ndiff
     close(unit)
     !
@@ -485,6 +489,9 @@ contains
     open(free_unit(unit),file="var.restart")
     write(unit,*)var,ndelta
     close(unit)
+    !
+    ntmp_old = ntmp
+    var_old  = var
     !
   end subroutine search_chemical_potential
 
