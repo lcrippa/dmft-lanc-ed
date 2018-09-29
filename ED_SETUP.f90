@@ -44,6 +44,7 @@ MODULE ED_SETUP
   
 #ifdef _MPI
   public :: scatter_vector_MPI
+  public :: scatter_basis_MPI
   public :: gather_vector_MPI
   public :: allgather_vector_MPI
 #endif
@@ -157,6 +158,7 @@ contains
     !
     allocate(getBathStride(Norb,Nbath));getBathStride=0
     allocate(twin_mask(Nsectors))
+    allocate(sectors_mask(Nsectors))
     allocate(neigen_sector(Nsectors))
     !
     !check finiteT
@@ -255,12 +257,12 @@ contains
   subroutine setup_global
     integer                          :: DimUp,DimDw
     integer                          :: DimUps(Ns_Ud),DimDws(Ns_Ud)
-    integer                          :: Indices(2*Ns_Ud)
+    integer                          :: Indices(2*Ns_Ud),Jndices(2*Ns_Ud)
     integer                          :: Nups(Ns_ud),Ndws(Ns_ud)
     integer                          :: Jups(Ns_ud),Jdws(Ns_ud)
     integer                          :: i,iud,iorb
     integer                          :: isector,jsector
-    integer                          :: unit,status,istate
+    integer                          :: unit,status,istate,ishift,isign
     logical                          :: IOfile
     integer                          :: list_len
     integer,dimension(:),allocatable :: list_sector
@@ -273,6 +275,7 @@ contains
        DimDw = product(DimDws)       
        getDim(isector)  = DimUp*DimDw
     enddo
+    !
     !
     inquire(file="state_list"//reg(ed_file_suffix)//".restart",exist=IOfile)
     if(IOfile)then
@@ -556,6 +559,24 @@ contains
   end subroutine scatter_vector_MPI
 
 
+  subroutine scatter_basis_MPI(MpiComm,v,vloc)
+    integer                :: MpiComm
+    real(8),dimension(:,:) :: v    !size[N,N]
+    real(8),dimension(:,:) :: vloc !size[Nloc,Neigen]
+    integer                :: N,Nloc,Neigen,i
+    N      = size(v,1)
+    Nloc   = size(vloc,1)
+    Neigen = size(vloc,2)
+    if( size(v,2) < Neigen ) stop "error scatter_basis_MPI: size(v,2) < Neigen"
+    !
+    do i=1,Neigen
+       call scatter_vector_MPI(MpiComm,v(:,i),vloc(:,i))
+    end do
+    !
+    return
+  end subroutine scatter_basis_MPI
+
+  
   !! AllGather Vloc on each thread into the array V: sum_threads(size(Vloc)) must be equal to size(v)
   subroutine gather_vector_MPI(MpiComm,vloc,v)
     integer                          :: MpiComm

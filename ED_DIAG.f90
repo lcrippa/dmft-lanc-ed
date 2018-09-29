@@ -6,7 +6,7 @@ module ED_DIAG
   USE SF_CONSTANTS
   USE SF_LINALG, only: eigh
   USE SF_TIMER,  only: start_timer,stop_timer,eta
-  USE SF_IOTOOLS, only:reg,free_unit
+  USE SF_IOTOOLS, only:reg,free_unit,file_length
   USE SF_STAT
   USE SF_SP_LINALG
   !
@@ -35,10 +35,10 @@ contains
   ! GS, build the Green's functions calling all the necessary routines
   !+------------------------------------------------------------------+
   subroutine diagonalize_impurity()
+    call ed_pre_diag
     call ed_diag_d
-    call ed_analysis
+    call ed_post_diag
   end subroutine diagonalize_impurity
-
 
 
 
@@ -59,7 +59,7 @@ contains
     integer             :: Nitermax,Neigen,Nblock
     real(8)             :: oldzero,enemin,Ei
     real(8),allocatable :: eig_values(:)
-    real(8),allocatable :: eig_basis(:,:)
+    real(8),allocatable :: eig_basis(:,:),eig_basis_tmp(:,:)
     logical             :: lanc_solve,Tflag,lanc_verbose,bool
     !
     if(state_list%status)call es_delete_espace(state_list)
@@ -75,6 +75,7 @@ contains
     !
     iter=0
     sector: do isector=1,Nsectors
+       if(.not.sectors_mask(isector))cycle sector
        if(.not.twin_mask(isector))cycle sector !cycle loop if this sector should not be investigated
        iter=iter+1
        call get_Nup(isector,nups)
@@ -91,7 +92,6 @@ contains
        Neigen   = min(dim,neigen_sector(isector))
        Nitermax = min(dim,lanc_niter)
        Nblock   = min(dim,lanc_ncv_factor*max(Neigen,lanc_nstates_sector) + lanc_ncv_add)
-       !
        !
        lanc_solve  = .true.
        if(Neigen==dim)lanc_solve=.false.
@@ -152,29 +152,37 @@ contains
           if(MpiMaster.AND.ed_verbose>3)write(LOGfile,*)""
           call delete_Hv_sector()
        else
-          allocate(eig_values(Dim))
-          eig_values=0d0
+          allocate(eig_values(Dim)) ; eig_values=0d0
           !
-          vecDim = Dim
-          allocate(eig_basis(Dim,Dim))
-          eig_basis=0d0
+          allocate(eig_basis_tmp(Dim,Dim)) ; eig_basis_tmp=0d0
           !
-          call build_Hv_sector(isector,eig_basis)
+          call build_Hv_sector(isector,eig_basis_tmp)
           !
-          if(MpiMaster)call eigh(eig_basis,eig_values,'V','U')
-          if(dim==1)eig_basis(dim,dim)=1d0
+          if(MpiMaster)call eigh(eig_basis_tmp,eig_values,'V','U')
+          if(dim==1)eig_basis_tmp(dim,dim)=1d0
           !
           call delete_Hv_sector()
 #ifdef _MPI
           if(MpiStatus)then
              call Bcast_MPI(MpiComm,eig_values)
-             call Bcast_MPI(MpiComm,eig_basis)
+             vecDim = vecDim_Hv_sector(isector)
+             allocate(eig_basis(vecDim,Neigen)) ; eig_basis=0d0
+             call scatter_basis_MPI(MpiComm,eig_basis_tmp,eig_basis)
+          else
+             allocate(eig_basis(Dim,Neigen)) ; eig_basis=0d0
+             eig_basis = eig_basis_tmp(:,1:Neigen)
           endif
+#else
+          allocate(eig_basis(Dim,Neigen)) ; eig_basis=0d0
+          eig_basis = eig_basis_tmp(:,1:Neigen)
 #endif
        endif
-
-
-       if(ed_verbose>=4)write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
+       !
+       if(ed_verbose>=4)then
+          write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
+          write(LOGfile,*)""
+          write(LOGfile,*)""
+       endif
        !
        if(finiteT)then
           do i=1,Neigen
@@ -202,6 +210,7 @@ contains
        endif
        !
        if(allocated(eig_values))deallocate(eig_values)
+       if(allocated(eig_basis_tmp))deallocate(eig_basis_tmp)
        if(allocated(eig_basis))deallocate(eig_basis)
        !
     enddo sector
@@ -215,6 +224,61 @@ contains
 
 
 
+  !###################################################################################################
+  !
+  !    PRE-PROCESSING ROUTINES
+  !
+  !###################################################################################################
+  subroutine ed_pre_diag
+    integer                          :: Indices(2*Ns_Ud),Jndices(2*Ns_Ud)
+    integer                          :: Nups(Ns_ud),Ndws(Ns_ud)
+    integer                          :: Jups(Ns_ud),Jdws(Ns_ud)
+    integer                          :: i,iud,iorb
+    integer                          :: isector,jsector
+    integer                          :: unit,unit2,status,istate,ishift,isign
+    logical                          :: IOfile
+    integer                          :: list_len
+    integer,dimension(:),allocatable :: list_sector
+    !
+    sectors_mask=.true.
+    !
+    if(ed_sectors)then
+       inquire(file="sectors_list"//reg(ed_file_suffix)//".restart",exist=IOfile)
+       if(IOfile)then
+          sectors_mask=.false.
+          write(LOGfile,"(A)")"Analysing sectors_list to reduce sectors scan:"
+          list_len=file_length("sectors_list"//reg(ed_file_suffix)//".restart")
+          !
+          open(free_unit(unit),file="sectors_list"//reg(ed_file_suffix)//".restart",status="old")
+          open(free_unit(unit2),file="list_of_sectors"//reg(ed_file_suffix)//".ed")
+          do istate=1,list_len
+             read(unit,*,iostat=status)Indices
+             call get_Sector(Indices,Ns_Orb,isector)
+             sectors_mask(isector)=.true.
+             write(unit2,*)isector,sectors_mask(isector),Indices
+             !
+             do i=1,2*Ns_Ud
+                do ishift=1,ed_sectors_shift
+                   do isign=-1,1,2
+                      Jndices    = Indices
+                      Jndices(i) = Indices(i) + isign*ishift
+                      call get_Sector(Jndices,Ns_Orb,jsector)
+                      sectors_mask(jsector)=.true.
+                      write(unit2,*)jsector,sectors_mask(jsector),Jndices
+                   enddo
+                enddo
+             enddo
+             !
+          enddo
+          close(unit)
+          close(unit2)
+          !
+       endif
+    endif
+    !
+  end subroutine ed_pre_diag
+
+
 
 
   !###################################################################################################
@@ -226,11 +290,11 @@ contains
   !PURPOSE  : analyse the spectrum and print some information after 
   !lanczos diagonalization. 
   !+------------------------------------------------------------------+
-  subroutine ed_analysis()
+  subroutine ed_post_diag()
     integer             :: nup,ndw,sz,n,isector,dim
     integer             :: istate
     integer             :: i,unit
-    integer             :: nups(Ns_Ud),ndws(Ns_Ud)
+    integer             :: nups(Ns_Ud),ndws(Ns_Ud),Indices(2*Ns_Ud)
     integer             :: Nsize,NtoBremoved,nstates_below_cutoff
     integer             :: numgs
     real(8)             :: Egs,Ei,Ec,Etmp
@@ -273,9 +337,18 @@ contains
     !
     !
     !
-    !get histogram distribution of the sector contributing to the evaluated spectrum:
-    !go through states list and update the neigen_sector(isector) sector-by-sector
-    if(finiteT)then
+    if(.not.finiteT)then
+       !generate a sector_list to be reused in case we want to reduce sectors scan
+       open(free_unit(unit),file="sectors_list"//reg(ed_file_suffix)//".restart")       
+       do istate=1,state_list%size
+          isector = es_return_sector(state_list,istate)
+          call get_Indices(isector,Ns_Orb,Indices)
+          write(unit,*)Indices
+       enddo
+       close(unit)
+    else
+       !get histogram distribution of the sector contributing to the evaluated spectrum:
+       !go through states list and update the neigen_sector(isector) sector-by-sector
        if(MPIMASTER)then
           unit=free_unit()
           open(unit,file="histogram_states"//reg(ed_file_suffix)//".ed",position='append')
@@ -351,7 +424,11 @@ contains
           !
        endif
     endif
-  end subroutine ed_analysis
+
+
+
+
+  end subroutine ed_post_diag
 
 
   subroutine print_state_list(unit)

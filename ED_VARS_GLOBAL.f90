@@ -75,6 +75,7 @@ MODULE ED_VARS_GLOBAL
   integer,allocatable,dimension(:,:)                 :: getBathStride
   integer,allocatable,dimension(:,:)                 :: impIndex
   logical,allocatable,dimension(:)                   :: twin_mask
+  logical,allocatable,dimension(:)                   :: sectors_mask
 
   !Effective Bath used in the ED code (this is opaque to user)
   !PRIVATE

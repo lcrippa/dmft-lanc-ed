@@ -381,12 +381,16 @@ contains
     logical,save          :: ireduce=.true.
     integer               :: unit
     !
-    inquire(file="var.restart",EXIST=bool)
-    if(bool)then
-       open(free_unit(unit),file="var.restart")
-       read(unit,*)var,ndelta
+    if(count==0)then
+       inquire(file="var.restart",EXIST=bool)
+       if(bool)then
+          open(free_unit(unit),file="var.restart")
+          read(unit,*)var,ndelta
+          ndelta=abs(ndelta)
+          close(unit)
+       endif
     endif
-
+    !
     ndiff=ntmp-nread
     nratio = 0.5d0;!nratio = 1.d0/(6.d0/11.d0*pi)
     !
@@ -408,6 +412,7 @@ contains
        nindex=0
     endif
     !
+    !
     ndelta_old=ndelta
     bool=nindex/=0.AND.( (nindex+nindex_old(1)==0).OR.(nindex+sum(nindex_old(:))==0) )
     !if(nindex_old(1)+nindex==0.AND.nindex/=0)then !avoid loop forth and back
@@ -417,25 +422,25 @@ contains
        ndelta=ndelta_old
     endif
     !
-    if(ndelta_old<1.d-9)then
+    if(abs(ndelta_old)<1.d-9)then
        ndelta_old=0.d0
        nindex=0
     endif
+    !
     !update chemical potential
     var=var+dble(nindex)*ndelta
-    !xmu=xmu+dble(nindex)*ndelta
     !
     !Print information
     write(LOGfile,"(A,f16.9,A,f15.9)")"n    = ",ntmp," /",nread
     if(nindex>0)then
-       write(LOGfile,"(A,es16.9,A)")"shift= ",nindex*ndelta," ==>"
+       write(LOGfile,"(A,I0,A1,es16.9,A)")"shift= ",nindex,"*",ndelta," ==>"
     elseif(nindex<0)then
-       write(LOGfile,"(A,es16.9,A)")"shift= ",nindex*ndelta," <=="
+       write(LOGfile,"(A,I0,A1,es16.9,A)")"shift= ",nindex,"*",ndelta," <=="
     else
-       write(LOGfile,"(A,es16.9,A)")"shift= ",nindex*ndelta," == "
+       write(LOGfile,"(A,I0,A1,es16.9,A)")"shift= ",nindex,"*",ndelta," ==="
     endif
-    write(LOGfile,"(A,f15.9)")"var  = ",var
     write(LOGfile,"(A,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nth
+    write(LOGfile,"(A,f15.9)")"var  = ",var
     unit=free_unit()
     open(unit,file="search_mu_iteration"//reg(ed_file_suffix)//".ed",position="append")
     write(unit,*)var,ntmp,ndiff
