@@ -183,14 +183,16 @@ contains
           !
           nlanc=min(jdim,lanc_nGFiter)
           allocate(alfa_(nlanc),beta_(nlanc))
+          alfa_=0.d0
+          beta_=0.d0
           !
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             call Bcast_MPI(MpiComm,norm2)
+             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -244,14 +246,16 @@ contains
           !
           nlanc=min(jdim,lanc_nGFiter)
           allocate(alfa_(nlanc),beta_(nlanc))
+          alfa_=0.d0
+          beta_=0.d0
           !
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             call Bcast_MPI(MpiComm,norm2)
+             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -386,14 +390,16 @@ contains
           !
           nlanc=min(jdim,lanc_nGFiter)
           allocate(alfa_(nlanc),beta_(nlanc))
+          alfa_=0.d0
+          beta_=0.d0
           !           
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             call Bcast_MPI(MpiComm,norm2)
+             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -462,14 +468,16 @@ contains
           !
           nlanc=min(jdim,lanc_nGFiter)
           allocate(alfa_(nlanc),beta_(nlanc))
+          alfa_=0.d0
+          beta_=0.d0
           !
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             call Bcast_MPI(MpiComm,norm2)
+             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -533,8 +541,8 @@ contains
     !
 #ifdef _MPI
     if(MpiStatus)then
-       call Bcast_MPI(MpiComm,alanc)
-       call Bcast_MPI(MpiComm,blanc)
+       if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,alanc)
+       if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,blanc)
     endif
 #endif
     diag             = 0.d0
