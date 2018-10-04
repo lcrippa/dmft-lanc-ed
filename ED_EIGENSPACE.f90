@@ -295,11 +295,14 @@ contains        !some routine to perform simple operation on the lists
        !    space%emax=-huge(1.d0)
        !    space%emin=huge(1.d0)
        ! else
-       if(pos==space%size)then     !pop last term carrying e=emax, update emax
-          space%emax = p%e
-       elseif(pos==1)then          !pop first term carrying e=emin, update emin
-          space%emin = p%e
-       endif
+       ! if(pos==space%size)then     !pop last term carrying e=emax, update emax
+       !    space%emax = p%e
+       ! elseif(pos==1)then          !pop first term carrying e=emin, update emin
+       !    space%emin = p%e
+       ! endif
+       !
+       space%max = es_return_energy(space,space%size)
+       space%min = es_return_energy(space,1)
     endif
     pp=>null()
     p =>null()
