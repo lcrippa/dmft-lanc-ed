@@ -155,7 +155,7 @@ contains
           jDimDw = product(jDimDws)
           !The Op|gs> is worked out by the master only:
           if(MpiMaster)then
-             if(ed_verbose==3)write(LOGfile,"(A,I6)")' add particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I6)")' add particle:',jsector
              !
              allocate(vvinit(jdim)) ; vvinit=zero
              !
@@ -217,7 +217,7 @@ contains
           jDimDw = product(jDimDws)
           !
           if(MpiMaster)then
-             if(ed_verbose==3)write(LOGfile,"(A,I6)")' del particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I6)")' del particle:',jsector
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
@@ -342,7 +342,7 @@ contains
           call get_DImDw(jsector,jDimDws)
           !
           if(MpiMaster)then
-             if(ed_verbose==3)write(LOGfile,"(A,I15)")' add particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I15)")' add particle:',jsector
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
@@ -418,7 +418,7 @@ contains
           call get_DImDw(jsector,jDimDws)
           !
           if(MpiMaster)then
-             if(ed_verbose==3)write(LOGfile,"(A,I15)")' del particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I15)")' del particle:',jsector
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
