@@ -48,7 +48,7 @@ program ed_wsm_slab
   call StartMsg_MPI(comm)
   rank = get_Rank_MPI(comm)
   master = get_Master_MPI(comm)
-
+  !
   call parse_cmd_variable(finput,"FINPUT",default='inputED_WSM_SLAB.conf')
   call parse_input_variable(akrange,"AKRANGE",finput,default=5.d0)
   call parse_input_variable(hkfile,"HKFILE",finput,default="hkfile.in")
@@ -125,20 +125,20 @@ program ed_wsm_slab
   allocate(Hloc_ineq(Nineq,Nspin,Nspin,Norb,Norb));Hloc_ineq=zero
 
 
-  if(master)call read_sigma_matsubara(Smats)
-  do ilat=1,Nlat
-    S0(ilat,:,:,:,:)      = Smats(ilat,:,:,:,:,1)
-  enddo
-  do ilat=1,Nlat
-     Zfoo(ilat,:,:)        = select_block(ilat,S0)
-     do iorb=1,Nso
-        i = iorb + (ilat-1)*Nso
-        Zmats(i,i)  = 1.d0/( 1.d0 + abs( dimag(Zfoo(ilat,iorb,iorb))/(pi/beta) ))
-     enddo
-  enddo
-  if(master)call build_eigenbands()
+  !if(master)call read_sigma_matsubara(Smats)
+  !do ilat=1,Nlat
+  !  S0(ilat,:,:,:,:)      = Smats(ilat,:,:,:,:,1)
+  !enddo
+  !do ilat=1,Nlat
+  !   Zfoo(ilat,:,:)        = select_block(ilat,S0)
+  !   do iorb=1,Nso
+  !      i = iorb + (ilat-1)*Nso
+  !      Zmats(i,i)  = 1.d0/( 1.d0 + abs( dimag(Zfoo(ilat,iorb,iorb))/(pi/beta) ))
+  !   enddo
+  !enddo
+  !if(master)call build_eigenbands()
   !if(master)call get_Akw()
-  STOP
+  !STOP
 
   !Buil the Hamiltonian on a grid or on  path
   call build_hkr(trim(hkfile))

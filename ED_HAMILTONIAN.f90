@@ -64,18 +64,20 @@ contains
     mpiAllThreads=.true.
     !>PREAMBLE: check that split of the DW is performed with the minimum #cpu: no idle cpus allowed (with zero elements)
 #ifdef _MPI
-    if(DimDw < MpiSize)then
-       if(MpiMaster.AND.ed_verbose>4)write(*,*)"Reducing N_cpu to DimDw:",DimDw,MpiSize-DimDw
-       allocate(MpiMembers(0:DimDw-1))
-       forall(irank=0:DimDw-1)MpiMembers(irank)=irank       
-       call Mpi_Group_Incl(MpiGroup_Global,DimDw,MpiMembers,MpiGroup,ierr)
-       call Mpi_Comm_create(MpiComm_Global,MpiGroup,MpiComm,ierr)
-       deallocate(MpiMembers)
-       mpiAllThreads=.false.
-    endif
-    if( MpiComm /= MPI_COMM_NULL )then
-       MpiRank = Get_Rank_MPI(MpiComm)
-       MpiSize = Get_Size_MPI(MpiComm)
+    if (MpiStatus)then
+      if(DimDw < MpiSize)then
+         if(MpiMaster.AND.ed_verbose>4)write(*,*)"Reducing N_cpu to DimDw:",DimDw,MpiSize-DimDw
+         allocate(MpiMembers(0:DimDw-1))
+         forall(irank=0:DimDw-1)MpiMembers(irank)=irank       
+         call Mpi_Group_Incl(MpiGroup_Global,DimDw,MpiMembers,MpiGroup,ierr)
+         call Mpi_Comm_create(MpiComm_Global,MpiGroup,MpiComm,ierr)
+         deallocate(MpiMembers)
+         mpiAllThreads=.false.
+      endif
+      if( MpiComm /= MPI_COMM_NULL )then
+         MpiRank = Get_Rank_MPI(MpiComm)
+         MpiSize = Get_Size_MPI(MpiComm)
+      endif
     endif
 #endif
     !
