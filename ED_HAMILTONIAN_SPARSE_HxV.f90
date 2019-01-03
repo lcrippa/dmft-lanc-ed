@@ -63,11 +63,17 @@ contains
     if(MpiStatus)then
        call sp_set_mpi_matrix(MpiComm,spH0d,mpiIstart,mpiIend,mpiIshift)
        call sp_init_matrix(MpiComm,spH0d,Dim)
+       if(Jhflag)then
+          call sp_set_mpi_matrix(MpiComm,spH0nd,mpiIstart,mpiIend,mpiIshift)
+          call sp_init_matrix(MpiComm,spH0nd,Dim)
+       endif
     else
        call sp_init_matrix(spH0d,Dim)
+       if(Jhflag)call sp_init_matrix(spH0nd,Dim)
     endif
 #else
     call sp_init_matrix(spH0d,Dim)
+    if(Jhflag)call sp_init_matrix(spH0nd,Dim)
 #endif
     call sp_init_matrix(spH0dws(1),DimDw)
     call sp_init_matrix(spH0ups(1),DimUp)
@@ -75,6 +81,11 @@ contains
     !-----------------------------------------------!
     !LOCAL HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/stored/H_local.f90"
+    !
+    !NON-LOCAL HAMILTONIAN TERMS
+    if(jhflag)then
+       include "ED_HAMILTONIAN/stored/H_non_local.f90"
+    endif
     !
     !UP TERMS
     include "ED_HAMILTONIAN/stored/H_up.f90"
@@ -91,16 +102,19 @@ contains
 #ifdef _MPI
        if(MpiStatus)then
           call sp_dump_matrix(MpiComm,spH0d,Hmat)
+          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
        else
           call sp_dump_matrix(spH0d,Hmat)
+          if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
        endif
 #else
        call sp_dump_matrix(spH0d,Hmat)
+       if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
 #endif
        call sp_dump_matrix(spH0ups(1),Htmp_up)
        call sp_dump_matrix(spH0dws(1),Htmp_dw)
-       Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw) ! kron(eye(DimDw),Htmp_up)
-       Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw)) ! kron(Htmp_dw,eye(DimUp))
+       Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
+       Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))
        !
        deallocate(Htmp_up,Htmp_dw)
     endif
@@ -109,6 +123,9 @@ contains
     return
     !
   end subroutine ed_buildh_main
+
+
+
 
 
   subroutine ed_buildh_orbs(isector,Hmat)
@@ -255,6 +272,7 @@ contains
     !
     Hv=0d0
     !
+    !Local:
     do i = 1,Nloc
        do j=1,spH0d%row(i)%Size
           Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(spH0d%row(i)%cols(j))
@@ -292,6 +310,17 @@ contains
        enddo
        !
     enddo
+    !
+    !Non-Local:
+    if(jhflag)then
+       do i = 1,Nloc
+          do j=1,spH0nd%row(i)%Size
+             val   = spH0nd%row(i)%vals(j)
+             jj    = spH0nd%row(i)%cols(j)
+             Hv(i) = Hv(i) + val*V(jj)
+          enddo
+       enddo
+    endif
     !
   end subroutine spMatVec_main
 
@@ -347,10 +376,13 @@ contains
     !
     integer                          :: N
     real(8),dimension(:),allocatable :: vt,Hvt
+    real(8),dimension(:),allocatable :: vin
     real(8)                          :: val
     integer                          :: i,iup,idw,j,jup,jdw,jj
     !local MPI
-    integer                          :: irank
+    integer                          :: irank,MpiIerr
+    integer,allocatable,dimension(:) :: Counts
+    integer,allocatable,dimension(:) :: Offset
     !
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     if(.not.MpiStatus)stop "spMatVec_mpi_cc ERROR: MpiStatus = F"
@@ -362,7 +394,6 @@ contains
           Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(i)
        end do
     end do
-    !
     !
     !Non-local terms.
     !UP part: contiguous in memory.
@@ -381,7 +412,6 @@ contains
     !
     !DW part: non-contiguous in memory -> MPI transposition
     !Transpose the input vector as a whole:
-    !
     mpiQup=DimUp/MpiSize
     if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
     !
@@ -404,7 +434,41 @@ contains
     deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ; vt=0d0
     call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt)
     Hv = Hv + Vt
+    deallocate(vt)
+    !
+    !
+    !Non-Local:
+    if(jhflag)then
+       N = 0
+       call AllReduce_MPI(MpiComm,Nloc,N)
+       ! !
+       ! allocate(Counts(0:MpiSize-1)) ; Counts(0:)=0
+       ! allocate(Offset(0:MpiSize-1)) ; Offset(0:)=0
+       ! !
+       ! Counts(0:)        = N/MpiSize
+       ! Counts(MpiSize-1) = N/MpiSize+mod(N,MpiSize)
+       ! !
+       ! do i=1,MpiSize-1
+       !    Offset(i) = Counts(i-1) + Offset(i-1)
+       ! enddo
+       ! !
+       allocate(vt(N)) ; vt = 0d0
+       ! call MPI_Allgatherv(&
+       !      v(1:Nloc),Nloc,MPI_Double_Precision,&
+       !      Vt       ,Counts,Offset,MPI_Double_Precision,&
+       !      MpiComm,MpiIerr)
+       call allgather_vector_MPI(MpiComm,v,vt)
+       !
+       do i=1,Nloc
+          matmul: do j=1,spH0nd%row(i)%Size
+             Hv(i) = Hv(i) + spH0nd%row(i)%vals(j)*Vt(spH0nd%row(i)%cols(j))
+          enddo matmul
+       enddo
+       deallocate(Vt)
+    endif
+    !
   end subroutine spMatVec_mpi_main
+
 
   subroutine spMatVec_mpi_orbs(Nloc,v,Hv)
     integer                          :: Nloc

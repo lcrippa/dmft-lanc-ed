@@ -56,18 +56,22 @@ contains
     !Get diagonal hybridization, bath energy
     include "ED_HAMILTONIAN/diag_hybr_bath.f90"
     !
-    !
     Hv=0d0
     !
     !-----------------------------------------------!
     !LOCAL HAMILTONIAN PART: H_loc*vin = vout
-    include "ED_HAMILTONIAN/direct/HxV_local.f90" 
+    include "ED_HAMILTONIAN/direct/HxV_local.f90"
     !
     !UP HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/direct/HxV_up.f90"
     !    
     !DW HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/direct/HxV_dw.f90"
+    !
+    !NON-LOCAL HAMILTONIAN PART: H_non_loc*vin = vout
+    if(Jhflag)then
+       include "ED_HAMILTONIAN/direct/HxV_non_local.f90"
+    endif
     !-----------------------------------------------!
     !
     deallocate(diag_hybr,bath_diag)
@@ -95,7 +99,6 @@ contains
     !Get diagonal hybridization, bath energy
     include "ED_HAMILTONIAN/diag_hybr_bath.f90"
     !
-    !
     Hv=0d0
     !
     !-----------------------------------------------!
@@ -121,7 +124,7 @@ contains
 
 #ifdef _MPI
   subroutine directMatVec_MPI_main(Nloc,vin,Hv)
-    integer                             :: Nloc
+    integer                             :: Nloc,N
     real(8),dimension(Nloc)             :: Vin
     real(8),dimension(Nloc)             :: Hv
     real(8),dimension(:),allocatable    :: vt,Hvt
@@ -130,19 +133,19 @@ contains
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: Nup,Ndw
     !
-    integer,allocatable,dimension(:)    :: Counts,Displs
+    integer                             :: MpiIerr
+    integer,allocatable,dimension(:)    :: Counts
+    integer,allocatable,dimension(:)    :: Offset
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
     !
     !Get diagonal hybridization, bath energy
     include "ED_HAMILTONIAN/diag_hybr_bath.f90"
-    !
     !    
     if(MpiComm==MPI_UNDEFINED.OR.MpiComm==Mpi_Comm_Null)&
          stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
     ! if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
-    !
     !
     Hv=0d0
     !
@@ -150,10 +153,8 @@ contains
     !LOCAL HAMILTONIAN PART: H_loc*vin = vout
     include "ED_HAMILTONIAN/direct_mpi/HxV_local.f90"
     !
-    !NON-LOCAL TERMS:
-    ! 
     !UP HAMILTONIAN TERMS: MEMORY CONTIGUOUS
-    include "ED_HAMILTONIAN/direct_mpi/HxV_up.f90"    
+    include "ED_HAMILTONIAN/direct_mpi/HxV_up.f90"
     !
     !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
     mpiQup=DimUp/MpiSize
@@ -165,6 +166,32 @@ contains
     deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0         !reallocate Vt
     call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt) !Hvt^T --> Vt
     Hv = Hv + Vt
+    deallocate(vt)
+    !
+    !NON-LOCAL HAMILTONIAN PART: H_non_loc*vin = vout
+    if(Jhflag)then
+       N = 0
+       call AllReduce_MPI(MpiComm,Nloc,N)
+       !
+       allocate(Counts(0:MpiSize-1)) ; Counts(0:)=0
+       allocate(Offset(0:MpiSize-1)) ; Offset(0:)=0
+       !
+       Counts(0:)        = N/MpiSize
+       Counts(MpiSize-1) = N/MpiSize+mod(N,MpiSize)
+       !
+       do i=1,MpiSize-1
+          Offset(i) = Counts(i-1) + Offset(i-1)
+       enddo
+       !
+       allocate(vt(N)) ; vt = 0d0
+       call MPI_Allgatherv(&
+            Vin(1:Nloc),Nloc,MPI_Double_Precision,&
+            Vt         ,Counts,Offset,MPI_Double_Precision,&
+            MpiComm,MpiIerr)
+       !
+       include "ED_HAMILTONIAN/direct_mpi/HxV_non_local.f90"
+       deallocate(Vt)
+    endif
     !-----------------------------------------------!
     !
     deallocate(diag_hybr,bath_diag)

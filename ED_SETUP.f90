@@ -67,6 +67,10 @@ contains
        call sleep(1)
     end if
     !
+    if(lanc_method=="lanczos")then
+       if(lanc_nstates_total>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_total==1, T=0"
+       if(lanc_nstates_sector>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_sector==1, T=0"
+    endif
   end subroutine ed_checks_global
 
 
@@ -631,7 +635,7 @@ contains
     MpiMaster = get_master_MPI(MpiComm)
     !
     Nloc = size(Vloc)
-    N = 0
+    N    = 0
     call AllReduce_MPI(MpiComm,Nloc,N)
     if(MpiMaster.AND.N /= size(V)) stop "gather_vector_MPI error: size(V) != Mpi_Allreduce(Nloc)"
     !
@@ -647,6 +651,7 @@ contains
        Offset(i) = Offset(i-1) + Counts(i-1)
     enddo
     !
+    V = 0d0
     call MPI_AllGatherv(Vloc,Nloc,MPI_DOUBLE_PRECISION,V,Counts,Offset,MPI_DOUBLE_PRECISION,MpiComm,MpiIerr)
     !
     return
