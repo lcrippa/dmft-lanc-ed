@@ -95,7 +95,7 @@ contains
           Nitermax = min(dim,lanc_niter)
           Nblock   = min(dim,lanc_ncv_factor*max(Neigen,lanc_nstates_sector) + lanc_ncv_add)
        case ("lanczos")
-          Neigen   = 1!min(dim,neigen_sector(isector))
+          Neigen   = 1
           Nitermax = min(dim,lanc_niter)
           Nblock   = 1
        end select

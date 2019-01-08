@@ -119,7 +119,7 @@ program hm_Nbands_bethe
      if(master)then
         converged = check_convergence(Weiss(1,1,1,1,:)+Weiss(1,1,2,2,:),dmft_error,nsuccess,nloop,reset=.false.)
         call ed_get_dens(dens)
-        call search_chemical_potential(xmu,sum(dens),converged)
+        if(nread/=0d0)call search_chemical_potential(xmu,sum(dens),converged)
      endif
      call Bcast_MPI(comm,converged)
      call Bcast_MPI(comm,xmu)
