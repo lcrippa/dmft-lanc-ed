@@ -68,10 +68,10 @@ contains
   !+----------------------------------------------------------------------+
   !                                NORMAL                                 !
   !+----------------------------------------------------------------------+
-  subroutine chi2_fitgf_generic_normal(fg,bath,ispin)
+  subroutine chi2_fitgf_generic_normal(fg,bath,ispin,iorb)
     complex(8),dimension(:,:,:,:,:) :: fg ![Nspin][Nspin][Norb][Norb][Niw] 
     real(8),dimension(:)            :: bath
-    integer,optional                :: ispin
+    integer,optional                :: ispin,iorb
     integer                         :: ispin_
     ispin_=1;if(present(ispin))ispin_=ispin
     call assert_shape(fg,[Nspin,Nspin,Norb,Norb,size(fg,5)],"chi2_fitgf_generic_normal","fg")
@@ -87,45 +87,57 @@ contains
        if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"\Chi2 fit with CG-plus and CG-weight: ",cg_weight," on: ",cg_scheme
     end select
     !
+    !
     select case(bath_type)
     case default
-       call chi2_fitgf_normal_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
+       if(present(iorb))then
+          call chi2_fitgf_normal_normal_OneOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_,iorb)
+       else
+          call chi2_fitgf_normal_normal_AllOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_)
+       endif
     case ("hybrid")
        call chi2_fitgf_hybrid_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
     case ("replica")
        call chi2_fitgf_replica(fg,bath)
     end select
+    !
     !set trim_state_list to true after the first fit has been done: this 
     !marks the ends of the cycle of the 1st DMFT loop.
     trim_state_list=.true.
   end subroutine chi2_fitgf_generic_normal
 
-  subroutine chi2_fitgf_generic_normal_NOSPIN(fg,bath,ispin)
+  
+  subroutine chi2_fitgf_generic_normal_NOSPIN(fg,bath,ispin,iorb)
     complex(8),dimension(:,:,:)                      :: fg ![Norb][Norb][Niw]
     complex(8),dimension(Nspin,Nspin,Norb,Norb,Lfit) :: fg_
     real(8),dimension(:),intent(inout)               :: bath
-    integer,optional                                 :: ispin
+    integer,optional                                 :: ispin,iorb
     integer                                          :: ispin_
     ispin_=1;if(present(ispin))ispin_=ispin
     if(size(fg,3)<Lfit)stop "chi2_fitgf_generic_normal_NOSPIN error: size[fg,3] < Lfit" 
     fg_=zero
     fg_(ispin_,ispin_,:,:,1:Lfit) = fg(:,:,1:Lfit)
-    call chi2_fitgf_generic_normal(fg_,bath,ispin_)
+    if(present(iorb))then
+       call chi2_fitgf_generic_normal(fg_,bath,ispin_,iorb)
+    else
+       call chi2_fitgf_generic_normal(fg_,bath,ispin_)
+    endif
   end subroutine chi2_fitgf_generic_normal_NOSPIN
 
 
 
 #ifdef _MPI
-  subroutine chi2_fitgf_generic_normal_mpi(comm,fg,bath,ispin)
+  subroutine chi2_fitgf_generic_normal_mpi(comm,fg,bath,ispin,iorb)
     integer                         :: comm
     complex(8),dimension(:,:,:,:,:) :: fg ![Nspin][Nspin][Norb][Norb][Niw] 
     real(8),dimension(:)            :: bath
-    integer,optional                :: ispin
+    integer,optional                :: ispin,iorb
     integer                         :: ispin_
     !
     MPI_MASTER=get_Master_MPI(comm)
     !
     ispin_=1;if(present(ispin))ispin_=ispin
+    !
     call assert_shape(fg,[Nspin,Nspin,Norb,Norb,size(fg,5)],"chi2_fitgf_generic_normal","fg")
     select case(cg_method)
     case default
@@ -141,7 +153,11 @@ contains
     if(MPI_MASTER)then
        select case(bath_type)
        case default
-          call chi2_fitgf_normal_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
+          if(present(iorb))then
+             call chi2_fitgf_normal_normal_OneOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_,iorb)
+          else
+             call chi2_fitgf_normal_normal_AllOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_)
+          endif
        case ("hybrid")
           call chi2_fitgf_hybrid_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
        case ("replica")
@@ -157,18 +173,22 @@ contains
     trim_state_list=.true.
   end subroutine chi2_fitgf_generic_normal_mpi
 
-  subroutine chi2_fitgf_generic_normal_NOSPIN_mpi(comm,fg,bath,ispin)
+  subroutine chi2_fitgf_generic_normal_NOSPIN_mpi(comm,fg,bath,ispin,iorb)
     integer :: comm
     complex(8),dimension(:,:,:)                      :: fg ![Norb][Norb][Niw]
     complex(8),dimension(Nspin,Nspin,Norb,Norb,Lfit) :: fg_
     real(8),dimension(:),intent(inout)               :: bath
-    integer,optional                                 :: ispin
+    integer,optional                                 :: ispin,iorb
     integer                                          :: ispin_
     ispin_=1;if(present(ispin))ispin_=ispin
     if(size(fg,3)<Lfit)stop "chi2_fitgf_generic_normal_NOSPIN error: size[fg,3] < Lfit" 
     fg_=zero
     fg_(ispin_,ispin_,:,:,1:Lfit) = fg(:,:,1:Lfit)
-    call chi2_fitgf_generic_normal_mpi(comm,fg_,bath,ispin_)
+    if(present(iorb))then
+       call chi2_fitgf_generic_normal_mpi(comm,fg_,bath,ispin_,iorb)
+    else
+       call chi2_fitgf_generic_normal_mpi(comm,fg_,bath,ispin_)
+    endif
   end subroutine chi2_fitgf_generic_normal_NOSPIN_mpi
 #endif
 

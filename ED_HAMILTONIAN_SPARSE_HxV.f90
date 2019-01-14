@@ -102,19 +102,32 @@ contains
 #ifdef _MPI
        if(MpiStatus)then
           call sp_dump_matrix(MpiComm,spH0d,Hmat)
-          if(Jhflag)call sp_dump_matrix(MpiComm,spH0nd,Hmat)
        else
           call sp_dump_matrix(spH0d,Hmat)
-          if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
        endif
 #else
        call sp_dump_matrix(spH0d,Hmat)
-       if(Jhflag)call sp_dump_matrix(spH0nd,Hmat)
 #endif
+       !
+       if(Jhflag)then
+          allocate(Hrdx(Dim,Dim));Hrdx=0d0
+#ifdef _MPI
+          if(MpiStatus)then
+             call sp_dump_matrix(MpiComm,spH0nd,Hrdx)
+          else
+             call sp_dump_matrix(spH0nd,Hrdx)
+          endif
+#else
+          call sp_dump_matrix(spH0nd,Hrdx)
+#endif
+          Hmat = Hmat + Hrdx
+          deallocate(Hrdx)
+       endif
+       !
        call sp_dump_matrix(spH0ups(1),Htmp_up)
        call sp_dump_matrix(spH0dws(1),Htmp_dw)
-       Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
-       Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))
+       Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
+       Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
        !
        deallocate(Htmp_up,Htmp_dw)
     endif
@@ -191,16 +204,19 @@ contains
        call sp_dump_matrix(spH0d,Hmat)
 #endif
        do iud=1,Ns_Ud
-          allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
-          call sp_dump_matrix(spH0ups(iud),Hrdx)
-          call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
-          Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))          
-          deallocate(Hrdx)
-          !
           allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0dws(iud),Hrdx)
           call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
-          Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
+          ! Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
+          Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
+
+          allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
+          call sp_dump_matrix(spH0ups(iud),Hrdx)
+          call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
+          ! Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))
+          Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
+          deallocate(Hrdx)
+          !
           deallocate(Hrdx)
        enddo
        !

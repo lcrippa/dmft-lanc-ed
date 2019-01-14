@@ -67,6 +67,12 @@ MODULE ED_BATH
   end interface orb_symmetrize_bath
   public :: orb_symmetrize_bath
 
+  interface orb_equality_bath
+     module procedure orb_equality_bath_site
+     module procedure orb_equality_bath_lattice
+  end interface orb_equality_bath
+  public :: orb_equality_bath
+
   interface ph_trans_bath
      module procedure ph_trans_bath_site
      module procedure ph_trans_bath_lattice

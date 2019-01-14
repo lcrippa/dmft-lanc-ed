@@ -109,7 +109,8 @@ program hm_Nbands_bethe
      call dmft_self_consistency(comm,Gmats,Smats,Weiss,Hloc,SCtype=cg_scheme)
      !
      !Perform the SELF-CONSISTENCY by fitting the new bath
-     call ed_chi2_fitgf(comm,Weiss,bath,ispin=1)
+     call ed_chi2_fitgf(comm,Weiss,bath,ispin=1)!,iorb=1)
+     ! call orb_equality_bath(bath,save=.true.)
      !
      !MIXING:
      if(iloop>1)Bath = wmixing*Bath + (1.d0-wmixing)*Bath_
@@ -118,8 +119,10 @@ program hm_Nbands_bethe
      !Check convergence (if required change chemical potential)
      if(master)then
         converged = check_convergence(Weiss(1,1,1,1,:)+Weiss(1,1,2,2,:),dmft_error,nsuccess,nloop,reset=.false.)
-        call ed_get_dens(dens)
-        if(nread/=0d0)call search_chemical_potential(xmu,sum(dens),converged)
+        if(nread/=0d0)then
+           call ed_get_dens(dens)
+           call search_chemical_potential(xmu,sum(dens),converged)
+        endif
      endif
      call Bcast_MPI(comm,converged)
      call Bcast_MPI(comm,xmu)

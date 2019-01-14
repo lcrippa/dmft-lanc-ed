@@ -46,6 +46,7 @@ MODULE DMFT_ED
        copy_component_bath                    ,&
        spin_symmetrize_bath                   ,&
        orb_symmetrize_bath                    ,&
+       orb_equality_bath                      ,&
        ph_symmetrize_bath                     ,&
        ph_trans_bath                          ,&
        break_symmetry_bath

@@ -554,6 +554,62 @@ end subroutine orb_symmetrize_bath_lattice
 
 !---------------------------------------------------------!
 
+
+subroutine orb_equality_bath_site(bath_,indx,save)
+  real(8),dimension(:)   :: bath_
+  type(effective_bath)   :: dmft_bath_
+  integer,optional       :: indx
+  logical,optional       :: save
+  integer                :: indx_
+  logical                :: save_
+  integer                :: iorb
+  real(8),allocatable    :: lvl(:,:),hyb(:,:)
+  indx_=1     ;if(present(indx))indx_=indx
+  save_=.true.;if(present(save))save_=save
+  if(Norb==1)then
+     write(LOGfile,"(A)")"orb_symmetrize_bath: Norb=1 nothing to symmetrize"
+     return
+  endif
+  !
+  call allocate_dmft_bath(dmft_bath_)
+  if (bath_type=="replica")call init_dmft_bath_mask(dmft_bath_)
+  call set_dmft_bath(bath_,dmft_bath_)
+  !
+  if (bath_type/="replica") then
+     if(allocated(lvl))deallocate(lvl);allocate(lvl(Nspin,Nbath));lvl=0d0;lvl=dmft_bath_%e(:,indx_,:)
+     if(allocated(hyb))deallocate(hyb);allocate(hyb(Nspin,Nbath));hyb=0d0;hyb=dmft_bath_%v(:,indx_,:)
+     do iorb=1,Norb
+        if(iorb==indx_)cycle
+        dmft_bath_%e(:,iorb,:)=lvl
+        dmft_bath_%v(:,iorb,:)=hyb
+     enddo
+  else
+     stop "orb equality not implemented for replica"
+  endif
+  if(save_)call save_dmft_bath(dmft_bath_)
+  call get_dmft_bath(dmft_bath_,bath_)
+  call deallocate_dmft_bath(dmft_bath_)
+end subroutine orb_equality_bath_site
+subroutine orb_equality_bath_lattice(bath_,indx,save)
+  real(8),dimension(:,:) :: bath_
+  integer,optional       :: indx
+  logical,optional       :: save
+  integer                :: indx_
+  logical                :: save_
+  integer                :: iorb
+  integer                :: Nsites,ilat
+  indx_=1     ;if(present(indx))indx_=indx
+  save_=.true.;if(present(save))save_=save
+  Nsites=size(bath_,1)
+  do ilat=1,Nsites
+     ed_file_suffix=reg(ineq_site_suffix)//reg(txtfy(ilat,site_indx_padding))
+     call orb_equality_bath_site(bath_(ilat,:),indx_,save_)
+  enddo
+  ed_file_suffix=""
+end subroutine orb_equality_bath_lattice
+
+
+
 subroutine ph_symmetrize_bath_site(bath_,save)
   real(8),dimension(:)   :: bath_
   type(effective_bath)   :: dmft_bath_
