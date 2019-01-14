@@ -15,7 +15,7 @@
 !+-------------------------------------------------------------+
 !PURPOSE  : Chi^2 interface for Irreducible bath normal phase
 !+-------------------------------------------------------------+
-subroutine chi2_fitgf_normal_normal(fg,bath_,ispin)
+subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
   complex(8),dimension(:,:,:)        :: fg ![Norb][Norb][Lmats]
   real(8),dimension(:),intent(inout) :: bath_
   integer                            :: ispin
@@ -175,8 +175,168 @@ contains
        close(unit)
     enddo
   end subroutine write_fit_result
-end subroutine chi2_fitgf_normal_normal
+end subroutine chi2_fitgf_normal_normal_AllOrb
 
+
+
+
+
+subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
+  complex(8),dimension(:,:,:)        :: fg ![Norb][Norb][Lmats]
+  real(8),dimension(:),intent(inout) :: bath_
+  integer                            :: ispin,iorb
+  real(8),dimension(:),allocatable   :: array_bath
+  integer                            :: iter,stride,i,io,j,Asize
+  real(8)                            :: chi
+  logical                            :: check
+  type(effective_bath)               :: dmft_bath
+  character(len=256)                 :: suffix
+  integer                            :: unit
+  !
+  if(size(fg,1)/=Norb)stop "chi2_fitgf_normal_normal error: size[fg,1]!=Norb"
+  if(size(fg,2)/=Norb)stop "chi2_fitgf_normal_normal error: size[fg,2]!=Norb"
+  !
+  check= check_bath_dimension(bath_)
+  if(.not.check)stop "chi2_fitgf_normal_normal error: wrong bath dimensions"
+  !
+  Ldelta = Lfit ; if(Ldelta>size(fg,3))Ldelta=size(fg,3)
+  !
+  allocate(Gdelta(1,Ldelta))
+  allocate(Xdelta(Ldelta))
+  allocate(Wdelta(Ldelta))
+  !
+  Xdelta = pi/beta*(2*arange(1,Ldelta)-1)
+  !
+  select case(cg_weight)
+  case default
+     Wdelta=1d0*Ldelta
+  case(1)
+     Wdelta=1d0
+  case(2)
+     Wdelta=1d0*arange(1,Ldelta)
+  case(3)
+     Wdelta=Xdelta
+  end select
+  !
+  call allocate_dmft_bath(dmft_bath)
+  call set_dmft_bath(bath_,dmft_bath)
+  !
+  !Asize = get_chi2_bath_size()
+  !E_{\s,\a}(:)  [ 1 ][ 1 ][Nbath]
+  !V_{\s,\a}(:)  [ 1 ][ 1 ][Nbath]
+  Asize = Nbath + Nbath
+  allocate(array_bath(Asize))
+  !
+  Orb_indx=iorb
+  Spin_indx=ispin
+  !
+  Gdelta(1,1:Ldelta) = fg(iorb,iorb,1:Ldelta)
+  !
+  !Nbath + Nbath
+  stride = 0
+  do i=1,Nbath
+     io = stride + i
+     array_bath(io) = dmft_bath%e(ispin,iorb,i)
+  enddo
+  stride = Nbath
+  do i=1,Nbath
+     io = stride + i
+     array_bath(io) = dmft_bath%v(ispin,iorb,i)
+  enddo
+  !
+  select case(cg_method)     !0=NR-CG[default]; 1=CG-MINIMIZE; 2=CG+
+  case default
+     select case (cg_scheme)
+     case ("weiss")
+        call fmin_cg(array_bath,chi2_weiss_normal_normal,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps)
+     case ("delta")
+        call fmin_cg(array_bath,chi2_delta_normal_normal,grad_chi2_delta_normal_normal,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps)
+     case default
+        stop "chi2_fitgf_normal_normal error: cg_scheme != [weiss,delta]"
+     end select
+     !
+  case (1)
+     select case (cg_scheme)
+     case ("weiss")
+        call fmin_cgminimize(array_bath,chi2_weiss_normal_normal,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+     case ("delta")
+        call fmin_cgminimize(array_bath,chi2_delta_normal_normal,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+     case default
+        stop "chi2_fitgf_normal_normal error: cg_scheme != [weiss,delta]"
+     end select
+     !
+  case (2)
+     select case (cg_scheme)
+     case ("weiss")
+        call fmin_cgplus(array_bath,chi2_weiss_normal_normal,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+     case ("delta")
+        call fmin_cgplus(array_bath,chi2_delta_normal_normal,grad_chi2_delta_normal_normal,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+     case default
+        stop "chi2_fitgf_normal_normal error: cg_scheme != [weiss,delta]"
+     end select
+     !
+  end select
+  !
+  !
+  write(LOGfile,"(A,ES18.9,A,I5,A)")&
+       "chi^2|iter"//reg(ed_file_suffix)//'= ',chi," | ",iter,&
+       "  <--  Orb"//reg(txtfy(iorb))//" Spin"//reg(txtfy(ispin))
+  !
+  suffix="_orb"//reg(txtfy(iorb))//"_s"//reg(txtfy(ispin))//reg(ed_file_suffix)
+  unit=free_unit()
+  open(unit,file="chi2fit_results"//reg(suffix)//".ed",position="append")
+  write(unit,"(ES18.9,1x,I5)") chi,iter
+  close(unit)
+  !
+  !Nbath + Nbath
+  stride = 0
+  do i=1,Nbath
+     io = stride + i
+     dmft_bath%e(ispin,iorb,i) = array_bath(io) 
+  enddo
+  stride = Nbath
+  do i=1,Nbath
+     io = stride + i
+     dmft_bath%v(ispin,iorb,i) = array_bath(io)
+  enddo
+  !
+  call write_dmft_bath(dmft_bath,LOGfile)
+  !
+  call save_dmft_bath(dmft_bath)
+  !
+  call write_fit_result(ispin,iorb)
+  call get_dmft_bath(dmft_bath,bath_)
+  call deallocate_dmft_bath(dmft_bath)
+  deallocate(Gdelta,Xdelta,Wdelta)
+  !
+contains
+  !
+  subroutine write_fit_result(ispin,iorb)
+    complex(8)        :: fgand(Ldelta)
+    integer           :: i,j,iorb,ispin
+    real(8)           :: w
+    suffix="_orb"//reg(txtfy(iorb))//"_s"//reg(txtfy(ispin))//reg(ed_file_suffix)
+    Gdelta(1,1:Ldelta) = fg(iorb,iorb,1:Ldelta)
+    unit=free_unit()
+    if(cg_scheme=='weiss')then
+       open(unit,file="fit_weiss"//reg(suffix)//".ed")
+       fgand = g0and_bath_mats(ispin,ispin,iorb,iorb,xi*Xdelta(:),dmft_bath)
+    else
+       open(unit,file="fit_delta"//reg(suffix)//".ed")
+       fgand = delta_bath_mats(ispin,ispin,iorb,iorb,xi*Xdelta(:),dmft_bath)
+    endif
+    do i=1,Ldelta
+       write(unit,"(5F24.15)")Xdelta(i),dimag(Gdelta(1,i)),dimag(fgand(i)),dreal(Gdelta(1,i)),dreal(fgand(i))
+    enddo
+    close(unit)
+  end subroutine write_fit_result
+end subroutine chi2_fitgf_normal_normal_OneOrb
 
 
 

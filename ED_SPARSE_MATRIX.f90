@@ -395,7 +395,7 @@ contains
     !
     if(sparse%Nrow/=Ndim1 .OR. sparse%Ncol/=Ndim2)stop "Warning SPARSE/dump_matrix: dimensions error"
     !
-    matrix=0.d0
+    ! matrix=0.d0
     do i=1,Ndim1
        do j=1,sparse%row(i)%Size
           matrix(i,sparse%row(i)%cols(j)) = matrix(i,sparse%row(i)%cols(j)) + sparse%row(i)%vals(j)
@@ -436,6 +436,7 @@ contains
        enddo
     enddo
     !
+    Matrix=0d0
     call AllReduce_Mpi(MpiComm,Matrix_tmp,Matrix)
     !   
   end subroutine mpi_sp_dump_matrix_csr
