@@ -26,7 +26,11 @@ MODULE ED_BATH_FUNCTIONS
      module procedure delta_bath_mats_ispin_jspin_iorb_jorb_
   end interface delta_bath_mats
   !
-
+  interface ed_delta_matsubara
+     module procedure delta_bath_mats_main_
+     module procedure delta_bath_mats_ispin_jspin_
+     module procedure delta_bath_mats_ispin_jspin_iorb_jorb_
+  end interface ed_delta_matsubara
 
 
 
@@ -45,7 +49,11 @@ MODULE ED_BATH_FUNCTIONS
      module procedure delta_bath_real_ispin_jspin_iorb_jorb_
   end interface delta_bath_real
   !
-
+  interface ed_delta_realaxis
+     module procedure delta_bath_real_main_
+     module procedure delta_bath_real_ispin_jspin_
+     module procedure delta_bath_real_ispin_jspin_iorb_jorb_
+  end interface ed_delta_realaxis
 
 
   !##################################################################
@@ -62,6 +70,12 @@ MODULE ED_BATH_FUNCTIONS
      module procedure g0and_bath_mats_ispin_jspin_
      module procedure g0and_bath_mats_ispin_jspin_iorb_jorb_
   end interface g0and_bath_mats
+  !
+  interface ed_g0and_matsubara
+     module procedure g0and_bath_mats_main_
+     module procedure g0and_bath_mats_ispin_jspin_
+     module procedure g0and_bath_mats_ispin_jspin_iorb_jorb_
+  end interface ed_g0and_matsubara
   !
 
 
@@ -81,6 +95,12 @@ MODULE ED_BATH_FUNCTIONS
      module procedure invg0_bath_mats_ispin_jspin_iorb_jorb_
   end interface invg0_bath_mats
   !
+  interface ed_invg0_matsubara
+     module procedure invg0_bath_mats_main_
+     module procedure invg0_bath_mats_ispin_jspin_
+     module procedure invg0_bath_mats_ispin_jspin_iorb_jorb_
+  end interface ed_invg0_matsubara
+
 
 
 
@@ -98,6 +118,12 @@ MODULE ED_BATH_FUNCTIONS
      module procedure g0and_bath_real_ispin_jspin_
      module procedure g0and_bath_real_ispin_jspin_iorb_jorb_
   end interface g0and_bath_real
+  !
+  interface ed_g0and_realaxis
+     module procedure g0and_bath_real_main_
+     module procedure g0and_bath_real_ispin_jspin_
+     module procedure g0and_bath_real_ispin_jspin_iorb_jorb_
+  end interface ed_g0and_realaxis
   !
 
 
@@ -117,16 +143,32 @@ MODULE ED_BATH_FUNCTIONS
      module procedure invg0_bath_real_ispin_jspin_iorb_jorb_
   end interface invg0_bath_real
   !
+  interface ed_invg0_realaxis
+     module procedure invg0_bath_real_main_
+     module procedure invg0_bath_real_ispin_jspin_
+     module procedure invg0_bath_real_ispin_jspin_iorb_jorb_
+  end interface ed_invg0_realaxis
+  !
 
 
-
+  !INTERNAL USE:
   public :: delta_bath_mats
-  public :: delta_bath_real
   public :: g0and_bath_mats
   public :: invg0_bath_mats
+  !
   public :: g0and_bath_real
+  public :: delta_bath_real
   public :: invg0_bath_real
 
+
+  !EXTERNAL USE, per USER:
+  public :: ed_delta_matsubara
+  public :: ed_g0and_matsubara
+  public :: ed_invg0_matsubara
+  !
+  public :: ed_delta_realaxis
+  public :: ed_g0and_realaxis
+  public :: ed_invg0_realaxis
 
 
 

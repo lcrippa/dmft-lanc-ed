@@ -41,6 +41,24 @@ MODULE ED_IO
 
 
 
+
+  !Retrieve imp GF_0 (G0_and) through routines.
+  interface ed_get_g0imp_matsubara
+     module procedure ed_get_g0imp_matsubara_1
+     module procedure ed_get_g0imp_matsubara_2
+     module procedure ed_get_g0imp_matsubara_lattice_1
+     module procedure ed_get_g0imp_matsubara_lattice_2
+  end interface ed_get_g0imp_matsubara
+
+
+  interface ed_get_g0imp_real
+     module procedure ed_get_g0imp_real_1
+     module procedure ed_get_g0imp_real_2
+     module procedure ed_get_g0imp_real_lattice_1
+     module procedure ed_get_g0imp_real_lattice_2
+  end interface ed_get_g0imp_real
+
+
   !Retrieve static common observables  
   interface ed_get_dens
      module procedure ed_get_dens_1
@@ -124,6 +142,9 @@ MODULE ED_IO
   public :: ed_get_gimp_matsubara
   public :: ed_get_gimp_real
 
+  public :: ed_get_g0imp_matsubara
+  public :: ed_get_g0imp_real
+
   public :: ed_get_dens
   public :: ed_get_mag
   public :: ed_get_docc
@@ -172,23 +193,29 @@ contains
 
 
 
-  !+-----------------------------------------------------------------------------+!
+  !+--------------------------------------------------------------------------+!
   ! PURPOSE: Retrieve measured values of the impurity self-energy 
-  !+-----------------------------------------------------------------------------+!
+  !+--------------------------------------------------------------------------+!
   include "ED_IO/get_sigma_matsubara.f90"
   include "ED_IO/get_sigma_realaxis.f90"
 
 
-  !+-----------------------------------------------------------------------------+!
+  !+--------------------------------------------------------------------------+!
   ! PURPOSE: Retrieve measured values of the impurity green's functions 
-  !+-----------------------------------------------------------------------------+!
+  !+--------------------------------------------------------------------------+!
   include "ED_IO/get_gimp_matsubara.f90"
   include "ED_IO/get_gimp_realaxis.f90"
 
+  !+--------------------------------------------------------------------------+!
+  ! PURPOSE: Retrieve measured values of the impurity green's functions 
+  !+--------------------------------------------------------------------------+!
+  include "ED_IO/get_g0imp_matsubara.f90"
+  include "ED_IO/get_g0imp_realaxis.f90"
 
-  !+-----------------------------------------------------------------------------+!
+  
+  !+--------------------------------------------------------------------------+!
   ! PURPOSE: Retrieve measured values of the local observables
-  !+-----------------------------------------------------------------------------+!
+  !+--------------------------------------------------------------------------+!
   include "ED_IO/get_dens.f90"
   include "ED_IO/get_mag.f90"
   include "ED_IO/get_docc.f90"

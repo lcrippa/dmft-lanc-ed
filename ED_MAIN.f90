@@ -373,6 +373,13 @@ contains
     allocate(Gmatsii(Nsites,Nspin,Nspin,Norb,Norb,Lmats))
     allocate(Grealii(Nsites,Nspin,Nspin,Norb,Norb,Lreal))
     !
+    !Allocate the imp GF_0 global to the module
+    !Once can retrieve these functinos from suitable routines later on
+    if(allocated(G0matsii))deallocate(G0matsii)
+    if(allocated(G0realii))deallocate(G0realii)
+    allocate(G0matsii(Nsites,Nspin,Nspin,Norb,Norb,Lmats))
+    allocate(G0realii(Nsites,Nspin,Nspin,Norb,Norb,Lreal))
+    !
     !Allocate the imp dm and related observables
     if(allocated(imp_density_matrix_ii))deallocate(imp_density_matrix_ii)
     allocate(imp_density_matrix_ii(Nsites,Nspin,Nspin,Norb,Norb))
@@ -388,7 +395,9 @@ contains
     Smatsii  = zero 
     Srealii  = zero 
     Gmatsii  = zero 
-    Grealii  = zero 
+    Grealii  = zero
+    G0matsii  = zero 
+    G0realii  = zero 
     nii      = 0d0  
     dii      = 0d0  
     mii      = 0d0  
@@ -421,6 +430,8 @@ contains
        Srealii(ilat,:,:,:,:,:)  = impSreal(:,:,:,:,:)
        Gmatsii(ilat,:,:,:,:,:)  = impGmats(:,:,:,:,:)
        Grealii(ilat,:,:,:,:,:)  = impGreal(:,:,:,:,:)
+       G0matsii(ilat,:,:,:,:,:) = impG0mats(:,:,:,:,:)
+       G0realii(ilat,:,:,:,:,:) = impG0real(:,:,:,:,:)
        nii(ilat,1:Norb)         = ed_dens(1:Norb)
        dii(ilat,1:Norb)         = ed_docc(1:Norb)
        mii(ilat,1:Norb)         = ed_dens_up(1:Norb)-ed_dens_dw(1:Norb)
@@ -453,6 +464,8 @@ contains
     complex(8)       :: Sreal_tmp(size(bath,1),Nspin,Nspin,Norb,Norb,Lreal)
     complex(8)       :: Gmats_tmp(size(bath,1),Nspin,Nspin,Norb,Norb,Lmats)
     complex(8)       :: Greal_tmp(size(bath,1),Nspin,Nspin,Norb,Norb,Lreal)
+    complex(8)       :: G0mats_tmp(size(bath,1),Nspin,Nspin,Norb,Norb,Lmats)
+    complex(8)       :: G0real_tmp(size(bath,1),Nspin,Nspin,Norb,Norb,Lreal)
     real(8)          :: nii_tmp(size(bath,1),Norb)
     real(8)          :: dii_tmp(size(bath,1),Norb)
     real(8)          :: mii_tmp(size(bath,1),Norb)
@@ -509,6 +522,13 @@ contains
     allocate(Gmatsii(Nsites,Nspin,Nspin,Norb,Norb,Lmats))
     allocate(Grealii(Nsites,Nspin,Nspin,Norb,Norb,Lreal))
     !
+    !Allocate the imp GF global to the module
+    !Once can retrieve these functinos from suitable routines later on
+    if(allocated(G0matsii))deallocate(G0matsii)
+    if(allocated(G0realii))deallocate(G0realii)
+    allocate(G0matsii(Nsites,Nspin,Nspin,Norb,Norb,Lmats))
+    allocate(G0realii(Nsites,Nspin,Nspin,Norb,Norb,Lreal))
+    !
     !Allocate the imp dm and related observables
     if(allocated(imp_density_matrix_ii))deallocate(imp_density_matrix_ii)
     allocate(imp_density_matrix_ii(Nsites,Nspin,Nspin,Norb,Norb))
@@ -527,6 +547,8 @@ contains
     Sreal_tmp  = zero
     Gmats_tmp  = zero
     Greal_tmp  = zero
+    G0mats_tmp = zero
+    G0real_tmp = zero
     nii_tmp    = 0d0
     dii_tmp    = 0d0
     mii_tmp    = 0d0
@@ -559,6 +581,8 @@ contains
        Sreal_tmp(ilat,:,:,:,:,:)  = impSreal(:,:,:,:,:)
        Gmats_tmp(ilat,:,:,:,:,:)  = impGmats(:,:,:,:,:)
        Greal_tmp(ilat,:,:,:,:,:)  = impGreal(:,:,:,:,:)
+       G0mats_tmp(ilat,:,:,:,:,:) = impG0mats(:,:,:,:,:)
+       G0real_tmp(ilat,:,:,:,:,:) = impG0real(:,:,:,:,:)
        nii_tmp(ilat,1:Norb)       = ed_dens(1:Norb)
        dii_tmp(ilat,1:Norb)       = ed_docc(1:Norb)
        mii_tmp(ilat,1:Norb)       = ed_dens_up(1:Norb)-ed_dens_dw(1:Norb)
@@ -581,7 +605,9 @@ contains
     Smatsii  = zero 
     Srealii  = zero 
     Gmatsii  = zero 
-    Grealii  = zero 
+    Grealii  = zero
+    G0matsii = zero 
+    G0realii = zero 
     nii      = 0d0  
     dii      = 0d0  
     mii      = 0d0  
@@ -594,6 +620,8 @@ contains
     call MPI_ALLREDUCE(Sreal_tmp,Srealii,Nsites*Nspin*Nspin*Norb*Norb*Lreal,MPI_DOUBLE_COMPLEX,MPI_SUM,MpiComm,mpi_err)
     call MPI_ALLREDUCE(Gmats_tmp,Gmatsii,Nsites*Nspin*Nspin*Norb*Norb*Lmats,MPI_DOUBLE_COMPLEX,MPI_SUM,MpiComm,mpi_err)
     call MPI_ALLREDUCE(Greal_tmp,Grealii,Nsites*Nspin*Nspin*Norb*Norb*Lreal,MPI_DOUBLE_COMPLEX,MPI_SUM,MpiComm,mpi_err)
+    call MPI_ALLREDUCE(G0mats_tmp,G0matsii,Nsites*Nspin*Nspin*Norb*Norb*Lmats,MPI_DOUBLE_COMPLEX,MPI_SUM,MpiComm,mpi_err)
+    call MPI_ALLREDUCE(G0real_tmp,G0realii,Nsites*Nspin*Nspin*Norb*Norb*Lreal,MPI_DOUBLE_COMPLEX,MPI_SUM,MpiComm,mpi_err)
     call MPI_ALLREDUCE(nii_tmp,nii,Nsites*Norb,MPI_DOUBLE_PRECISION,MPI_SUM,MpiComm,mpi_err)
     call MPI_ALLREDUCE(dii_tmp,dii,Nsites*Norb,MPI_DOUBLE_PRECISION,MPI_SUM,MpiComm,mpi_err)
     call MPI_ALLREDUCE(mii_tmp,mii,Nsites*Norb,MPI_DOUBLE_PRECISION,MPI_SUM,MpiComm,mpi_err)
