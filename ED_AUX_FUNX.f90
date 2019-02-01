@@ -40,9 +40,6 @@ MODULE ED_AUX_FUNX
      module procedure c_nn2nso
   end interface nn2so_reshape
 
-  interface ed_search_variable
-     module procedure :: search_chemical_potential
-  end interface ed_search_variable
 
 
   public :: set_Hloc
@@ -57,7 +54,7 @@ MODULE ED_AUX_FUNX
   public :: search_chemical_potential
 
 
-  
+
 
 
 contains
@@ -366,6 +363,79 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE  : 
   !+------------------------------------------------------------------+
+  subroutine ed_search_variable(var,ntmp,converged)
+    real(8),intent(inout) :: var
+    real(8),intent(in)    :: ntmp
+    logical,intent(inout) :: converged
+    logical               :: bool
+    real(8)               :: chich
+    real(8),save          :: nold
+    real(8),save          :: var_new
+    real(8),save          :: var_old
+    real(8)               :: var_sign
+    !
+    real(8)               :: ndiff
+    integer,save          :: count=0,totcount=0,i
+    integer               :: unit
+    !
+    !check actual value of the density *ntmp* with respect to goal value *nread*
+    count=count+1
+    totcount=totcount+1
+    !  
+    if(count==1)then
+       chich = ndelta        !~0.2
+       inquire(file="var.restart",EXIST=bool)
+       if(bool)then
+          open(free_unit(unit),file="var.restart")
+          read(unit,*)chich
+          close(unit)
+       endif
+       var_old = var
+    endif
+    !
+    ndiff=ntmp-nread
+    !
+    if(count>1)chich = (ntmp-nold)/(var-var_old)
+    !
+    !update chemical potential
+    var_new = var + ndiff/chich
+    !
+    nold    = ntmp
+    var_old = var
+    var     = var_new
+    !
+    !
+    !Print information
+    var_sign = (var-var_old)/abs(var-var_old)
+    write(LOGfile,"(A,f16.9,A,f15.9)")"n    = ",ntmp," /",nread
+    if(var_sign>0)then
+       write(LOGfile,"(A,es16.9,A)")"shift= ",ndiff/chich," ==>"
+    else
+       write(LOGfile,"(A,es16.9,A)")"shift= ",ndiff/chich," <=="
+    endif
+    write(LOGfile,"(A,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nerr
+    write(LOGfile,"(A,f15.9)")"var  = ",var
+    !
+    open(free_unit(unit),file="search_mu_iteration"//reg(ed_file_suffix)//".ed",position="append")
+    write(unit,*)var,ntmp,ndiff
+    close(unit)
+    !
+    !if density is not converged set convergence to .false.
+    if(abs(ndiff)>nerr)converged=.false.
+    !
+    write(LOGfile,"(A,I5)")"count= ",count
+    write(LOGfile,"(A,L2)")"Converged=",converged
+    print*,""
+    !
+    open(free_unit(unit),file="var.restart")
+    write(unit,*)chich
+    close(unit)
+    !
+  end subroutine ed_search_variable
+
+
+
+
   subroutine search_chemical_potential(var,ntmp,converged)
     real(8),intent(inout) :: var
     real(8),intent(in)    :: ntmp
@@ -391,7 +461,6 @@ contains
        endif
     endif
     !
-
     ndiff=ntmp-nread
     nratio = 0.5d0;!nratio = 1.d0/(6.d0/11.d0*pi)
     !
@@ -445,7 +514,7 @@ contains
     write(LOGfile,"(A,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nth
     ! write(LOGfile,"(A,10F16.9)")"k    = ",kcompr,1d0/kcompr,ntmp,ntmp_old,ntmp-ntmp_old,var,var_old,var-var_old
     write(LOGfile,"(A,f15.9)")"var  = ",var
-
+    !
     open(free_unit(unit),file="search_mu_iteration"//reg(ed_file_suffix)//".ed",position="append")
     write(unit,*)var,ntmp,ndiff
     close(unit)

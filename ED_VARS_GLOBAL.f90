@@ -199,7 +199,7 @@ MODULE ED_VARS_GLOBAL
   integer                                            :: site_indx_padding=4
   logical                                            :: Jhflag              !spin-exchange and pair-hopping flag.
   logical                                            :: offdiag_gf_flag=.false.
-
+  character(len=200)                                 :: ed_input_file=""
 
 
   !This is the internal Mpi Communicator and variables.

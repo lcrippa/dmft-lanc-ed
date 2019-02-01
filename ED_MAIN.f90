@@ -243,6 +243,8 @@ contains
     logical                         :: check
     logical                         :: MPI_MASTER=.true.
     !
+    if(MPI_MASTER)call save_input_file(str(ed_input_file))
+    !
     if(present(Hloc))call set_Hloc(Hloc)
     !
     check = check_bath_dimension(bath)
@@ -281,6 +283,8 @@ contains
     logical                         :: MPI_MASTER=.true.
     !
     MPI_MASTER = get_Master_MPI(MpiComm)
+    !
+    if(MPI_MASTER)call save_input_file(str(ed_input_file))
     !
     if(present(Hloc))call set_Hloc(Hloc)
     !

@@ -1,4 +1,5 @@
 MODULE ED_INPUT_VARS
+  USE ED_VARS_GLOBAL
   USE SF_VERSION
   USE SF_PARSE_INPUT
   USE SF_IOTOOLS, only:str
@@ -108,8 +109,10 @@ contains
        rank  =get_Rank_MPI(comm)
     endif
 #endif
-
-
+    !
+    !Store the name of the input file:
+    ed_input_file=str(INPUTunit)
+    !
     !DEFAULT VALUES OF THE PARAMETERS:
     call parse_input_variable(Norb,"NORB",INPUTunit,default=1,comment="Number of impurity orbitals (max 5).")
     call parse_input_variable(Nbath,"NBATH",INPUTunit,default=6,comment="Number of bath sites:(normal=>Nbath per orb)(hybrid=>Nbath total)(replica=>Nbath=Nreplica)")
@@ -196,7 +199,8 @@ contains
     !
     Ltau=max(int(beta),Ltau)
     if(master)then
-       call save_input_file(INPUTunit)
+       call print_input()
+       call save_input(INPUTunit)
        call scifor_version()
        call code_version(revision)
     endif

@@ -545,12 +545,13 @@ contains
        if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,blanc)
     endif
 #endif
-    diag             = 0.d0
-    subdiag          = 0.d0
-    Z                = eye(Nlanc)
+    ! diag             = 0.d0
+    ! subdiag          = 0.d0
+    ! Z                = eye(Nlanc)
     diag(1:Nlanc)    = alanc(1:Nlanc)
     subdiag(2:Nlanc) = blanc(2:Nlanc)
-    call tql2(Nlanc,diag,subdiag,Z,ierr)
+    !call tql2(Nlanc,diag,subdiag,Z,ierr)
+    call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
     !
     do j=1,nlanc
        de = diag(j)-Ei
