@@ -368,7 +368,7 @@ contains
     real(8),intent(in)    :: ntmp
     logical,intent(inout) :: converged
     logical               :: bool
-    real(8)               :: chich
+    real(8),save          :: chich
     real(8),save          :: nold
     real(8),save          :: var_new
     real(8),save          :: var_old
@@ -384,9 +384,9 @@ contains
     !  
     if(count==1)then
        chich = ndelta        !~0.2
-       inquire(file="var.restart",EXIST=bool)
+       inquire(file="var_compressibility.restart",EXIST=bool)
        if(bool)then
-          open(free_unit(unit),file="var.restart")
+          open(free_unit(unit),file="var_compressibility.restart")
           read(unit,*)chich
           close(unit)
        endif
@@ -395,39 +395,45 @@ contains
     !
     ndiff=ntmp-nread
     !
+    !Get 'charge compressibility"
     if(count>1)chich = (ntmp-nold)/(var-var_old)
     !
-    !update chemical potential
-    var_new = var + ndiff/chich
+    !Add here controls on chich: not to be too small....
     !
+    !update chemical potential
+    var_new = var - ndiff/chich
+    !
+    !
+    !re-define variables:
     nold    = ntmp
     var_old = var
     var     = var_new
     !
-    !
     !Print information
+    write(LOGfile,"(A9,F16.9,A,F15.9)")  "n    = ",ntmp,"| instead of",nread
+    write(LOGfile,"(A9,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nerr
     var_sign = (var-var_old)/abs(var-var_old)
-    write(LOGfile,"(A,f16.9,A,f15.9)")"n    = ",ntmp," /",nread
-    if(var_sign>0)then
-       write(LOGfile,"(A,es16.9,A)")"shift= ",ndiff/chich," ==>"
+    if(var_sign>0d0)then
+       write(LOGfile,"(A9,ES16.9,A4)")"shift = ",ndiff/chich," ==>"
     else
-       write(LOGfile,"(A,es16.9,A)")"shift= ",ndiff/chich," <=="
-    endif
-    write(LOGfile,"(A,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nerr
-    write(LOGfile,"(A,f15.9)")"var  = ",var
+       write(LOGfile,"(A9,ES16.9,A4)")"shift = ",ndiff/chich," <=="
+    end if
+    write(LOGfile,"(A9,F16.9)")"var  = ",var
     !
-    open(free_unit(unit),file="search_mu_iteration"//reg(ed_file_suffix)//".ed",position="append")
+    !Save info about search variable iteration:
+    open(free_unit(unit),file="search_variable_iteration_info"//reg(ed_file_suffix)//".ed",position="append")
+    if(count==1)write(unit,*)"#var,ntmp,ndiff"
     write(unit,*)var,ntmp,ndiff
     close(unit)
     !
-    !if density is not converged set convergence to .false.
+    !If density is not converged set convergence to .false.
     if(abs(ndiff)>nerr)converged=.false.
     !
-    write(LOGfile,"(A,I5)")"count= ",count
-    write(LOGfile,"(A,L2)")"Converged=",converged
+    write(LOGfile,"(A18,I5)")"Search var count= ",count
+    write(LOGfile,"(A19,L2)")"Converged       = ",converged
     print*,""
     !
-    open(free_unit(unit),file="var.restart")
+    open(free_unit(unit),file="var_compressibility.used")
     write(unit,*)chich
     close(unit)
     !

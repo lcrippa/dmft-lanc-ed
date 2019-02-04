@@ -148,11 +148,11 @@ program hm_Nbands_bethe
         do iorb=1,Norb
            Gtest=Gtest+Weiss(1,1,iorb,iorb,:)/Norb
         enddo
-        converged = check_convergence(Weiss(1,1,1,1,:)+Weiss(1,1,2,2,:),dmft_error,nsuccess,nloop,reset=.false.)
+        converged = check_convergence(Gtest,dmft_error,nsuccess,nloop,reset=.false.)
         if(nread/=0d0)then
            call ed_get_dens(dens)
-           !call ed_search_variable(xmu,sum(dens),converged)
-           call search_chemical_potential(xmu,sum(dens),converged)
+           call ed_search_variable(xmu,sum(dens),converged)
+           !call search_chemical_potential(xmu,sum(dens),converged)
         endif
      endif
      call Bcast_MPI(comm,converged)
