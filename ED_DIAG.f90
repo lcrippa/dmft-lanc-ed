@@ -219,6 +219,7 @@ contains
        write(LOGfile,*)""
     endif
     !
+    !
     if(MPIMASTER)call stop_timer()
     !
     if(finiteT)then
