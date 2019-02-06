@@ -133,7 +133,7 @@ contains
        if(allocated(eig_values))deallocate(eig_values)
        if(allocated(eig_basis))deallocate(eig_basis)
        !
-       if(MPIMASTER)call start_timer()
+       if(ed_verbose>=3.AND.MPIMASTER)call start_timer()
     endif
     if(lanc_solve)then
        !
@@ -213,14 +213,13 @@ contains
 #endif
     endif
     !
+    if(if(ed_verbose>=3.AND.MPIMASTER))call stop_timer()
+    !
     if(ed_verbose>=4)then
        write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
        write(LOGfile,*)""
        write(LOGfile,*)""
     endif
-    !
-    !
-    if(MPIMASTER)call stop_timer()
     !
     if(finiteT)then
        do i=1,Neigen
