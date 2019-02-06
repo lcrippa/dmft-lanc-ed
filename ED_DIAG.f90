@@ -134,125 +134,124 @@ contains
        if(allocated(eig_basis))deallocate(eig_basis)
        !
        if(ed_verbose>=3.AND.MPIMASTER)call start_timer()
-    endif
-    if(lanc_solve)then
-       !
-       allocate(eig_values(Neigen))
-       eig_values=0d0 
-       !
-       call build_Hv_sector(isector) !For MPI: MpiComm==MpiComm_Global .OR. MpiComm subset of MpiComm_Global
-       !
-       vecDim = vecDim_Hv_sector(isector)
-       allocate(eig_basis(vecDim,Neigen))
-       eig_basis=zero
-       !
-       select case (lanc_method)
-       case default       !use P-ARPACK
+       if(lanc_solve)then
+          !
+          allocate(eig_values(Neigen))
+          eig_values=0d0 
+          !
+          call build_Hv_sector(isector) !For MPI: MpiComm==MpiComm_Global .OR. MpiComm subset of MpiComm_Global
+          !
+          vecDim = vecDim_Hv_sector(isector)
+          allocate(eig_basis(vecDim,Neigen))
+          eig_basis=zero
+          !
+          select case (lanc_method)
+          case default       !use P-ARPACK
 #ifdef _MPI
-          if(MpiStatus)then
-             call sp_eigh(MpiComm,spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
-                  tol=lanc_tolerance,&
-                  iverbose=(ed_verbose>3))
-          else
+             if(MpiStatus)then
+                call sp_eigh(MpiComm,spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+                     tol=lanc_tolerance,&
+                     iverbose=(ed_verbose>3))
+             else
+                call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+                     tol=lanc_tolerance,&
+                     iverbose=(ed_verbose>3))
+             endif
+#else
              call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
                   tol=lanc_tolerance,&
                   iverbose=(ed_verbose>3))
-          endif
-#else
-          call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
-               tol=lanc_tolerance,&
-               iverbose=(ed_verbose>3))
 #endif             
-          !
-          !
-       case ("lanczos")   !use Simple Lanczos
+             !
+             !
+          case ("lanczos")   !use Simple Lanczos
 #ifdef _MPI
-          if(MpiStatus)then
-             call sp_lanc_eigh(MpiComm,spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
-                  iverbose=(ed_verbose>3),threshold=lanc_tolerance)
-          else
+             if(MpiStatus)then
+                call sp_lanc_eigh(MpiComm,spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
+                     iverbose=(ed_verbose>3),threshold=lanc_tolerance)
+             else
+                call sp_lanc_eigh(spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
+                     iverbose=(ed_verbose>3),threshold=lanc_tolerance)
+             endif
+#else
              call sp_lanc_eigh(spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
                   iverbose=(ed_verbose>3),threshold=lanc_tolerance)
+#endif
+          end select
+          !
+          if(MpiMaster.AND.ed_verbose>3)write(LOGfile,*)""
+          call delete_Hv_sector()
+          !
+          !
+       else                     !else LAPACK_SOLVE
+          !
+          !
+          allocate(eig_values(Dim)) ; eig_values=0d0
+          !
+          allocate(eig_basis_tmp(Dim,Dim)) ; eig_basis_tmp=0d0
+          !
+          call build_Hv_sector(isector,eig_basis_tmp)
+          !
+          if(MpiMaster)call eigh(eig_basis_tmp,eig_values,'V','U')
+          if(dim==1)eig_basis_tmp(dim,dim)=1d0
+          !
+          call delete_Hv_sector()
+#ifdef _MPI
+          if(MpiStatus)then
+             call Bcast_MPI(MpiComm,eig_values)
+             vecDim = vecDim_Hv_sector(isector)
+             allocate(eig_basis(vecDim,Neigen)) ; eig_basis=0d0
+             call scatter_basis_MPI(MpiComm,eig_basis_tmp,eig_basis)
+          else
+             allocate(eig_basis(Dim,Neigen)) ; eig_basis=0d0
+             eig_basis = eig_basis_tmp(:,1:Neigen)
           endif
 #else
-          call sp_lanc_eigh(spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
-               iverbose=(ed_verbose>3),threshold=lanc_tolerance)
-#endif
-       end select
-       !
-       if(MpiMaster.AND.ed_verbose>3)write(LOGfile,*)""
-       call delete_Hv_sector()
-       !
-       !
-    else                     !else LAPACK_SOLVE
-       !
-       !
-       allocate(eig_values(Dim)) ; eig_values=0d0
-       !
-       allocate(eig_basis_tmp(Dim,Dim)) ; eig_basis_tmp=0d0
-       !
-       call build_Hv_sector(isector,eig_basis_tmp)
-       !
-       if(MpiMaster)call eigh(eig_basis_tmp,eig_values,'V','U')
-       if(dim==1)eig_basis_tmp(dim,dim)=1d0
-       !
-       call delete_Hv_sector()
-#ifdef _MPI
-       if(MpiStatus)then
-          call Bcast_MPI(MpiComm,eig_values)
-          vecDim = vecDim_Hv_sector(isector)
-          allocate(eig_basis(vecDim,Neigen)) ; eig_basis=0d0
-          call scatter_basis_MPI(MpiComm,eig_basis_tmp,eig_basis)
-       else
           allocate(eig_basis(Dim,Neigen)) ; eig_basis=0d0
           eig_basis = eig_basis_tmp(:,1:Neigen)
-       endif
-#else
-       allocate(eig_basis(Dim,Neigen)) ; eig_basis=0d0
-       eig_basis = eig_basis_tmp(:,1:Neigen)
 #endif
-    endif
-    !
-    if(if(ed_verbose>=3.AND.MPIMASTER))call stop_timer()
-    !
-    if(ed_verbose>=4)then
-       write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
-       write(LOGfile,*)""
-       write(LOGfile,*)""
-    endif
-    !
-    if(finiteT)then
-       do i=1,Neigen
-          call es_add_state(state_list,eig_values(i),eig_basis(:,i),isector,twin=Tflag,size=lanc_nstates_total)
-       enddo
-    else
-       do i=1,Neigen
-          enemin = eig_values(i)
-          if (enemin < oldzero-10.d0*gs_threshold)then
-             oldzero=enemin
-             call es_free_espace(state_list)
-             call es_add_state(state_list,enemin,eig_basis(:,i),isector,twin=Tflag)
-          elseif(abs(enemin-oldzero) <= gs_threshold)then
-             oldzero=min(oldzero,enemin)
-             call es_add_state(state_list,enemin,eig_basis(:,i),isector,twin=Tflag)
-          endif
-       enddo
-    endif
-    !
-    if(MPIMASTER)then
-       unit=free_unit()
-       open(unit,file="eigenvalues_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
-       call print_eigenvalues_list(isector,eig_values(1:Neigen),unit,lanc_solve,mpiAllThreads)
-       close(unit)
-    endif
-    !
-    if(allocated(eig_values))deallocate(eig_values)
-    if(allocated(eig_basis_tmp))deallocate(eig_basis_tmp)
-    if(allocated(eig_basis))deallocate(eig_basis)
-    !
- enddo sector
- if(MPIMASTER)call stop_timer(LOGfile)
-end subroutine ed_diag_d
+       endif
+       !
+       if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
+       !
+       if(ed_verbose>=4)then
+          write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
+          write(LOGfile,*)""
+          write(LOGfile,*)""
+       endif
+       !
+       if(finiteT)then
+          do i=1,Neigen
+             call es_add_state(state_list,eig_values(i),eig_basis(:,i),isector,twin=Tflag,size=lanc_nstates_total)
+          enddo
+       else
+          do i=1,Neigen
+             enemin = eig_values(i)
+             if (enemin < oldzero-10.d0*gs_threshold)then
+                oldzero=enemin
+                call es_free_espace(state_list)
+                call es_add_state(state_list,enemin,eig_basis(:,i),isector,twin=Tflag)
+             elseif(abs(enemin-oldzero) <= gs_threshold)then
+                oldzero=min(oldzero,enemin)
+                call es_add_state(state_list,enemin,eig_basis(:,i),isector,twin=Tflag)
+             endif
+          enddo
+       endif
+       !
+       if(MPIMASTER)then
+          unit=free_unit()
+          open(unit,file="eigenvalues_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
+          call print_eigenvalues_list(isector,eig_values(1:Neigen),unit,lanc_solve,mpiAllThreads)
+          close(unit)
+       endif
+       !
+       if(allocated(eig_values))deallocate(eig_values)
+       if(allocated(eig_basis_tmp))deallocate(eig_basis_tmp)
+       if(allocated(eig_basis))deallocate(eig_basis)
+       !
+    enddo sector
+    if(MPIMASTER)call stop_timer(LOGfile)
+  end subroutine ed_diag_d
 
 
 
