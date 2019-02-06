@@ -453,6 +453,7 @@ contains        !some routine to perform simple operation on the lists
     logical                          :: MpiMaster
     integer,dimension(:),allocatable :: order
     !
+    if(MpiComm==MPI_COMM_NULL)return
     if(MpiComm==MPI_UNDEFINED)stop "es_return_cvector ERRROR: MpiComm = MPI_UNDEFINED"
     !
     if(.not.space%status) stop "es_return_cvector ERRROR: espace not allocated"

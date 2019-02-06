@@ -400,6 +400,7 @@ contains
     integer,allocatable,dimension(:) :: Counts
     integer,allocatable,dimension(:) :: Offset
     !
+    if(MpiComm==Mpi_Comm_Null)return
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     if(.not.MpiStatus)stop "spMatVec_mpi_cc ERROR: MpiStatus = F"
     !
@@ -457,22 +458,8 @@ contains
     if(jhflag)then
        N = 0
        call AllReduce_MPI(MpiComm,Nloc,N)
-       ! !
-       ! allocate(Counts(0:MpiSize-1)) ; Counts(0:)=0
-       ! allocate(Offset(0:MpiSize-1)) ; Offset(0:)=0
-       ! !
-       ! Counts(0:)        = N/MpiSize
-       ! Counts(MpiSize-1) = N/MpiSize+mod(N,MpiSize)
-       ! !
-       ! do i=1,MpiSize-1
-       !    Offset(i) = Counts(i-1) + Offset(i-1)
-       ! enddo
-       ! !
+       ! 
        allocate(vt(N)) ; vt = 0d0
-       ! call MPI_Allgatherv(&
-       !      v(1:Nloc),Nloc,MPI_Double_Precision,&
-       !      Vt       ,Counts,Offset,MPI_Double_Precision,&
-       !      MpiComm,MpiIerr)
        call allgather_vector_MPI(MpiComm,v,vt)
        !
        do i=1,Nloc
@@ -501,6 +488,7 @@ contains
     !local MPI
     integer                          :: irank
     !
+    if(MpiComm==Mpi_Comm_Null)return
     if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     if(.not.MpiStatus)stop "spMatVec_mpi_cc ERROR: MpiStatus = F"
     !

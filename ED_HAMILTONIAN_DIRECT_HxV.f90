@@ -142,7 +142,7 @@ contains
     !
     !Get diagonal hybridization, bath energy
     include "ED_HAMILTONIAN/diag_hybr_bath.f90"
-    !    
+    !
     if(MpiComm==MPI_UNDEFINED.OR.MpiComm==Mpi_Comm_Null)&
          stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
     ! if(.not.MpiStatus)stop "directMatVec_MPI_cc ERROR: MpiStatus = F"
@@ -173,23 +173,11 @@ contains
        N = 0
        call AllReduce_MPI(MpiComm,Nloc,N)
        !
-       allocate(Counts(0:MpiSize-1)) ; Counts(0:)=0
-       allocate(Offset(0:MpiSize-1)) ; Offset(0:)=0
-       !
-       Counts(0:)        = N/MpiSize
-       Counts(MpiSize-1) = N/MpiSize+mod(N,MpiSize)
-       !
-       do i=1,MpiSize-1
-          Offset(i) = Counts(i-1) + Offset(i-1)
-       enddo
-       !
        allocate(vt(N)) ; vt = 0d0
-       call MPI_Allgatherv(&
-            Vin(1:Nloc),Nloc,MPI_Double_Precision,&
-            Vt         ,Counts,Offset,MPI_Double_Precision,&
-            MpiComm,MpiIerr)
+       call allgather_vector_MPI(MpiComm,vin,vt)
        !
        include "ED_HAMILTONIAN/direct_mpi/HxV_non_local.f90"
+       !
        deallocate(Vt)
     endif
     !-----------------------------------------------!

@@ -534,7 +534,8 @@ contains
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
     !
-    if( MpiComm == MPI_UNDEFINED )return ! stop "scatter_vector_MPI error: MpiComm == MPI_UNDEFINED"
+    if( MpiComm == MPI_UNDEFINED .OR. MpiComm == Mpi_Comm_Null )return
+    ! stop "scatter_vector_MPI error: MpiComm == MPI_UNDEFINED"
     !
     MpiSize   = get_size_MPI(MpiComm)
     MpiMaster = get_master_MPI(MpiComm)
@@ -591,7 +592,8 @@ contains
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
     !
-    if( MpiComm == MPI_UNDEFINED ) stop "gather_vector_MPI error: MpiComm == MPI_UNDEFINED"
+    if(  MpiComm == MPI_UNDEFINED .OR. MpiComm == Mpi_Comm_Null ) return
+    !stop "gather_vector_MPI error: MpiComm == MPI_UNDEFINED"
     !
     MpiSize   = get_size_MPI(MpiComm)
     MpiMaster = get_master_MPI(MpiComm)
@@ -629,7 +631,8 @@ contains
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
     !
-    if( MpiComm == MPI_UNDEFINED ) stop "gather_vector_MPI error: MpiComm == MPI_UNDEFINED"
+    if(  MpiComm == MPI_UNDEFINED .OR. MpiComm == Mpi_Comm_Null ) return
+    ! stop "gather_vector_MPI error: MpiComm == MPI_UNDEFINED"
     !
     MpiSize   = get_size_MPI(MpiComm)
     MpiMaster = get_master_MPI(MpiComm)

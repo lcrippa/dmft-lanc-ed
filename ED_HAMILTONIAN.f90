@@ -81,7 +81,7 @@ contains
     endif
 #endif
     !
-    !Dw split:
+    !Dw split:    
     mpiQdw = DimDw/MpiSize
     mpiRdw = mod(DimDw,MpiSize)
     if(MpiRank < mod(DimDw,MpiSize) ) then
