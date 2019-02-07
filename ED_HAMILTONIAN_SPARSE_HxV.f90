@@ -207,17 +207,15 @@ contains
           allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0dws(iud),Hrdx)
           call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
-          ! Hmat = Hmat + kronecker_product(eye(DimUp),Htmp_dw)
           Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
-
+          deallocate(Hrdx)
+          !
           allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
           call sp_dump_matrix(spH0ups(iud),Hrdx)
           call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
-          ! Hmat = Hmat + kronecker_product(Htmp_up,eye(DimDw))
           Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
           deallocate(Hrdx)
           !
-          deallocate(Hrdx)
        enddo
        !
        deallocate(Htmp_up,Htmp_dw)
