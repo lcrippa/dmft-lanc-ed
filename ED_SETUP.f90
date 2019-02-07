@@ -141,7 +141,7 @@ contains
     write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
     write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
     write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
-    write(LOGfile,"(A,"//str(Ns_Ud)//"I6,2X,"//str(Ns_Ud)//"I6,I15)")&
+    write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
          'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
     write(LOGfile,"(A)")"--------------------------------------------"
     call sleep(1)
@@ -316,7 +316,7 @@ contains
           call get_Ndw(isector,Ndws)
           if(any(Nups < Ndws))twin_mask(isector)=.false.
        enddo
-       write(LOGfile,"(A,I4,A,I4)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
+       write(LOGfile,"(A,I6,A,I9)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
        call sleep(1)
     endif
     !

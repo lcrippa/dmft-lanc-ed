@@ -110,17 +110,17 @@ contains
           call get_DimDw(isector,DimDws) ; DimDw = product(DimDws)
           if(ed_verbose>=3)then
              if(lanc_solve)then
-                write(LOGfile,"(1X,I4,A,I4,A6,"&
+                write(LOGfile,"(1X,I9,A,I9,A6,"&
                      //str(Ns_Ud)//"I3,A6,"&
                      //str(Ns_Ud)//"I3,A7,"&
-                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I15,A12,3I6)")&
+                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I20,A12,3I6)")&
                      iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
                      DimUps,DimDws,getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
              else
-                write(LOGfile,"(1X,I4,A,I4,A6,"&
+                write(LOGfile,"(1X,I9,A,I9,A6,"&
                      //str(Ns_Ud)//"I3,A6,"&
                      //str(Ns_Ud)//"I3,A7,"&
-                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I15)")&
+                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I20)")&
                      iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
                      DimUps,DimDws,getdim(isector)
              endif
