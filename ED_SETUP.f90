@@ -640,7 +640,7 @@ contains
     Nloc = size(Vloc)
     N    = 0
     call AllReduce_MPI(MpiComm,Nloc,N)
-    if(MpiMaster.AND.N /= size(V)) stop "gather_vector_MPI error: size(V) != Mpi_Allreduce(Nloc)"
+    if(MpiMaster.AND.N /= size(V)) stop "allgather_vector_MPI error: size(V) != Mpi_Allreduce(Nloc)"
     !
     allocate(Counts(0:MpiSize-1)) ; Counts=0
     allocate(Offset(0:MpiSize-1)) ; Offset=0

@@ -71,10 +71,6 @@ contains
                 if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
                 !
                 if(.not.MaskBool)cycle
-                ! impGmats(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGmats(ispin,ispin,iorb,jorb,:) &
-                !      - (one-xi)*impGmats(ispin,ispin,iorb,iorb,:) - (one-xi)*impGmats(ispin,ispin,jorb,jorb,:))
-                ! impGreal(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGreal(ispin,ispin,iorb,jorb,:) &
-                !      - (one-xi)*impGreal(ispin,ispin,iorb,iorb,:) - (one-xi)*impGreal(ispin,ispin,jorb,jorb,:))
                 impGmats(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGmats(ispin,ispin,iorb,jorb,:) &
                      - impGmats(ispin,ispin,iorb,iorb,:) - impGmats(ispin,ispin,jorb,jorb,:))
                 impGreal(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGreal(ispin,ispin,iorb,jorb,:) &
@@ -189,10 +185,10 @@ contains
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
+             call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -252,10 +248,10 @@ contains
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
+             call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -396,10 +392,10 @@ contains
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
+             call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -474,10 +470,10 @@ contains
           call build_Hv_sector(jsector)
 #ifdef _MPI
           if(MpiStatus)then
-             if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,norm2)
+             call bcast_MPI(MpiComm,norm2)
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
-             if(MpiComm /= MPI_COMM_NULL)call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
              call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
           else
              call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
@@ -539,12 +535,6 @@ contains
     !pesoBZ = vnorm2/zeta_function
     !if(finiteT)pesoBZ = vnorm2*exp(-beta*(Ei-Egs))/zeta_function
     !
-#ifdef _MPI
-    if(MpiStatus)then
-       if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,alanc)
-       if(MpiComm /= MPI_COMM_NULL)call bcast_MPI(MpiComm,blanc)
-    endif
-#endif
     ! diag             = 0.d0
     ! subdiag          = 0.d0
     ! Z                = eye(Nlanc)

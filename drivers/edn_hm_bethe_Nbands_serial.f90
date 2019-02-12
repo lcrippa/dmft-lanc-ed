@@ -2,6 +2,7 @@ program hm_Nbands_bethe
   USE DMFT_ED
   USE SCIFOR
   USE DMFT_TOOLS
+  USE MPI
   implicit none
   integer                                     :: iloop,Nb,Le,Nso,iorb
   logical                                     :: converged
@@ -17,16 +18,23 @@ program hm_Nbands_bethe
   !
   real(8),dimension(:),allocatable            :: Wband
   !
-  complex(8),allocatable,dimension(:,:,:,:,:) :: Weiss,Smats,Sreal,Gmats,Greal
+  complex(8),allocatable,dimension(:,:,:,:,:) :: Weiss,Smats,Sreal,Gmats,Greal,Weiss_
+  complex(8),allocatable,dimension(:) :: Gtest
   character(len=16)                           :: finput
   real(8)                                     :: wmixing
   !
+  logical :: betheSC,wGimp,mixG0,symOrbs
+
 
   call parse_cmd_variable(finput,"FINPUT",default='inputED.in')
   call parse_input_variable(Le,"LE",finput,default=500)
   call parse_input_variable(Wbethe,"WBETHE",finput,default=[1d0,1d0,1d0,1d0,1d0])
   call parse_input_variable(Dbethe,"DBETHE",finput,default=[0d0,0d0,0d0,0d0,0d0])
   call parse_input_variable(wmixing,"WMIXING",finput,default=0.5d0)
+  call parse_input_variable(betheSC,"BETHESC",finput,default=.false.)
+  call parse_input_variable(wGimp,"wGimp",finput,default=.false.)
+  call parse_input_variable(mixG0,"mixG0",finput,default=.false.)
+  call parse_input_variable(symOrbs,"symOrbs",finput,default=.false.)
   !
   call ed_read_input(trim(finput))
 
@@ -60,10 +68,12 @@ program hm_Nbands_bethe
 
   !Allocate Weiss Field:
   allocate(Weiss(Nspin,Nspin,Norb,Norb,Lmats))
+  allocate(Weiss_(Nspin,Nspin,Norb,Norb,Lmats))
   allocate(Smats(Nspin,Nspin,Norb,Norb,Lmats))
   allocate(Gmats(Nspin,Nspin,Norb,Norb,Lmats))
   allocate(Sreal(Nspin,Nspin,Norb,Norb,Lreal))
   allocate(Greal(Nspin,Nspin,Norb,Norb,Lreal))
+  allocate(Gtest(Lmats))
   allocate(Hloc(Nspin,Nspin,Norb,Norb))
   allocate(dens(Norb))
   Hloc(1,1,:,:)=diag(H0)
@@ -95,19 +105,45 @@ program hm_Nbands_bethe
      call dmft_print_gf_realaxis(Greal,"Greal",iprint=1)
      !
      !Get the Weiss field/Delta function to be fitted
-     call dmft_self_consistency(Gmats,Smats,Weiss,Hloc,SCtype=cg_scheme)
+     if(.not.betheSC)then
+        call dmft_self_consistency(Gmats,Smats,Weiss,Hloc,SCtype=cg_scheme)
+     else
+        if(wGimp)call ed_get_gimp_matsubara(Gmats)
+        call dmft_self_consistency(Gmats,Weiss,Hloc,SCtype=cg_scheme,wbands=Wband)
+     endif
+     call dmft_print_gf_matsubara(Weiss,"Weiss",iprint=1)
+     !
+     !
+     !
+     if(mixG0)then
+        if(iloop>1)Weiss = wmixing*Weiss + (1.d0-wmixing)*Weiss_
+        Weiss_=Weiss
+     endif
      !
      !Perform the SELF-CONSISTENCY by fitting the new bath
-     call ed_chi2_fitgf(Weiss,bath,ispin=1)
+     if(symOrbs)then
+        call ed_chi2_fitgf(Weiss,bath,ispin=1,iorb=1)
+        call orb_equality_bath(bath,save=.true.)
+     else
+        call ed_chi2_fitgf(Weiss,bath,ispin=1)
+     endif
      !
      !MIXING:
-     if(iloop>1)Bath = wmixing*Bath + (1.d0-wmixing)*Bath_
-     Bath_=Bath
-
+     if(.not.mixG0)then
+        if(iloop>1)Bath = wmixing*Bath + (1.d0-wmixing)*Bath_
+        Bath_=Bath
+     endif
+     !
      !Check convergence (if required change chemical potential)
-     converged = check_convergence(Weiss(1,1,1,1,:)+Weiss(1,1,2,2,:),dmft_error,nsuccess,nloop,reset=.false.)
-     call ed_get_dens(dens)
-     call search_chemical_potential(xmu,sum(dens),converged)
+     Gtest=zero
+     do iorb=1,Norb
+        Gtest=Gtest+Weiss(1,1,iorb,iorb,:)/Norb
+     enddo
+     converged = check_convergence(Gtest,dmft_error,nsuccess,nloop,reset=.false.)
+     if(nread/=0d0)then
+        call ed_get_dens(dens)
+        call ed_search_variable(xmu,sum(dens),converged)
+     endif
      !
      call end_loop
   enddo
