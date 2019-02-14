@@ -535,6 +535,18 @@ contains
     !pesoBZ = vnorm2/zeta_function
     !if(finiteT)pesoBZ = vnorm2*exp(-beta*(Ei-Egs))/zeta_function
     !
+    !Only the nodes in Mpi_Comm_Group did get the alanc,blanc.
+    !However after delete_sector_Hv MpiComm returns to be the global one
+    !so we can safely Bcast the alanc,blanc (known only to the operative group)
+    !to every nodes. The master is in charge of this (as a
+    !participant of the operative group)
+#ifdef _MPI
+    if(MpiStatus)then
+       call Bcast_MPI(MpiComm,alanc)
+       call Bcast_MPI(MpiComm,blanc)
+    endif
+#endif
+
     ! diag             = 0.d0
     ! subdiag          = 0.d0
     ! Z                = eye(Nlanc)
