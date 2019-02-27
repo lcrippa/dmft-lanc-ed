@@ -92,8 +92,7 @@ contains        !some routine to perform simple operation on the lists
     end do
     deallocate(space%root)
     space%status=.false.
-    p=>null()
-    c=>null()
+    if(associated(p))nullify(p)
   end subroutine es_delete_espace
 
 
@@ -118,8 +117,7 @@ contains        !some routine to perform simple operation on the lists
     space%size=0
     space%emax=-huge(1.d0)
     space%emin=huge(1.d0)
-    p=>null()
-    c=>null()
+    if(associated(p))nullify(p)
   end subroutine es_free_espace
 
 
@@ -209,8 +207,8 @@ contains        !some routine to perform simple operation on the lists
           p%next%next%next  => c
        endif
     end if
-    p=>null()
-    c=>null()
+    if(associated(p))nullify(p)
+    if(associated(c))nullify(c)
   end subroutine es_insert_state_c
 
 
@@ -290,23 +288,12 @@ contains        !some routine to perform simple operation on the lists
        endif
     endif
     if(space%size>0)then
-       !    space%root%next => null()
-       !    space%size=0
-       !    space%emax=-huge(1.d0)
-       !    space%emin=huge(1.d0)
-       ! else
-       ! if(pos==space%size)then     !pop last term carrying e=emax, update emax
-       !    space%emax = p%e
-       ! elseif(pos==1)then          !pop first term carrying e=emin, update emin
-       !    space%emin = p%e
-       ! endif
-       !
        space%emax = es_return_energy(space,space%size)
        space%emin = es_return_energy(space,1)
     endif
-    pp=>null()
-    p =>null()
-    c =>null()
+    if(associated(pp))nullify(pp)
+    if(associated(p))nullify(p)
+    if(associated(c))nullify(c)
   end subroutine es_pop_state
 
 
@@ -343,6 +330,7 @@ contains        !some routine to perform simple operation on the lists
           oldzero=min(oldzero,enemin)
        endif
     end do
+    if(associated(c))nullify(c)
   end function es_return_gs_degeneracy
 
 
@@ -368,7 +356,7 @@ contains        !some routine to perform simple operation on the lists
     end do
     if(space%size==0)return
     sector = c%sector
-    c=>null()
+    if(associated(c))nullify(c)
   end function es_return_sector
 
 
@@ -400,6 +388,7 @@ contains        !some routine to perform simple operation on the lists
     else
        egs = c%twin%e
     endif
+    if(associated(c))nullify(c)
   end function es_return_energy
 
 
@@ -438,6 +427,7 @@ contains        !some routine to perform simple operation on the lists
        enddo
        deallocate(order)
     endif
+    if(associated(c))nullify(c)
   end function es_return_cvector_default
 
 #ifdef _MPI
@@ -510,6 +500,7 @@ contains        !some routine to perform simple operation on the lists
        endif
        deallocate(Vtmp)
     endif
+    if(associated(c))nullify(c)
   end function es_return_cvector_mpi
 #endif
 
@@ -555,7 +546,7 @@ contains        !some routine to perform simple operation on the lists
        write(unit_,*)"Empty space"
        return
     endif
-    c=>null()
+    if(associated(c))nullify(c)
   end subroutine es_print_espace
 
 

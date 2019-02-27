@@ -268,7 +268,7 @@ contains
        endif
        !
        !
-       nullify(state_cvec)
+       if(associated(state_cvec))deallocate(state_cvec)
        call delete_sector(isector,HI)
        !
     enddo
@@ -489,7 +489,7 @@ contains
           if(allocated(vvloc))deallocate(vvloc)
        endif
        !
-       nullify(state_cvec)
+       if(associated(state_cvec))deallocate(state_cvec)
        call delete_sector(isector,HI)
        !
     enddo
@@ -547,12 +547,8 @@ contains
     endif
 #endif
 
-    ! diag             = 0.d0
-    ! subdiag          = 0.d0
-    ! Z                = eye(Nlanc)
     diag(1:Nlanc)    = alanc(1:Nlanc)
     subdiag(2:Nlanc) = blanc(2:Nlanc)
-    !call tql2(Nlanc,diag,subdiag,Z,ierr)
     call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
     !
     do j=1,nlanc
@@ -590,11 +586,6 @@ contains
     complex(8),dimension(Nspin,Nspin,Norb,Norb,Lmats) :: invG0mats,invGmats
     complex(8),dimension(Nspin,Nspin,Norb,Norb,Lreal) :: invG0real,invGreal
     complex(8),dimension(Norb,Norb)                   :: invGimp
-    !
-    ! if(.not.allocated(wm))allocate(wm(Lmats))
-    ! if(.not.allocated(wr))allocate(wr(Lreal))
-    ! wm     = pi/beta*real(2*arange(1,Lmats)-1,8)
-    ! wr     = linspace(wini,wfin,Lreal)
     !
     invG0mats = zero
     invGmats  = zero

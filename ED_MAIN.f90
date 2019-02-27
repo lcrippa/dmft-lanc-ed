@@ -43,13 +43,14 @@ module ED_MAIN
   public :: ed_solve
 
 
-
   real(8),dimension(:),allocatable                   :: wr,wm
   character(len=64)                                  :: suffix
 
 
 
 contains
+
+
 
 
 
@@ -640,3 +641,42 @@ contains
 
 
 end module ED_MAIN
+
+
+
+
+
+
+
+
+
+! subroutine ed_finalize
+!   deallocate(impHloc)
+!   deallocate(spH0ups)
+!   deallocate(spH0dws)
+!   !
+!   !Allocate indexing arrays
+!   deallocate(getCsector)
+!   deallocate(getCDGsector)
+!   !
+!   deallocate(impIndex)
+!   !
+!   deallocate(getDim)
+!   !
+!   deallocate(getBathStride)
+!   deallocate(twin_mask)
+!   deallocate(sectors_mask)
+!   deallocate(neigen_sector)
+!   deallocate(impSmats)
+!   deallocate(impSreal)
+!   deallocate(impGmats)
+!   deallocate(impGreal)
+!   deallocate(impG0mats)
+!   deallocate(impG0real)
+!   deallocate(ed_dens,ed_docc,ed_dens_up,ed_dens_dw)
+!   if(chiflag)then
+!      deallocate(spinChi_tau)
+!      deallocate(spinChi_w)
+!      deallocate(spinChi_iv)
+!   end if
+! end subroutine ed_finalize

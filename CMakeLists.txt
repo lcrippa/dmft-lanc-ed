@@ -6,6 +6,9 @@ SET(BUILD_TYPE "RELEASE" CACHE STRING "Build type")
 MESSAGE(STATUS "BUILD_TYPE=${BUILD_TYPE}")
 SET(CMAKE_BUILD_TYPE ${BUILD_TYPE} CACHE INTERNAL "Build type" FORCE)
 
+# Add our local CMAKE modules to the module path
+SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
+INCLUDE(${CMAKE_MODULE_PATH}/ColorsMsg.cmake)
 
 # Check that Fortran 90 is supported
 IF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
@@ -42,7 +45,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES GNU) # this is gfortran
   SET(CMAKE_Fortran_MODDIR_FLAG   "-J")
   SET(CMAKE_Fortran_FLAGS         "-cpp -ffree-line-length-none") # -mcmodel=large  this is to remove the 2Gb limit of virtual memory allocation
   SET(CMAKE_Fortran_FLAGS_TESTING "-O2 -funroll-all-loops")
-  SET(CMAKE_Fortran_FLAGS_DEBUG   "-O0 -p -g -Wsurprising  -Waliasing -fwhole-file -fcheck=all -pedantic -fbacktrace")
+  SET(CMAKE_Fortran_FLAGS_DEBUG   "-O0 -p -g -pg -Wsurprising -Waliasing -fwhole-file -fcheck=all -pedantic -fbacktrace -fbounds-check")
   SET(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ffast-math -march=native -funroll-all-loops -fno-protect-parens -flto")
   
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
@@ -183,6 +186,7 @@ SET(DMFT_ED_OBJS ${DMFT_ED_LOCAL_SRC})
 ADD_EXECUTABLE(dmft_ed ${DRIVERS}/${EXE}.f90 ${DMFT_ED_OBJS})
 TARGET_LINK_LIBRARIES(dmft_ed ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS})  
 SET_TARGET_PROPERTIES(dmft_ed PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}" OUTPUT_NAME "${EXE}${GIT_BRANCH_}")
+MESSAGE(STATUS "${Red}code compiled at: ${CMAKE_INSTALL_PREFIX}/${EXE}${GIT_BRANCH_}${ColourReset}")
 
 ADD_CUSTOM_TARGET(
   completion

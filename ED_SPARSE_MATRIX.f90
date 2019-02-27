@@ -210,10 +210,9 @@ contains
 
 #ifdef _MPI
   subroutine mpi_sp_delete_matrix_csr(MpiComm,sparse)
-    integer                              :: MpiComm
+    integer                               :: MpiComm
     type(sparse_matrix_csr),intent(inout) :: sparse
-    integer                              :: i
-    type(sparse_row_csr),pointer          :: row
+    integer                               :: i
     !
     if(MpiComm==Mpi_Comm_Null)return
     !
@@ -257,7 +256,6 @@ contains
     type(sparse_matrix_csr),intent(inout) :: sparse
     real(8),intent(in)                    :: value
     integer,intent(in)                    :: i,j
-    !
     type(sparse_row_csr),pointer          :: row
     integer                               :: column,pos
     logical                               :: iadd
@@ -395,7 +393,6 @@ contains
     !
     if(sparse%Nrow/=Ndim1 .OR. sparse%Ncol/=Ndim2)stop "Warning SPARSE/dump_matrix: dimensions error"
     !
-    ! matrix=0.d0
     do i=1,Ndim1
        do j=1,sparse%row(i)%Size
           matrix(i,sparse%row(i)%cols(j)) = matrix(i,sparse%row(i)%cols(j)) + sparse%row(i)%vals(j)
@@ -427,8 +424,7 @@ contains
     !
     if(Nrow>Ndim1 .OR. Ncol>Ndim2)stop "Warning SPARSE/mpi_dump_matrix: dimensions error"
     !
-    allocate(matrix_tmp(Ndim1,Ndim2))
-    matrix_tmp=0d0
+    allocate(matrix_tmp(Ndim1,Ndim2));matrix_tmp=0d0
     do i=sparse%Istart,sparse%Iend
        impi = i - sparse%Ishift
        do j=1,sparse%row(impi)%Size
@@ -436,7 +432,7 @@ contains
        enddo
     enddo
     !
-    Matrix=0d0
+    ! Matrix=0d0
     call AllReduce_Mpi(MpiComm,Matrix_tmp,Matrix)
     !   
   end subroutine mpi_sp_dump_matrix_csr
