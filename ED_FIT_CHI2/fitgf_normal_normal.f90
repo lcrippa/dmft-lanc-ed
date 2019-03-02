@@ -357,7 +357,7 @@ function chi2_delta_normal_normal(a) result(chi2)
   !
   Delta = delta_normal_normal(a)
   !
-  chi2=sum(abs(Gdelta(1,:)-Delta(:))**2/Wdelta(:))
+  chi2=sum((abs(Gdelta(1,:)-Delta(:))**cg_pow)/Wdelta(:))
   !
 end function chi2_delta_normal_normal
 
@@ -381,7 +381,7 @@ function grad_chi2_delta_normal_normal(a) result(dchi2)
           sum(  dimag(Gdelta(1,:)-Delta(:))*dimag(dDelta(:,j))/Wdelta(:) )
   enddo
   !
-  dchi2 = -2.d0*df
+  dchi2 = -cg_pow*df
   !
 end function grad_chi2_delta_normal_normal
 
@@ -398,7 +398,7 @@ function chi2_weiss_normal_normal(a) result(chi2)
   !
   g0and  = g0and_normal_normal(a)
   !
-  chi2=sum(abs(Gdelta(1,:)-g0and(:))**2/Wdelta(:))
+  chi2=sum((abs(Gdelta(1,:)-g0and(:))**cg_pow)/Wdelta(:))
   !
 end function chi2_weiss_normal_normal
 

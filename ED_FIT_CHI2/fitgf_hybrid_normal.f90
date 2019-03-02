@@ -225,7 +225,7 @@ function chi2_delta_hybrid_normal(a) result(chi2)
   do l=1,totNorb
      iorb=getIorb(l)
      jorb=getJorb(l)
-     chi2_orb(l) = sum(abs(Gdelta(l,:)-Delta(iorb,jorb,:))**2/Wdelta(:))
+     chi2_orb(l) = sum((abs(Gdelta(l,:)-Delta(iorb,jorb,:))**cg_pow)/Wdelta(:))
   enddo
   !
   chi2=sum(chi2_orb)
@@ -258,7 +258,7 @@ function grad_chi2_delta_hybrid_normal(a) result(dchi2)
      enddo
   enddo
   !
-  dchi2 = -2.d0*sum(df,1)     !sum over all orbital indices
+  dchi2 = -cg_pow*sum(df,1)     !sum over all orbital indices
   !
 end function grad_chi2_delta_hybrid_normal
 
@@ -279,7 +279,7 @@ function chi2_weiss_hybrid_normal(a) result(chi2)
   do l=1,totNorb
      iorb=getIorb(l)
      jorb=getJorb(l)
-     chi2_orb(l) = sum(abs(Gdelta(l,:)-g0and(iorb,jorb,:))**2/Wdelta(:))
+     chi2_orb(l) = sum((abs(Gdelta(l,:)-g0and(iorb,jorb,:))**cg_pow)/Wdelta(:))
   enddo
   !
   chi2=sum(chi2_orb)

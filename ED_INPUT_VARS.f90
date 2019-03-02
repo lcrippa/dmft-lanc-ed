@@ -59,6 +59,7 @@ MODULE ED_INPUT_VARS
   integer              :: cg_Niter            !Max number of iteration in the fit
   real(8)              :: cg_Ftol             !Tolerance in the cg fit
   integer              :: cg_Weight           !CGfit mode 0=normal,1=1/n weight, 2=1/w weight
+  integer              :: cg_pow              !fit power for the calculation of the Chi distance function as |G0 - G0and|**cg_pow 
   character(len=5)     :: cg_Scheme           !fit scheme: delta (default), weiss for G0^
   integer              :: cg_method           !fit routine type:0=CGnr (default), 1=minimize (old f77), 2=CG+
   integer              :: cg_stop             !fit stop condition:0-3, 0=default
@@ -172,6 +173,7 @@ contains
     !
     call parse_input_variable(cg_niter,"CG_NITER",INPUTunit,default=500,comment="Max. number of Conjugate-Gradient iterations.")
     call parse_input_variable(cg_scheme,"CG_SCHEME",INPUTunit,default='weiss',comment="Conjugate-Gradient fit scheme: delta or weiss.")
+    call parse_input_variable(cg_pow,"CG_POW",INPUTunit,default=2,comment="Fit power for the calculation of the Chi distance function as |G0 - G0and|**cg_pow ")
     call parse_input_variable(cg_ftol,"CG_FTOL",INPUTunit,default=0.00001d0,comment="Conjugate-Gradient tolerance.")
     call parse_input_variable(cg_method,"CG_METHOD",INPUTunit,default=0,comment="Conjugate-Gradient method: 0=NR, 1=minimize, 2=CG+.")
     call parse_input_variable(cg_stop,"CG_STOP",INPUTunit,default=0,comment="Conjugate-Gradient stopping condition.")
@@ -182,7 +184,7 @@ contains
     call parse_input_variable(Hfile,"HFILE",INPUTunit,default="hamiltonian",comment="File where to retrieve/store the bath parameters.")
     call parse_input_variable(HLOCfile,"impHfile",INPUTunit,default="inputHLOC.in",comment="File read the input local H.")
     call parse_input_variable(LOGfile,"LOGFILE",INPUTunit,default=6,comment="LOG unit.")
-    call parse_input_variable(ed_verbose,"ED_VERBOSE",INPUTunit,default=3,comment="Verbosity level: 0=almost nothing --> 3:all.")
+    call parse_input_variable(ed_verbose,"ED_VERBOSE",INPUTunit,default=3,comment="Verbosity level: 0=almost nothing --> 5:all. Really: all")
 
 #ifdef _MPI
     if(present(comm))then

@@ -214,7 +214,7 @@ function chi2_delta_replica(a) result(chi2)
      jorb = getJorb(l)
      ispin = getIspin(l)
      jspin = getJspin(l)
-     chi2_so(l) = sum( abs(Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:))**2/Wdelta(:) )
+     chi2_so(l) = sum( (abs(Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:))**cg_pow)/Wdelta(:) )
   enddo
   !
   chi2=sum(chi2_so)
@@ -241,7 +241,7 @@ function chi2_weiss_replica(a) result(chi2)
      jorb = getJorb(l)
      ispin = getIspin(l)
      jspin = getJspin(l)
-     chi2_so(l) = sum( abs(Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:))**2/Wdelta(:) )
+     chi2_so(l) = sum( (abs(Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:))**cg_pow)/Wdelta(:) )
   enddo
   !
   chi2=sum(chi2_so)
@@ -300,11 +300,11 @@ function delta_replica(a) result(Delta)
               do iorb=1,Norb
                  do jorb=1,Norb
                     Delta(ispin,jspin,iorb,jorb,i)=Delta(ispin,jspin,iorb,jorb,i)+ &
-                      (dmft_bath_tmp%vr(ibath))*invH_knn(ispin,jspin,iorb,jorb,ibath)*dmft_bath_tmp%vr(ibath)
-                enddo
+                         (dmft_bath_tmp%vr(ibath))*invH_knn(ispin,jspin,iorb,jorb,ibath)*dmft_bath_tmp%vr(ibath)
+                 enddo
               enddo
            enddo
-         enddo
+        enddo
      enddo
   enddo
   !
