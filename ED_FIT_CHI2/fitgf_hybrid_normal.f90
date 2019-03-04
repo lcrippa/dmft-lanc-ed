@@ -60,8 +60,6 @@ subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
   !
   select case(cg_weight)
   case default
-     Wdelta=1d0*Ldelta
-  case(1)
      Wdelta=1d0
   case(2)
      Wdelta=1d0*arange(1,Ldelta)
@@ -110,10 +108,10 @@ subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
      select case (cg_scheme)
      case ("weiss")
         call fmin_cgminimize(array_bath,chi2_weiss_hybrid_normal,&
-             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,iverbose=(ed_verbose>3))
      case ("delta")
         call fmin_cgminimize(array_bath,chi2_delta_hybrid_normal,&
-             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,iverbose=(ed_verbose>3))
      case default
         stop "chi2_fitgf_hybrid_normal error: cg_scheme != [weiss,delta]"
      end select
@@ -172,14 +170,13 @@ contains
     integer                                :: i,j,l,m,iorb,jorb,ispin,jspin
     real(8)                                :: w
     complex(8),dimension(Norb,Norb,Ldelta) :: fgand
-
+    !
     if(cg_scheme=='weiss')then
        fgand(:,:,:) = g0and_bath_mats(ispin,ispin,xi*Xdelta(:),dmft_bath)
     else
        fgand(:,:,:) = delta_bath_mats(ispin,ispin,xi*Xdelta(:),dmft_bath)
     endif
     !
-
     do l=1,totNorb
        iorb=getIorb(l)
        jorb=getJorb(l)
@@ -229,6 +226,7 @@ function chi2_delta_hybrid_normal(a) result(chi2)
   enddo
   !
   chi2=sum(chi2_orb)
+  chi2=chi2/Ldelta
   !
 end function chi2_delta_hybrid_normal
 
@@ -258,7 +256,7 @@ function grad_chi2_delta_hybrid_normal(a) result(dchi2)
      enddo
   enddo
   !
-  dchi2 = -cg_pow*sum(df,1)     !sum over all orbital indices
+  dchi2 = -cg_pow*sum(df,1)/Ldelta     !sum over all orbital indices
   !
 end function grad_chi2_delta_hybrid_normal
 
@@ -282,7 +280,8 @@ function chi2_weiss_hybrid_normal(a) result(chi2)
      chi2_orb(l) = sum((abs(Gdelta(l,:)-g0and(iorb,jorb,:))**cg_pow)/Wdelta(:))
   enddo
   !
-  chi2=sum(chi2_orb)
+  chi2=sum(chi2_orb)/Norb
+  chi2=chi2/Ldelta
   !
 end function chi2_weiss_hybrid_normal
 

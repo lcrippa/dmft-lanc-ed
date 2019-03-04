@@ -43,8 +43,6 @@ subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
   !
   select case(cg_weight)
   case default
-     Wdelta=1d0*Ldelta
-  case(1)
      Wdelta=1d0
   case(2)
      Wdelta=1d0*arange(1,Ldelta)
@@ -96,10 +94,10 @@ subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
         select case (cg_scheme)
         case ("weiss")
            call fmin_cgminimize(array_bath,chi2_weiss_normal_normal,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+                iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,iverbose=(ed_verbose>3))
         case ("delta")
            call fmin_cgminimize(array_bath,chi2_delta_normal_normal,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+                iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,iverbose=(ed_verbose>3))
         case default
            stop "chi2_fitgf_normal_normal error: cg_scheme != [weiss,delta]"
         end select
@@ -209,11 +207,9 @@ subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
   !
   select case(cg_weight)
   case default
-     Wdelta=1d0*Ldelta
-  case(1)
      Wdelta=1d0
   case(2)
-     Wdelta=1d0*arange(1,Ldelta)
+     Wdelta=arange(1,Ldelta)
   case(3)
      Wdelta=Xdelta
   end select
@@ -261,10 +257,10 @@ subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
      select case (cg_scheme)
      case ("weiss")
         call fmin_cgminimize(array_bath,chi2_weiss_normal_normal,&
-             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,iverbose=(ed_verbose>3))
      case ("delta")
         call fmin_cgminimize(array_bath,chi2_delta_normal_normal,&
-             iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,iverbose=(ed_verbose>3))
      case default
         stop "chi2_fitgf_normal_normal error: cg_scheme != [weiss,delta]"
      end select
@@ -358,6 +354,7 @@ function chi2_delta_normal_normal(a) result(chi2)
   Delta = delta_normal_normal(a)
   !
   chi2=sum((abs(Gdelta(1,:)-Delta(:))**cg_pow)/Wdelta(:))
+  chi2=chi2/Ldelta
   !
 end function chi2_delta_normal_normal
 
@@ -381,7 +378,7 @@ function grad_chi2_delta_normal_normal(a) result(dchi2)
           sum(  dimag(Gdelta(1,:)-Delta(:))*dimag(dDelta(:,j))/Wdelta(:) )
   enddo
   !
-  dchi2 = -cg_pow*df
+  dchi2 = -cg_pow*df/Ldelta
   !
 end function grad_chi2_delta_normal_normal
 
@@ -399,6 +396,7 @@ function chi2_weiss_normal_normal(a) result(chi2)
   g0and  = g0and_normal_normal(a)
   !
   chi2=sum((abs(Gdelta(1,:)-g0and(:))**cg_pow)/Wdelta(:))
+  chi2=chi2/Ldelta
   !
 end function chi2_weiss_normal_normal
 

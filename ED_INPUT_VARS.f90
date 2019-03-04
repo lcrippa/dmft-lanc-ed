@@ -58,8 +58,9 @@ MODULE ED_INPUT_VARS
   !
   integer              :: cg_Niter            !Max number of iteration in the fit
   real(8)              :: cg_Ftol             !Tolerance in the cg fit
-  integer              :: cg_Weight           !CGfit mode 0=normal,1=1/n weight, 2=1/w weight
-  integer              :: cg_pow              !fit power for the calculation of the Chi distance function as |G0 - G0and|**cg_pow 
+  integer              :: cg_Weight           !CGfit mode 0=1, 1=1/n , 2=1/w_n weight
+  integer              :: cg_pow              !fit power for the calculation of the Chi distance function as |G0 - G0and|**cg_pow
+  logical              :: cg_minimize_ver     !flag to pick old (Krauth) or new (Lichtenstein) version of the minimize CG routine
   character(len=5)     :: cg_Scheme           !fit scheme: delta (default), weiss for G0^
   integer              :: cg_method           !fit routine type:0=CGnr (default), 1=minimize (old f77), 2=CG+
   integer              :: cg_stop             !fit stop condition:0-3, 0=default
@@ -173,12 +174,13 @@ contains
     !
     call parse_input_variable(cg_niter,"CG_NITER",INPUTunit,default=500,comment="Max. number of Conjugate-Gradient iterations.")
     call parse_input_variable(cg_scheme,"CG_SCHEME",INPUTunit,default='weiss',comment="Conjugate-Gradient fit scheme: delta or weiss.")
-    call parse_input_variable(cg_pow,"CG_POW",INPUTunit,default=2,comment="Fit power for the calculation of the Chi distance function as |G0 - G0and|**cg_pow ")
+    call parse_input_variable(cg_pow,"CG_POW",INPUTunit,default=2,comment="Fit power for the calculation of the Chi distance function as 1/L*|G0 - G0and|**cg_pow ")
+    call parse_input_variable(cg_minimize_ver,"CG_MINIMIZE_VER",INPUTunit,default=.false.,comment="Flag to pick old/.false. (Krauth) or new/.true. (Lichtenstein) version of the minimize CG routine")
     call parse_input_variable(cg_ftol,"CG_FTOL",INPUTunit,default=0.00001d0,comment="Conjugate-Gradient tolerance.")
     call parse_input_variable(cg_method,"CG_METHOD",INPUTunit,default=0,comment="Conjugate-Gradient method: 0=NR, 1=minimize, 2=CG+.")
     call parse_input_variable(cg_stop,"CG_STOP",INPUTunit,default=0,comment="Conjugate-Gradient stopping condition.")
     call parse_input_variable(cg_eps,"CG_EPS",INPUTunit,default=0.000001d0,comment="Conjugate-Gradient eps tolerance.")
-    call parse_input_variable(cg_weight,"CG_WEIGHT",INPUTunit,default=0,comment="Conjugate-Gradient weight form: 0=1/L; 1=1.0, 2=1/n , 3=1/w_n.")
+    call parse_input_variable(cg_weight,"CG_WEIGHT",INPUTunit,default=0,comment="Conjugate-Gradient weight form: 1=1.0, 2=1/n , 3=1/w_n.")
     call parse_input_variable(ed_bath_noise_thr,"ED_BATH_NOISE_THR",INPUTunit,default=0.d0,comment="Noise added to the impurity hybridization")
     call parse_input_variable(bath_type,"BATH_TYPE",INPUTunit,default='normal',comment="flag to set bath type: normal (1bath/imp), hybrid(1bath), replica(1replica/imp)")
     call parse_input_variable(Hfile,"HFILE",INPUTunit,default="hamiltonian",comment="File where to retrieve/store the bath parameters.")
