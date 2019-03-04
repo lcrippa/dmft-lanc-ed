@@ -83,8 +83,6 @@ subroutine chi2_fitgf_replica(fg,bath_)
   !
   select case(cg_weight)
   case default
-     Wdelta=1d0*Ldelta
-  case(1)
      Wdelta=1d0
   case(2)
      Wdelta=1d0*arange(1,Ldelta)
@@ -102,9 +100,9 @@ subroutine chi2_fitgf_replica(fg,bath_)
   case default
      select case (cg_scheme)
      case ("weiss")
-        call fmin_cg(array_bath,chi2_weiss_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps)
+        call fmin_cg(array_bath,chi2_weiss_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
      case ("delta")
-        call fmin_cg(array_bath,chi2_delta_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps)
+        call fmin_cg(array_bath,chi2_delta_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
      case default
         stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
      end select
@@ -112,19 +110,15 @@ subroutine chi2_fitgf_replica(fg,bath_)
   case (1)
      select case (cg_scheme)
      case ("weiss")
-        call fmin_cgminimize(array_bath,chi2_weiss_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+        call fmin_cgminimize(array_bath,chi2_weiss_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol,&
+             new_version=cg_minimize_ver,&
+             hh_par=cg_minimize_hh,&
+             iverbose=(ed_verbose>3))
      case ("delta")
-        call fmin_cgminimize(array_bath,chi2_delta_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol)
-     case default
-        stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
-     end select
-     !
-  case (2)
-     select case (cg_scheme)
-     case ("weiss")
-        call fmin_cgplus(array_bath,chi2_weiss_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol)
-     case ("delta")
-        call fmin_cgplus(array_bath,chi2_delta_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol)
+        call fmin_cgminimize(array_bath,chi2_delta_replica,iter,chi,itmax=cg_niter,ftol=cg_Ftol,&
+             new_version=cg_minimize_ver,&
+             hh_par=cg_minimize_hh,&
+             iverbose=(ed_verbose>3))
      case default
         stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
      end select
@@ -190,7 +184,7 @@ contains
        close(unit)
     enddo
   end subroutine write_fit_result
-
+  !
 end subroutine chi2_fitgf_replica
 
 
@@ -218,8 +212,10 @@ function chi2_delta_replica(a) result(chi2)
   enddo
   !
   chi2=sum(chi2_so)
+  chi2=chi2/Ldelta
   !
 end function chi2_delta_replica
+
 
 
 !+-------------------------------------------------------------+
@@ -245,6 +241,7 @@ function chi2_weiss_replica(a) result(chi2)
   enddo
   !
   chi2=sum(chi2_so)
+  chi2=chi2/Ldelta
   !
 end function chi2_weiss_replica
 

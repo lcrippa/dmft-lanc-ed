@@ -78,13 +78,11 @@ contains
     !
     select case(cg_method)
     case default
-       stop "ED Error: cg_method > 2"
+       stop "ED Error: cg_method > 1"
     case (0)
        if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"\Chi2 fit with CG-nr and CG-weight: ",cg_weight," on: ",cg_scheme
     case (1)
        if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"\Chi2 fit with CG-minimize and CG-weight: ",cg_weight," on: ",cg_scheme
-    case (2)
-       if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"\Chi2 fit with CG-plus and CG-weight: ",cg_weight," on: ",cg_scheme
     end select
     !
     !
@@ -141,13 +139,11 @@ contains
     call assert_shape(fg,[Nspin,Nspin,Norb,Norb,size(fg,5)],"chi2_fitgf_generic_normal","fg")
     select case(cg_method)
     case default
-       stop "ED Error: cg_method > 2"
+       stop "ED Error: cg_method > 1"
     case (0)
        if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"master: Chi^2 fit with CG-nr and CG-weight: ",cg_weight," on: ",cg_scheme
     case (1)
        if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"master: Chi^2 fit with CG-minimize and CG-weight: ",cg_weight," on: ",cg_scheme
-    case (2)
-       if(ed_verbose>2)write(LOGfile,"(A,I1,A,A)")"master: Chi^2 fit with CG-plus and CG-weight: ",cg_weight," on: ",cg_scheme
     end select
     !
     if(MPI_MASTER)then
