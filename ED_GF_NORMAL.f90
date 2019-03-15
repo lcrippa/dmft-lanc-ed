@@ -139,7 +139,6 @@ contains
        iDimDw = product(iDimDws)
        call build_sector(isector,HI)
        !
-       !
        !ADD ONE PARTICLE:
        jsector = getCDGsector(ialfa,ispin,isector)
        if(jsector/=0)then 
@@ -268,7 +267,16 @@ contains
        endif
        !
        !
-       if(associated(state_cvec))deallocate(state_cvec)
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
+       !
        call delete_sector(isector,HI)
        !
     enddo
@@ -489,7 +497,15 @@ contains
           if(allocated(vvloc))deallocate(vvloc)
        endif
        !
-       if(associated(state_cvec))deallocate(state_cvec)
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
        call delete_sector(isector,HI)
        !
     enddo

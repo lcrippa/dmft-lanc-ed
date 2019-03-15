@@ -24,7 +24,7 @@ MODULE ED_OBSERVABLES
   real(8),dimension(:),allocatable   :: docc
   real(8),dimension(:),allocatable   :: magz
   real(8),dimension(:,:),allocatable :: sz2,n2
-  real(8),dimensioN(:,:),allocatable :: zimp,simp
+  real(8),dimension(:,:),allocatable :: zimp,simp
   real(8)                            :: s2tot
   real(8)                            :: Egs
   real(8)                            :: Ei
@@ -47,7 +47,8 @@ MODULE ED_OBSERVABLES
   integer                            :: isector,jsector
   integer                            :: idim,idimUP,idimDW
   !
-  real(8),dimension(:),pointer       :: gscvec
+
+  real(8),dimension(:),pointer       :: state_cvec
   logical                            :: Jcondition
   !
 
@@ -58,7 +59,7 @@ contains
 
 
 
-  
+
 
 
   !+-------------------------------------------------------------------+
@@ -94,12 +95,12 @@ contains
        !
 #ifdef _MPI
        if(MpiStatus)then
-          gscvec => es_return_cvector(MpiComm,state_list,istate)
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
        else
-          gscvec => es_return_cvector(state_list,istate)
+          state_cvec => es_return_cvector(state_list,istate)
        endif
 #else
-       gscvec => es_return_cvector(state_list,istate)
+       state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
        !
@@ -111,6 +112,7 @@ contains
        call get_DimDw(isector,iDimDws)
        iDimUp = product(iDimUps)
        iDimDw = product(iDimDws)
+       !
        if(MpiMaster)then
           call build_sector(isector,HI)
           do i = 1,iDim
@@ -124,7 +126,7 @@ contains
              IbUp = Breorder(Nups)
              IbDw = Breorder(Ndws)
              !
-             gs_weight=peso*abs(gscvec(i))**2
+             gs_weight=peso*abs(state_cvec(i))**2
              !
              !Get operators:
              do iorb=1,Norb
@@ -153,9 +155,21 @@ contains
              s2tot = s2tot  + (sum(sz))**2*gs_weight
           enddo
           call delete_sector(isector,HI)
-          if(associated(gscvec))nullify(gscvec)
        endif
+       !
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
+       !
     enddo
+    !
+    !
     !
     !IMPURITY DENSITY MATRIX
     if(allocated(imp_density_matrix)) deallocate(imp_density_matrix)
@@ -165,12 +179,12 @@ contains
        Ei      = es_return_energy(state_list,istate)
 #ifdef _MPI
        if(MpiStatus)then
-          gscvec => es_return_cvector(MpiComm,state_list,istate)
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
        else
-          gscvec => es_return_cvector(state_list,istate)
+          state_cvec => es_return_cvector(state_list,istate)
        endif
 #else
-       gscvec => es_return_cvector(state_list,istate)
+       state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
@@ -200,7 +214,7 @@ contains
                 do iorb=1,Norb
                    imp_density_matrix(ispin,ispin,iorb,iorb) = &
                         imp_density_matrix(ispin,ispin,iorb,iorb) + &
-                        peso*nud(ispin,iorb)*(gscvec(i))*gscvec(i)
+                        peso*nud(ispin,iorb)*(state_cvec(i))*state_cvec(i)
                 enddo
              enddo
              !
@@ -222,7 +236,7 @@ contains
                             !
                             imp_density_matrix(ispin,ispin,iorb,jorb) = &
                                  imp_density_matrix(ispin,ispin,iorb,jorb) + &
-                                 peso*sgn1*gscvec(i)*sgn2*(gscvec(j))
+                                 peso*sgn1*state_cvec(i)*sgn2*(state_cvec(j))
                          endif
                       enddo
                    enddo
@@ -233,9 +247,18 @@ contains
           enddo
           call delete_sector(isector,HI)         
        endif
+       !
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
+       !
     enddo
-    !
-    if(associated(gscvec))nullify(gscvec)
     !
     !
     !
@@ -271,7 +294,6 @@ contains
     !
     deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2)
     deallocate(simp,zimp)
-    if(associated(gscvec))nullify(gscvec)
   end subroutine observables_impurity
 
 
@@ -302,19 +324,17 @@ contains
     ed_Dph     = 0.d0
     !
     !
-    gscvec => null()
-    !
     do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
 #ifdef _MPI
        if(MpiStatus)then
-          gscvec => es_return_cvector(MpiComm,state_list,istate)
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
        else
-          gscvec => es_return_cvector(state_list,istate)
+          state_cvec => es_return_cvector(state_list,istate)
        endif
 #else
-       gscvec => es_return_cvector(state_list,istate)
+       state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
        iDim  = getdim(isector)
@@ -340,7 +360,7 @@ contains
              Nup = Breorder(Nups)
              Ndw = Breorder(Ndws)
              !
-             gs_weight=peso*abs(gscvec(i))**2
+             gs_weight=peso*abs(state_cvec(i))**2
              !
              !> H_Imp: Diagonal Elements, i.e. local part
              do iorb=1,Norb
@@ -363,7 +383,7 @@ contains
                          jup = binary_search(H(1)%map,k2)
                          j   = jup + (idw-1)*iDimUp
                          ed_Eknot = ed_Eknot + &
-                              impHloc(1,1,iorb,jorb)*sg1*sg2*gscvec(i)*(gscvec(j))
+                              impHloc(1,1,iorb,jorb)*sg1*sg2*state_cvec(i)*(state_cvec(j))
                       endif
                       !
                       !DW
@@ -376,7 +396,7 @@ contains
                          jdw = binary_search(H(2)%map,k2)
                          j   = iup + (jdw-1)*iDimUp
                          ed_Eknot = ed_Eknot + &
-                              impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*gscvec(i)*(gscvec(j))
+                              impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*state_cvec(i)*(state_cvec(j))
                       endif
                    enddo
                 enddo
@@ -434,9 +454,18 @@ contains
           call delete_sector(isector,H)         
        endif
        !
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
+       !
     enddo
     !
-    if(associated(gscvec))nullify(gscvec)
     !
 #ifdef _MPI
     if(MpiStatus)then
