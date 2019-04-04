@@ -350,28 +350,35 @@ contains
        call get_Nup(isector,Nups)
        call get_Ndw(isector,Ndws)
        !
+       !UPs:
+       !DEL:
        do iud=1,Ns_Ud
-          !UPs:
           Jups=Nups
           Jdws=Ndws 
           Jups(iud)=Jups(iud)-1; if(Jups(iud) < 0)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCsector(iud,1,isector)=jsector
-          !
+       enddo
+       !ADD
+       do iud=1,Ns_Ud
           Jups=Nups
           Jdws=Ndws 
           Jups(iud)=Jups(iud)+1; if(Jups(iud) > Ns)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCDGsector(iud,1,isector)=jsector
-          !
-          !
-          !DWs:
+       enddo
+       !
+       !DWs:
+       !DEL
+       do iud=1,Ns_Ud
           Jups=Nups
           Jdws=Ndws 
           Jdws(iud)=Jdws(iud)-1; if(Jdws(iud) < 0)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCsector(iud,2,isector)=jsector
-          !
+       enddo
+       !DEL
+       do iud=1,Ns_Ud
           Jups=Nups
           Jdws=Ndws 
           Jdws(iud)=Jdws(iud)+1; if(Jdws(iud) > Ns)cycle
@@ -581,7 +588,7 @@ contains
     return
   end subroutine scatter_basis_MPI
 
-  
+
   !! AllGather Vloc on each thread into the array V: sum_threads(size(Vloc)) must be equal to size(v)
   subroutine gather_vector_MPI(MpiComm,vloc,v)
     integer                          :: MpiComm
