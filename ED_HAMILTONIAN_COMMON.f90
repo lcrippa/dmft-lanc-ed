@@ -18,7 +18,7 @@ MODULE ED_HAMILTONIAN_COMMON
   logical                                   :: Hstatus=.false.
   type(sector_map),dimension(:),allocatable :: Hs
 
-
+  integer,save,public :: iter=0
 
 contains
 
@@ -35,7 +35,7 @@ contains
     integer,allocatable,dimension(:,:) :: send_counts,send_offset
     integer,allocatable,dimension(:,:) :: recv_counts,recv_offset
     integer                            :: counts,Ntot
-    integer :: i,j,irank,ierr
+    integer                            :: i,j,irank,ierr
     !
     counts = Nrow/MpiSize
     Ntot   = Ncol/MpiSize
@@ -56,10 +56,11 @@ contains
        enddo
     enddo
     !
+
     do i=1,Ntot
        call MPI_AllToAll(&
-            send_counts(:,i),1,MPI_INTEGER,&
-            recv_counts(:,i),1,MPI_INTEGER,&
+            send_counts(0:,i),1,MPI_INTEGER,&
+            recv_counts(0:,i),1,MPI_INTEGER,&
             MpiComm,ierr)
     enddo
     !

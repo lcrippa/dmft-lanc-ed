@@ -205,8 +205,8 @@ MODULE ED_VARS_GLOBAL
   !This is the internal Mpi Communicator and variables.
   !=========================================================
 #ifdef _MPI
-  integer                                            :: MpiComm_Global=MPI_UNDEFINED
-  integer                                            :: MpiComm=MPI_UNDEFINED
+  integer                                            :: MpiComm_Global=MPI_COMM_NULL
+  integer                                            :: MpiComm=MPI_COMM_NULL
 #endif
   integer                                            :: MpiGroup_Global=MPI_GROUP_NULL
   integer                                            :: MpiGroup=MPI_GROUP_NULL
@@ -276,22 +276,25 @@ contains
   subroutine ed_set_MpiComm(comm)
 #ifdef _MPI
     integer :: comm,ierr
+    ! call MPI_Comm_dup(Comm,MpiComm_Global,ierr)
+    ! call MPI_Comm_dup(Comm,MpiComm,ierr)
     MpiComm_Global = comm
-    MpiComm        = MpiComm_Global
+    MpiComm        = comm
+    call Mpi_Comm_group(MpiComm_Global,MpiGroup_Global,ierr)
     MpiStatus      = .true.
     MpiSize        = get_Size_MPI(MpiComm_Global)
     MpiRank        = get_Rank_MPI(MpiComm_Global)
     MpiMaster      = get_Master_MPI(MpiComm_Global)
-    call Mpi_Comm_group(MpiComm_Global,MpiGroup_Global,ierr)
 #else
     integer,optional :: comm
 #endif
   end subroutine ed_set_MpiComm
 
   subroutine ed_del_MpiComm()
-#ifdef _MPI
+#ifdef _MPI    
     MpiComm_Global = MPI_UNDEFINED
     MpiComm        = MPI_UNDEFINED
+    MpiGroup_Global= MPI_GROUP_NULL
     MpiStatus      = .false.
     MpiSize        = 1
     MpiRank        = 0
