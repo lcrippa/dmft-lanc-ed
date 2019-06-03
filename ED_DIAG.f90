@@ -201,6 +201,7 @@ contains
           if(MpiMaster)call eigh(eig_basis_tmp,eig_values,'V','U')
           if(dim==1)eig_basis_tmp(dim,dim)=1d0
           !
+          call delete_Hv_sector()
 #ifdef _MPI
           if(MpiStatus)then
              call Bcast_MPI(MpiComm,eig_values)
@@ -216,7 +217,6 @@ contains
           eig_basis = eig_basis_tmp(:,1:Neigen)
 #endif
           !
-          call delete_Hv_sector()
        endif
        !
        if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
