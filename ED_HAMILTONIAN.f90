@@ -97,7 +97,8 @@ contains
     mpiIshift = MpiRank*mpiQ+mpiR
     !
     !
-#ifdef _MPI    
+#ifdef _MPI
+    call Barrier_MPI(MpiComm)
     if(MpiStatus.AND.ed_verbose>4.AND.(MpiComm/=Mpi_Comm_Null).AND.MpiSize>1)then
        if(MpiMaster)write(LOGfile,*)&
             "         mpiRank,   mpi_Q,   mpi_R,      mpi_Qdw,      mpiR_dw,  mpi_Istart,  mpi_Iend,  mpi_Iend-mpi_Istart"
@@ -107,6 +108,7 @@ contains
        enddo
        call Barrier_MPI(MpiComm)
     endif
+    call Barrier_MPI(MpiComm)
 #endif
     !
     !
