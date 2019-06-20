@@ -118,28 +118,44 @@ program ed_hm_square_afm2
      if(master)call start_loop(iloop,nloop,"DMFT-loop")
      !
      !solve the impurity problem:
-     call ed_solve(Comm,Bath_ineq,Hloc_ineq)
-     !
-     !retrieve inequivalent self-energies:
-     call ed_get_sigma_matsubara(Smats_ineq,Nineq)
-     call ed_get_sigma_real(Sreal_ineq,Nineq)
-     !
-     !extend them to the lattice using symmetry if this applies
-     do ip=1,Nineq
-        Smats(ip,:,:,:,:,:) = Smats_ineq(ip,:,:,:,:,:)
-        Sreal(ip,:,:,:,:,:) = Sreal_ineq(ip,:,:,:,:,:)
-     enddo
-     if(neelsym)then
+     if(NeelSym)then
+        call ed_solve(Comm,Bath_ineq(1,:),Hloc_ineq(1,:,:,:,:))
+        !
+        !retrieve inequivalent self-energies:
+        call ed_get_sigma_matsubara(Smats_ineq(1,:,:,:,:,:))
+        call ed_get_sigma_real(Sreal_ineq(1,:,:,:,:,:))
+        !
+        !extend them to the lattice using symmetry if this applies
+        Smats(1,:,:,:,:,:) = Smats_ineq(1,:,:,:,:,:)
+        Sreal(1,:,:,:,:,:) = Sreal_ineq(1,:,:,:,:,:)
         do ispin=1,2
            Smats(2,ispin,ispin,:,:,:)=Smats(1,3-ispin,3-ispin,:,:,:)
            Sreal(2,ispin,ispin,:,:,:)=Sreal(1,3-ispin,3-ispin,:,:,:)
         enddo
-     endif
+     else
+        call ed_solve(Comm,Bath_ineq,Hloc_ineq)
+        !
+        !retrieve inequivalent self-energies:
+        call ed_get_sigma_matsubara(Smats_ineq,Nineq)
+        call ed_get_sigma_real(Sreal_ineq,Nineq)
+        !
+        !extend them to the lattice using symmetry if this applies
+        do ip=1,Nineq
+           Smats(ip,:,:,:,:,:) = Smats_ineq(ip,:,:,:,:,:)
+           Sreal(ip,:,:,:,:,:) = Sreal_ineq(ip,:,:,:,:,:)
+        enddo
+        if(neelsym)then
+           do ispin=1,2
+              Smats(2,ispin,ispin,:,:,:)=Smats(1,3-ispin,3-ispin,:,:,:)
+              Sreal(2,ispin,ispin,:,:,:)=Sreal(1,3-ispin,3-ispin,:,:,:)
+           enddo
+        endif
+     end if
      !
      !
      ! compute the local gf:
      call dmft_gloc_matsubara(Comm,Hk,Wtk,Gmats,Smats)
-     call dmft_print_gf_matsubara(Gmats,"Gloc",iprint=4)
+     if(master)call dmft_print_gf_matsubara(Gmats,"Gloc",iprint=4)
      !
      !fold to the inequivalent sites
      do ip=1,Nineq
@@ -174,9 +190,10 @@ program ed_hm_square_afm2
 
 
   call dmft_gloc_realaxis(Comm,Hk,Wtk,Greal,Sreal)
-  call dmft_print_gf_realaxis(Greal,"Gloc",iprint=4)
+  if(master)call dmft_print_gf_realaxis(Greal,"Gloc",iprint=4)
 
 
+  call Finalize_MPI()
 
 
 contains
@@ -247,9 +264,6 @@ contains
     if(N/=Nlso)stop "hk_model error: N != Nlso" 
     kx = kpoint(1)
     ky = kpoint(2)
-    !
-    ! Hk =  -t * | 0                  1 + e^ikx(e^ikx + e^iky) |
-    !            | 1 + e^-ikx(e^-ikx + e^-iky)   0             |
     !
     hk=zero
     hk(1,2) = -ts*(one+exp(xi*2*kx)+exp(xi*(kx+ky))+exp(xi*(kx-ky)))
