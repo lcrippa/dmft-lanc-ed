@@ -3,6 +3,7 @@ PROJECT(dmft_ed Fortran)
 SET(VERSION 0.13.1)
 
 SET(BUILD_TYPE "RELEASE" CACHE STRING "Build type")
+STRING(TOUPPER "${BUILD_TYPE}" BUILD_TYPE)
 MESSAGE(STATUS "BUILD_TYPE=${BUILD_TYPE}")
 SET(CMAKE_BUILD_TYPE ${BUILD_TYPE} CACHE INTERNAL "Build type" FORCE)
 
@@ -18,6 +19,7 @@ ENDIF(NOT CMAKE_Fortran_COMPILER_SUPPORTS_F90)
 # Set some options the user may choose
 OPTION(USE_MPI "Set MPI pre-compilation flag" ON)
 OPTION(VERBOSE "Build a verbose Makefile" OFF)
+OPTION(WITH_BLAS_LAPACK "Use internal Blas/Lapack" OFF)
 IF(VERBOSE)
   SET(CMAKE_VERBOSE_MAKEFILE ON)
 ELSE(VERBOSE)
@@ -31,6 +33,7 @@ ENDIF(VERBOSE)
 ############################################################
 # reSet compiler to MPI is required
 IF(USE_MPI)
+  OPTION(USE_MPI_FC "Use MPI fortran compiler" ON)
   FIND_PACKAGE(MPI REQUIRED)
   IF(MPI_Fortran_FOUND)
     SET(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
@@ -40,8 +43,10 @@ IF(USE_MPI)
     MESSAGE(FATAL_ERROR "MPI Found but No MPI-Fortran compiler can be determined.")    
   ENDIF()
 ELSE(USE_MPI)
+  OPTION(USE_MPI_FC "Use MPI fortran compiler" OFF)  
   SET(MPI_CPP "")
 ENDIF(USE_MPI)
+
 
 
 
@@ -83,9 +88,12 @@ FILE(WRITE  ${REVISION_FILE} "character(len=41),parameter,public :: revision = \
 ############################################################
 # Look for required libraries: blas,lapack,scifor,dmft_tools
 ############################################################
-FIND_PACKAGE(BLAS REQUIRED)
-
-FIND_PACKAGE(LAPACK REQUIRED)
+IF(NOT WITH_BLAS_LAPACK)
+  FIND_PACKAGE(BLAS REQUIRED)
+  FIND_PACKAGE(LAPACK REQUIRED)
+ELSE()
+  MESSAGE(STATUS "Using internal Blas/Lapack")
+ENDIF()
 
 # Find Scifor
 FIND_PACKAGE(PkgConfig)
@@ -118,7 +126,7 @@ INCLUDE_DIRECTORIES(BEFORE ${DMFT_TOOLS_INCLUDE_DIRS})
 ############################################################
 if(CMAKE_Fortran_COMPILER_ID MATCHES GNU) # this is gfortran
   SET(CMAKE_Fortran_MODDIR_FLAG   "-J")
-  SET(CMAKE_Fortran_FLAGS         "-cpp -ffree-line-length-none") # -mcmodel=large  this is to remove the 2Gb limit of virtual memory allocation
+  SET(CMAKE_Fortran_FLAGS         "-cpp -ffree-line-length-none -ff2c") # -mcmodel=large  this is to remove the 2Gb limit of virtual memory allocation
   SET(CMAKE_Fortran_FLAGS_TESTING "-O2 -funroll-loops")
   SET(CMAKE_Fortran_FLAGS_DEBUG   "-O0 -p -g -Wsurprising -Waliasing -fwhole-file -fcheck=all -pedantic -fbacktrace -fbounds-check")
   SET(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ffast-math -march=native -funroll-loops")  ##-fno-protect-parens -flto
@@ -143,8 +151,8 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
   SET(CMAKE_Fortran_FLAGS         "")
   SET(CMAKE_Fortran_FLAGS_DEBUG   "-g -O0 -Mframe")
   SET(CMAKE_Fortran_FLAGS_RELEASE "-O3 -mcmodel=medium -fast -Munroll")
-
 endif()
+
 
 #set MPI preprocessing defition:
 IF(USE_MPI)
@@ -203,7 +211,13 @@ FILE(GLOB DMFT_ED_LOCAL_SRC
 SET(DMFT_ED_OBJS ${DMFT_ED_LOCAL_SRC})
 
 ADD_EXECUTABLE(dmft_ed ${DRIVERS}/${EXE}.f90 ${DMFT_ED_OBJS})
-TARGET_LINK_LIBRARIES(dmft_ed ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS} ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES})  
+IF(NOT WITH_BLAS_LAPACK)
+  SET(DMFT_ED_LIBRARIES ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS})# ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES})
+ELSE()
+  SET(DMFT_ED_LIBRARIES ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS})
+ENDIF()
+
+TARGET_LINK_LIBRARIES(dmft_ed ${DMFT_ED_LIBRARIES})  
 SET_TARGET_PROPERTIES(dmft_ed PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}" OUTPUT_NAME "${EXE}${GIT_BRANCH_}")
 MESSAGE(STATUS "Executable created at: ${Yellow}${CMAKE_INSTALL_PREFIX}/${EXE}${GIT_BRANCH_}${ColourReset}")
 
