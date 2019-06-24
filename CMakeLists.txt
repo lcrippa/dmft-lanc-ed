@@ -33,7 +33,6 @@ ENDIF(VERBOSE)
 ############################################################
 # reSet compiler to MPI is required
 IF(USE_MPI)
-  OPTION(USE_MPI_FC "Use MPI fortran compiler" ON)
   FIND_PACKAGE(MPI REQUIRED)
   IF(MPI_Fortran_FOUND)
     SET(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
@@ -43,7 +42,6 @@ IF(USE_MPI)
     MESSAGE(FATAL_ERROR "MPI Found but No MPI-Fortran compiler can be determined.")    
   ENDIF()
 ELSE(USE_MPI)
-  OPTION(USE_MPI_FC "Use MPI fortran compiler" OFF)  
   SET(MPI_CPP "")
 ENDIF(USE_MPI)
 
@@ -88,24 +86,24 @@ FILE(WRITE  ${REVISION_FILE} "character(len=41),parameter,public :: revision = \
 ############################################################
 # Look for required libraries: blas,lapack,scifor,dmft_tools
 ############################################################
-IF(NOT WITH_BLAS_LAPACK)
-  FIND_PACKAGE(BLAS REQUIRED)
-  FIND_PACKAGE(LAPACK REQUIRED)
-ELSE()
-  MESSAGE(STATUS "Using internal Blas/Lapack")
-ENDIF()
-
 # Find Scifor
 FIND_PACKAGE(PkgConfig)
 PKG_SEARCH_MODULE(SCIFOR REQUIRED scifor)
 IF(${SCIFOR_FOUND})
   MESSAGE(STATUS "SCIFOR found at: ${SCIFOR_PREFIX}")
 ELSE()
-  MESSAGE( FATAL_ERROR "
+  MESSAGE(FATAL_ERROR "
 Can not find SciFortran in this system. Check SciFor installation. Try adding the provided PKG-CONFIG file to the environment:
 $ export PKG_CONFIG_PATH=<path_to_scifor_dir>/etc:$PKG_CONFIG_PATH")
 ENDIF()
+IF("${SCIFOR_LDFLAGS}" MATCHES "-lblas" OR "-llapack")
+  FIND_PACKAGE(BLAS REQUIRED)
+  FIND_PACKAGE(LAPACK REQUIRED)
+ELSEIF("${SCIFOR_LDFLAGS}" MATCHES "mkl")
+  FIND_PACKAGE(MKL REQUIRED)
+ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${SCIFOR_INCLUDE_DIRS})
+
 
 # Find Dmft_tools
 PKG_SEARCH_MODULE(DMFT_TOOLS REQUIRED dmft_tools)
@@ -121,15 +119,16 @@ INCLUDE_DIRECTORIES(BEFORE ${DMFT_TOOLS_INCLUDE_DIRS})
 
 
 
+
 ############################################################
 # Set Fortran options based on BUILD_TYPE and FC ID
 ############################################################
 if(CMAKE_Fortran_COMPILER_ID MATCHES GNU) # this is gfortran
   SET(CMAKE_Fortran_MODDIR_FLAG   "-J")
-  SET(CMAKE_Fortran_FLAGS         "-cpp -ffree-line-length-none -ff2c") # -mcmodel=large  this is to remove the 2Gb limit of virtual memory allocation
+  SET(CMAKE_Fortran_FLAGS         "-cpp -ffree-line-length-none ") # -mcmodel=large  this is to remove the 2Gb limit of virtual memory allocation
   SET(CMAKE_Fortran_FLAGS_TESTING "-O2 -funroll-loops")
   SET(CMAKE_Fortran_FLAGS_DEBUG   "-O0 -p -g -Wsurprising -Waliasing -fwhole-file -fcheck=all -pedantic -fbacktrace -fbounds-check")
-  SET(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ffast-math -march=native -funroll-loops")  ##-fno-protect-parens -flto
+  SET(CMAKE_Fortran_FLAGS_RELEASE "-O3  -funroll-loops")  ##-fno-protect-parens -flto -ffast-math -march=native
   
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
   SET(CMAKE_Fortran_MODDIR_FLAG   "-module ") #remember the ending white space here 
@@ -211,13 +210,9 @@ FILE(GLOB DMFT_ED_LOCAL_SRC
 SET(DMFT_ED_OBJS ${DMFT_ED_LOCAL_SRC})
 
 ADD_EXECUTABLE(dmft_ed ${DRIVERS}/${EXE}.f90 ${DMFT_ED_OBJS})
-IF(NOT WITH_BLAS_LAPACK)
-  SET(DMFT_ED_LIBRARIES ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS})# ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES})
-ELSE()
-  SET(DMFT_ED_LIBRARIES ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS})
-ENDIF()
 
-TARGET_LINK_LIBRARIES(dmft_ed ${DMFT_ED_LIBRARIES})  
+
+target_LINK_LIBRARIES(dmft_ed ${DMFT_TOOLS_LDFLAGS} ${SCIFOR_LDFLAGS})
 SET_TARGET_PROPERTIES(dmft_ed PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}" OUTPUT_NAME "${EXE}${GIT_BRANCH_}")
 MESSAGE(STATUS "Executable created at: ${Yellow}${CMAKE_INSTALL_PREFIX}/${EXE}${GIT_BRANCH_}${ColourReset}")
 
