@@ -96,7 +96,7 @@ ELSE()
 Can not find SciFortran in this system. Check SciFor installation. Try adding the provided PKG-CONFIG file to the environment:
 $ export PKG_CONFIG_PATH=<path_to_scifor_dir>/etc:$PKG_CONFIG_PATH")
 ENDIF()
-IF("${SCIFOR_LDFLAGS}" MATCHES "-lblas" OR "-llapack")
+IF("${SCIFOR_LDFLAGS}" MATCHES "blas" OR "lapack")
   FIND_PACKAGE(BLAS REQUIRED)
   FIND_PACKAGE(LAPACK REQUIRED)
 ELSEIF("${SCIFOR_LDFLAGS}" MATCHES "mkl")
