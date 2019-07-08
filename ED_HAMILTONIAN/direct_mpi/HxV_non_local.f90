@@ -8,7 +8,7 @@
      nup = bdecomp(mup,Ns)
      ndw = bdecomp(mdw,Ns)
      !
-     ! SPIN-EXCHANGE (S-E) and PAIR-HOPPING TERMS
+     ! SPIN-EXCHANGE (S-E) TERMS
      !    S-E: J c^+_iorb_up c^+_jorb_dw c_iorb_dw c_jorb_up  (i.ne.j) 
      !    S-E: J c^+_{iorb} c^+_{jorb+Ns} c_{iorb+Ns} c_{jorb}
      if(Norb>1.AND.Jx/=0d0)then
@@ -24,9 +24,9 @@
                  call c(iorb,mdw,k1,sg1)  !DW
                  call cdg(jorb,k1,k2,sg2) !DW
                  jdw=binary_search(Hs(2)%map,k2)
-                 call c(jorb,mup,k1,sg3)  !UP
-                 call cdg(iorb,k1,k2,sg4) !UP
-                 jup=binary_search(Hs(1)%map,k2)
+                 call c(jorb,mup,k3,sg3)  !UP
+                 call cdg(iorb,k3,k4,sg4) !UP
+                 jup=binary_search(Hs(1)%map,k4)
                  htmp = Jx*sg1*sg2*sg3*sg4
                  j = jup + (jdw-1)*dimup
                  !
@@ -52,9 +52,9 @@
                  call c(jorb,mdw,k1,sg1)       !c_jorb_dw
                  call cdg(iorb,k1,k2,sg2)      !c^+_iorb_dw
                  jdw = binary_search(Hs(2)%map,k2)
-                 call c(jorb,mup,k1,sg1)       !c_jorb_up
-                 call cdg(iorb,k1,k2,sg4)      !c^+_iorb_up
-                 jup = binary_search(Hs(1)%map,k2)
+                 call c(jorb,mup,k3,sg3)       !c_jorb_up
+                 call cdg(iorb,k3,k4,sg4)      !c^+_iorb_up
+                 jup = binary_search(Hs(1)%map,k4)
                  htmp = Jp*sg1*sg2*sg3*sg4
                  j = jup + (jdw-1)*dimup
                  !

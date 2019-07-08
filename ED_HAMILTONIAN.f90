@@ -73,6 +73,16 @@ contains
           call Mpi_Comm_create(MpiComm_Global,MpiGroup,MpiComm,ierr)
           deallocate(MpiMembers)
           mpiAllThreads=.false.
+          call Barrier_MPI(MpiComm_Global)
+          if(ed_verbose>4)then
+             if(MpiMaster)write(LOGfile,*)&
+                  "       mpiRank,   MpiComm, Comm_Global, Comm_World, Comm_Null, Undefined"
+             do i=0,MpiSize-1
+                call Barrier_MPI(MpiComm_Global)
+                if(MpiRank==i)write(*,*)i,MpiComm,MpiComm_Global,Mpi_Comm_World,Mpi_comm_null,Mpi_Undefined
+             enddo
+             call Barrier_MPI(MpiComm_Global)
+          endif
        endif
        if( MpiComm /= MPI_COMM_NULL )then
           MpiRank = Get_Rank_MPI(MpiComm)
@@ -97,13 +107,13 @@ contains
     mpiIshift = MpiRank*mpiQ+mpiR
     !
     !
-#ifdef _MPI    
-    if(MpiStatus.AND.ed_verbose>4.AND.(MpiComm/=Mpi_Comm_Null).AND.MpiSize>1)then
+#ifdef _MPI
+    if(MpiStatus.AND.ed_verbose>4.AND.(MpiComm/=Mpi_Comm_Null).AND.MpiSize>=1)then
        if(MpiMaster)write(LOGfile,*)&
-            "         mpiRank,   mpi_Q,   mpi_R,      mpi_Qdw,      mpiR_dw,  mpi_Istart,  mpi_Iend,  mpi_Iend-mpi_Istart"
+            "         mpiRank,   mpi_Q,   mpi_R,      mpi_Qdw,      mpiR_dw,  mpi_Istart,  mpi_Iend,  Iend-Istart,  Comm, Comm_Global"
        do irank=0,MpiSize-1
           call Barrier_MPI(MpiComm)
-          if(MpiRank==irank)write(*,*)MpiRank,MpiQ,MpiR,mpiQdw,MpiRdw,MpiIstart,MpiIend,MpiIend-MpiIstart+1
+          if(MpiRank==irank)write(*,*)MpiRank,MpiQ,MpiR,mpiQdw,MpiRdw,MpiIstart,MpiIend,MpiIend-MpiIstart+1,MpiComm,MpiComm_Global
        enddo
        call Barrier_MPI(MpiComm)
     endif
@@ -188,13 +198,14 @@ contains
 #ifdef _MPI
     if(MpiStatus)then
        if(MpiGroup/=Mpi_Group_Null)call Mpi_Group_free(MpiGroup,ierr)
-       if(MpiComm/=Mpi_Comm_Null.AND.MpiComm/=Mpi_Comm_World)&
-            call Mpi_Comm_Free(MpiComm,ierr)
+       if(MpiComm/=Mpi_Comm_Null.AND.MpiComm/=Mpi_Comm_World)call Mpi_Comm_Free(MpiComm,ierr)
        MpiComm = MpiComm_Global
        MpiSize = get_Size_MPI(MpiComm_Global)
        MpiRank = get_Rank_MPI(MpiComm_Global)
+       !call Mpi_Comm_Dup(MpiComm_Global,MpiComm,ierr)
     endif
 #endif
+    iter=0
     !
   end subroutine delete_Hv_sector
 

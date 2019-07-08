@@ -398,9 +398,10 @@ contains
     integer,allocatable,dimension(:) :: Counts
     integer,allocatable,dimension(:) :: Offset
     !
-    if(MpiComm==Mpi_Comm_Null)return
-    if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
+    ! if(MpiComm==Mpi_Comm_Null)return
+    ! if(MpiComm==MPI_UNDEFINED)stop "spMatVec_mpi_cc ERROR: MpiComm = MPI_UNDEFINED"
     if(.not.MpiStatus)stop "spMatVec_mpi_cc ERROR: MpiStatus = F"
+    iter = iter+1
     !
     !Evaluate the local contribution: Hv_loc = Hloc*v
     Hv=0d0

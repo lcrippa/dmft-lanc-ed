@@ -197,8 +197,13 @@ contains
     kpath(3,:)=[ pi, pi]
     kpath(4,:)=[0d0,0d0]
     call TB_solve_model(hk_model,Nlso,kpath,Nkpath,&
+<<<<<<< HEAD
          colors_name=[red1,blue1],&
          points_name=[character(len=10) :: "G","X","M","G"],&
+=======
+         colors_name=[red1,green1,blue1],&
+         points_name=[character(len=10) :: "G","X","M", "G"],&
+>>>>>>> 2072f93ecd0e0e341a1e23997757838f72390446
          file="Eigenbands.nint")
     !
   end subroutine build_hk

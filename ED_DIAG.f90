@@ -149,16 +149,22 @@ contains
           case default       !use P-ARPACK
 #ifdef _MPI
              if(MpiStatus)then
-                call sp_eigh(MpiComm,spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+                call sp_eigh(MpiComm,spHtimesV_p,eig_values,eig_basis,&
+                     Nblock,&
+                     Nitermax,&
                      tol=lanc_tolerance,&
                      iverbose=(ed_verbose>3))
              else
-                call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+                call sp_eigh(spHtimesV_p,eig_values,eig_basis,&
+                     Nblock,&
+                     Nitermax,&
                      tol=lanc_tolerance,&
                      iverbose=(ed_verbose>3))
              endif
 #else
-             call sp_eigh(spHtimesV_p,Dim,Neigen,Nblock,Nitermax,eig_values,eig_basis,&
+             call call sp_eigh(spHtimesV_p,eig_values,eig_basis,&
+                  Nblock,&
+                  Nitermax,&
                   tol=lanc_tolerance,&
                   iverbose=(ed_verbose>3))
 #endif             
@@ -167,14 +173,14 @@ contains
           case ("lanczos")   !use Simple Lanczos
 #ifdef _MPI
              if(MpiStatus)then
-                call sp_lanc_eigh(MpiComm,spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
+                call sp_lanc_eigh(MpiComm,spHtimesV_p,eig_values(1),eig_basis(:,1),Nitermax,&
                      iverbose=(ed_verbose>3),threshold=lanc_tolerance)
              else
-                call sp_lanc_eigh(spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
+                call sp_lanc_eigh(spHtimesV_p,eig_values(1),eig_basis(:,1),Nitermax,&
                      iverbose=(ed_verbose>3),threshold=lanc_tolerance)
              endif
 #else
-             call sp_lanc_eigh(spHtimesV_p,Dim,Nitermax,eig_values(1),eig_basis(:,1),&
+             call sp_lanc_eigh(spHtimesV_p,eig_values(1),eig_basis(:,1),Nitermax,&
                   iverbose=(ed_verbose>3),threshold=lanc_tolerance)
 #endif
           end select
@@ -210,6 +216,7 @@ contains
           allocate(eig_basis(Dim,Neigen)) ; eig_basis=0d0
           eig_basis = eig_basis_tmp(:,1:Neigen)
 #endif
+          !
        endif
        !
        if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
@@ -460,10 +467,6 @@ contains
           !
        endif
     endif
-
-
-
-
   end subroutine ed_post_diag
 
 

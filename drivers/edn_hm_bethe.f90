@@ -167,8 +167,6 @@ program hm_Nbands_bethe
   call dmft_kinetic_energy(comm,Ebands,Dbands,H0,Smats(1,1,:,:,:))
 
 
-  ! call delete_input()
-  ! call delete_ctrl_list()
 
   call finalize_MPI()
 

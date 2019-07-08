@@ -9,7 +9,7 @@
      ndw = bdecomp(mdw,Ns)
      !
      !
-     ! SPIN-EXCHANGE (S-E) and PAIR-HOPPING TERMS
+     ! SPIN-EXCHANGE (S-E) TERMS
      !    S-E: J c^+_a_up c^+_b_dw c_a_dw c_b_up
      !    S-E: J c^+_{iorb} c^+_{jorb+Ns} c_{iorb+Ns} c_{jorb}
      !
@@ -34,7 +34,7 @@
                  htmp = Jx*sg1*sg2*sg3*sg4
                  j = jup + (jdw-1)*DimUp
                  !
-                 if(j==0)cycle
+                 ! if(j==0)cycle
                  select case(MpiStatus)
                  case (.true.)
                     call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
@@ -68,7 +68,7 @@
                  htmp = Jp*sg1*sg2*sg3*sg4
                  j = jup + (jdw-1)*dimup
                  !
-                 if(j==0)cycle
+                 ! if(j==0)cycle
                  select case(MpiStatus)
                  case (.true.)
                     call sp_insert_element(MpiComm,spH0nd,htmp,i,j)
