@@ -4,6 +4,15 @@ module ED_EIGENSPACE
   implicit none
   private
 
+
+  type full_espace
+     real(8),dimension(:),pointer   :: e
+     real(8),dimension(:,:),pointer :: M
+  end type full_espace
+
+
+
+
   type sparse_estate
      integer                      :: sector        !index of the sector
      real(8)                      :: e             !energy of the eigen-state
@@ -36,7 +45,7 @@ module ED_EIGENSPACE
 #endif
   end interface es_return_cvector
 
-  
+
   public :: sparse_estate
   public :: sparse_espace
   !
@@ -54,9 +63,67 @@ module ED_EIGENSPACE
   public :: es_return_cvector      !get the vector of a state       !checked
   public :: es_return_gs_degeneracy!get the number of degenerate GS !checked
   !
-  type(sparse_espace),public    :: state_list
+  public :: setup_eigenspace
+  public :: delete_eigenspace
+  !  
   !
+  type(sparse_espace)                        :: state_list
+  type(full_espace),dimension(:),allocatable :: espace
+  public :: state_list
+  public :: espace
+
+
+
+
+
 contains        !some routine to perform simple operation on the lists
+
+
+
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Setting up the Full ED eigen-Space
+  !+------------------------------------------------------------------+
+  subroutine setup_eigenspace
+    integer :: isector,dim,jsector
+    if(allocated(espace)) deallocate(espace)
+    allocate(espace(1:Nsectors))
+    do isector=1,Nsectors
+       dim=GetDim(isector);if(dim==0)stop "setup_eigenspace: dim==0!"
+       allocate(espace(isector)%e(dim))
+       allocate(espace(isector)%M(dim,dim))
+    enddo
+  end subroutine setup_eigenspace
+
+
+
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Deleting the Full ED eigen-Space (free the memory)
+  !+------------------------------------------------------------------+
+  subroutine delete_eigenspace
+    integer :: isector
+    if(allocated(espace))then
+       do isector=1,size(espace)
+          deallocate(espace(isector)%e)
+          deallocate(espace(isector)%M)
+       end do
+       deallocate(espace)
+    endif
+  end subroutine delete_eigenspace
+
+
+
+
+
+  !##################################################################
+  !##################################################################
+  !##################################################################
+  !##################################################################
+
+
 
 
   !+------------------------------------------------------------------+

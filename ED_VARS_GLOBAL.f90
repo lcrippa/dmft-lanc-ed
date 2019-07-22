@@ -19,11 +19,6 @@ MODULE ED_VARS_GLOBAL
   end type effective_bath
 
 
-  !--------------- HAMILTONIAN EIG-SPACE STRUCTURE -------------------! 
-  type full_espace
-     real(8),dimension(:),pointer   :: e
-     real(8),dimension(:,:),pointer :: M
-  end type full_espace
 
 
 
@@ -99,12 +94,6 @@ MODULE ED_VARS_GLOBAL
   procedure(dd_sparse_HxV),pointer                   :: spHtimesV_p=>null()
 
 
-  !Eigenvalues,Eigenvectors FULL DIAGONALIZATION
-  !PRIVATE
-  !=========================================================
-  type(full_espace),dimension(:),allocatable         :: espace
-
-
   !Variables for DIAGONALIZATION
   !PRIVATE
   !=========================================================  
@@ -118,7 +107,8 @@ MODULE ED_VARS_GLOBAL
   !PRIVATE
   !=========================================================
   real(8)                                            :: zeta_function
-
+  real(8)                                            :: gs_energy
+  
 
 
   !Impurity Green's function and Self-Energies: (Nspin,Nspin,Norb,Norb,:)

@@ -36,35 +36,46 @@ contains
     integer :: iorb,jorb,ispin,i
     logical :: MaskBool
     !
-    select case(ed_diag_type)
-    case default
+
+    do ispin=1,Nspin
+       do iorb=1,Norb
+          write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_s"//str(ispin)
+          if(MPIMASTER)call start_timer
+          select case(ed_diag_type)
+          case default
+             call lanc_build_gf_normal_main(iorb,ispin)
+          case ("full")
+             call full_build_gf_normal_main(iorb,ispin)
+          end select
+          if(MPIMASTER)call stop_timer(LOGfile)
+       enddo
+    enddo
+    !
+    if(offdiag_gf_flag)then
        do ispin=1,Nspin
           do iorb=1,Norb
-             write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_s"//str(ispin)
-             if(MPIMASTER)call start_timer
-             call lanc_build_gf_normal_main(iorb,ispin)
-             if(MPIMASTER)call stop_timer(LOGfile)
+             do jorb=iorb+1,Norb
+                MaskBool=.true.   
+                if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
+                if(.not.MaskBool)cycle
+                !
+                write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
+                if(MPIMASTER)call start_timer
+                select case(ed_diag_type)
+                case default
+                   call lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
+                case ("full")
+                   call full_build_gf_normal_mix_main(iorb,jorb,ispin)
+                end select
+                if(MPIMASTER)call stop_timer(LOGfile)
+             enddo
           enddo
        enddo
        !
-       if(offdiag_gf_flag)then
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                do jorb=iorb+1,Norb
-                   MaskBool=.true.   
-                   if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
-                   if(.not.MaskBool)cycle
-                   !
-                   write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
-                   if(MPIMASTER)call start_timer
-                   call lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
-                   if(MPIMASTER)call stop_timer(LOGfile)
-                enddo
-             enddo
-          enddo
-          !
-          !
-          !Put here off-diagonal manipulation by symmetry:
+       !
+       !Put here off-diagonal manipulation by symmetry:
+       select case(ed_diag_type)
+       case default
           do ispin=1,Nspin
              do iorb=1,Norb
                 do jorb=iorb+1,Norb
@@ -82,37 +93,14 @@ contains
                 enddo
              enddo
           enddo
-       endif
-       !
-
-    case ("full")
-       do ispin=1,Nspin
-          do iorb=1,Norb
-             write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_s"//str(ispin)
-             if(MPIMASTER)call start_timer
-             call full_build_gf_normal_main(iorb,ispin)
-             if(MPIMASTER)call stop_timer(LOGfile)
-          enddo
-       enddo
-       !
-       if(offdiag_gf_flag)then  !always false for ed_total_ud=F
-          do ispin=1,Nspin
-             do iorb=1,Norb
-                do jorb=iorb+1,Norb
-                   write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
-                   if(MPIMASTER)call start_timer
-                   call full_build_gf_normal_mix_main(iorb,jorb,ispin)
-                   !>>ACTHUNG: this relation might not be true, it depends on the value of the impHloc_ij
-                   ! if impHloc_ij is REAL then it is true. if CMPLX hermiticity must be ensured
-                   impGmats(ispin,ispin,jorb,iorb,:) = impGmats(ispin,ispin,iorb,jorb,:)
-                   impGreal(ispin,ispin,jorb,iorb,:) = impGreal(ispin,ispin,iorb,jorb,:)
-                   if(MPIMASTER)call stop_timer(LOGfile)
-                enddo
-             enddo
-          enddo
-       endif
-    end select
-
+       case ("full")
+          !>>ACTHUNG: this relation might not be true, it depends on the value of the impHloc_ij
+          ! if impHloc_ij is REAL then it is true. if CMPLX hermiticity must be ensured
+          impGmats(ispin,ispin,jorb,iorb,:) = impGmats(ispin,ispin,iorb,jorb,:)
+          impGreal(ispin,ispin,jorb,iorb,:) = impGreal(ispin,ispin,iorb,jorb,:)
+       end select
+    end if
+    !
   end subroutine build_gf_normal
 
 

@@ -39,13 +39,22 @@ contains
     do iorb=1,Norb
        write(LOGfile,"(A)")"Get Chi_spin_l"//reg(txtfy(iorb))
        if(MPIMASTER)call start_timer()
-       call lanc_ed_build_spinChi_main(iorb)
+       select case(ed_diag_type)
+       case default
+          call lanc_ed_build_spinChi_main(iorb)
+       case ("full")
+          call full_ed_build_spinChi_main(iorb)
+       end select
        if(MPIMASTER)call stop_timer(LOGfile)
     enddo
     if(Norb>1)then
        write(LOGfile,"(A)")"Get Chi_spin_tot"
        if(MPIMASTER)call start_timer()
-       call lanc_ed_build_spinChi_tot_main()
+       select case(ed_diag_type)
+       case default
+          call lanc_ed_build_spinChi_tot_main()
+       case ("full")
+       end select
        if(MPIMASTER)call stop_timer(LOGfile)
     endif
     spinChi_tau = SpinChi_tau/zeta_function
@@ -166,10 +175,6 @@ contains
 
 
 
-
-  !################################################################
-  !################################################################
-  !################################################################
   !################################################################
 
 
@@ -279,9 +284,6 @@ contains
 
 
   !################################################################
-  !################################################################
-  !################################################################
-  !################################################################
 
 
 
@@ -366,6 +368,104 @@ contains
 
 
 
+  !################################################################
+  !################################################################
+  !################################################################
+  !################################################################
+
+
+
+  subroutine full_ed_build_spinChi_main(iorb)
+    integer                     :: iorb
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    type(sector_map)            :: HI(2*Ns_Ud)
+    real(8)                     :: chij,spin
+    integer                     :: i,j,ll,isector
+    integer                     :: idim,ia
+    real(8)                     :: Ei,Ej,cc,peso,pesotot
+    real(8)                     :: expterm,de,w0,it
+    complex(8)                  :: iw 
+    !
+    !
+    !Spin susceptibility \X(tau). |<i|S_z|j>|^2
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       iorb1 = iorb
+    else
+       ialfa = iorb
+       iorb1 = 1
+    endif
+    !
+    do isector=1,Nsectors !loop over <i| total particle number
+       call eta(isector,Nsectors,LOGfile)
+       idim = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       call build_sector(isector,HI)
+       !
+       do i=1,idim 
+          do j=1,idim
+             chij=0.d0
+             expterm=exp(-beta*espace(isector)%e(j))
+             if(expterm<cutoff)cycle
+             do ll=1,idim
+                call state2indices(ll,[iDimUps,iDimDws],Indices)
+                iud(1)  = HI(ialfa)%map(Indices(ialfa))
+                iud(2)  = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:)= Bdecomp(iud(1),Ns_Orb)
+                nud(2,:)= Bdecomp(iud(2),Ns_Orb)
+                !
+                spin    = nud(1,iorb1) - nud(2,iorb1)
+                chij    = chij + espace(isector)%M(ll,i)*spin*espace(isector)%M(ll,j)
+             enddo
+             Ei=espace(isector)%e(i)
+             Ej=espace(isector)%e(j)
+             de=Ei-Ej
+             peso=chij/zeta_function
+             !
+             !Matsubara (bosonic) frequency
+             !abs(X - (1-exp(-X)) is about 5*10^-3 for X<10^-1 this is a satisfactory bound
+             if(beta*dE < 1d-1)then 
+                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*beta
+             else
+                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*(1d0-exp(-beta*dE))/dE 
+             endif
+             do m=1,Lmats
+                iw=xi*vm(m)
+                spinChi_iv(iorb,m)=spinChi_iv(iorb,m) + peso*(1d0-exp(-beta*dE))/(iw - de)
+             enddo
+             ! if(de>cutoff)spinChi_iv(iorb,0)=spinChi_iv(iorb,0)-peso*exp(-beta*Ej)*(exp(-beta*de)-1.d0)/de
+             ! do m=1,Lmats
+             !    iw=xi*vm(m)
+             !    spinChi_iv(iorb,m)=spinChi_iv(iorb,m)+peso*exp(-beta*Ej)*(exp(-beta*de)-1.d0)/(iw-de)
+             ! enddo
+             !
+             !Real-frequency: Retarded = Commutator = response function
+             do m=1,Lreal
+                w0=wr(m);iw=dcmplx(w0,eps)
+                spinChi_w(iorb,m)=spinChi_w(iorb,m)+peso*exp(-beta*Ej)*(exp(-beta*de)-1.d0)/(iw-de)
+             enddo
+             !
+             !Imaginary time:
+             do m=0,Ltau 
+                it=tau(m)
+                spinChi_tau(iorb,m)=spinChi_tau(iorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*peso
+             enddo
+             !
+          enddo
+       enddo
+    enddo
+  end subroutine full_ed_build_spinChi_main
+
+
 
 END MODULE ED_GF_CHISPIN
 
@@ -392,181 +492,3 @@ END MODULE ED_GF_CHISPIN
 
 
 
-
-!     subroutine lanc_ed_build_spinChi_orbs(iorb)
-!     integer                    :: iorb,isite,isector,istate
-!     integer                    :: numstates,vecDim
-!     integer                    :: nlanc
-!     integer                    :: isign
-!     integer,dimension(2*Ns_Ud) :: Indices
-!     integer,dimension(Ns_Ud)   :: iDimUps,iDimDws
-!     integer                    :: idim
-!     integer                    :: nup(Ns_Orb),ndw(Ns_Orb)
-!     integer                    :: m,i,j,r
-!     integer                    :: iup,idw,jup,jdw,mup,mdw
-!     real(8)                    :: norm2,sgn
-!     real(8),allocatable        :: alfa_(:),beta_(:)
-!     real(8),allocatable        :: vvinit(:),vvloc(:)
-!     integer                    :: Nitermax
-!     type(sector_map)           :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
-!     !
-!     !
-!     !
-!     do istate=1,state_list%size
-!        isector    =  es_return_sector(state_list,istate)
-!        state_e    =  es_return_energy(state_list,istate)
-! #ifdef _MPI
-!        if(MpiStatus)then
-!           state_cvec => es_return_cvector(MpiComm,state_list,istate)
-!        else
-!           state_cvec => es_return_cvector(state_list,istate)
-!        endif
-! #else
-!        state_cvec => es_return_cvector(state_list,istate)
-! #endif
-!        !
-!        !
-!        idim = getdim(isector)
-!        call get_DimUp(isector,iDimUps)
-!        call get_DimDw(isector,iDimDws)
-!        !
-!        if(MpiMaster)then
-!           call build_sector(isector,HI)
-!           !
-!           if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply Sz:',isector
-!           !
-!           allocate(vvinit(idim));vvinit=0.d0
-!           do i=1,iDim
-!              call state2indices(i,[iDimUps,iDimDws],Indices)
-!              iup = Indices(iorb)
-!              idw = Indices(Norb+iorb)
-!              !
-!              mup = HI(iorb)%map(iup)
-!              nup = bdecomp(mup,Ns_Orb)
-!              !
-!              mdw = HI(Norb+iorb)%map(idw)
-!              ndw = bdecomp(mdw,Ns_Orb)
-!              !
-!              sgn = nup(1)-ndw(1)
-!              !
-!              vvinit(i) = 0.5d0*sgn*state_cvec(i)   !build the cdg_up|gs> state
-!           enddo
-!           call delete_sector(isector,HI)
-!           !
-!           norm2=dot_product(vvinit,vvinit)
-!           vvinit=vvinit/sqrt(norm2)
-!        endif
-!        !
-!        nlanc=min(idim,lanc_nGFiter)
-!        allocate(alfa_(nlanc),beta_(nlanc))
-!        !
-!        call build_Hv_sector(isector)
-! #ifdef _MPI
-!        if(MpiStatus)then
-!           vecDim = vecDim_Hv_sector(isector)
-!           allocate(vvloc(vecDim))
-!           call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-!           call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-!        else
-!           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!        endif
-! #else
-!        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-! #endif
-!        !particles
-!        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
-!        !holes
-!        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,-1,iorb)
-!        !
-!        call delete_Hv_sector()
-!        !
-!        deallocate(vvinit,alfa_,beta_)
-!        if(allocated(vvloc))deallocate(vvloc)
-!        nullify(state_cvec)
-!     enddo
-!     return
-!   end subroutine lanc_ed_build_spinChi_orbs
-
-!   subroutine lanc_ed_build_spinChi_tot_orbs()
-!     integer                          :: iorb,isite,isector,istate
-!     integer                          :: numstates
-!     integer                          :: nlanc
-!     integer                          :: isign
-!     integer,dimension(2*Norb)        :: Indices,Mstates
-!     integer,dimension(2*Norb,Ns_Orb) :: Nstates
-!     integer,dimension(Norb)          :: iDimUps,iDimDws
-!     integer                          :: idim,idimUP,idimDW
-!     integer                          :: nup(Norb),ndw(Norb)
-!     integer                          :: m,i,j,r
-!     integer                          :: iup,idw,jup,jdw,mup,mdw
-!     real(8)                          :: norm2,sgn,Sup,Sdw
-!     real(8),allocatable              :: alfa_(:),beta_(:)
-!     real(8),allocatable           :: vvinit(:)
-!     integer                          :: Nitermax
-!     type(sector_map)                 :: HI(2*Norb)    !map of the Sector S to Hilbert space H
-!     !
-!     !
-!     do istate=1,state_list%size
-!        isector     =  es_return_sector(state_list,istate)
-!        state_e    =  es_return_energy(state_list,istate)
-! #ifdef _MPI
-!        if(MpiStatus)then
-!           state_cvec => es_return_cvector(MpiComm,state_list,istate)
-!        else
-!           state_cvec => es_return_cvector(state_list,istate)
-!        endif
-! #else
-!        state_cvec => es_return_cvector(state_list,istate)
-! #endif
-!        !
-!        !
-!        idim  = getdim(isector)
-!        call get_DimUp(isector,iDimUps)
-!        call get_DimDw(isector,iDimDws)
-!        call build_sector(isector,HI)
-!        !
-!        if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Sz:',isector
-!        !
-!        allocate(vvinit(idim));vvinit=0.d0
-!        do i=1,iDim
-!           call state2indices(i,[iDimUps,iDimDws],Indices)
-!           do iorb=1,2*Norb
-!              Mstates(iorb)   = HI(iorb)%map(Indices(iorb))
-!              Nstates(iorb,:) = bdecomp(Mstates(iorb),Ns_Orb)
-!           enddo
-!           !
-!           Sup = sum(Nstates(1:Norb,1))
-!           Sdw = sum(Nstates(Norb+1:2*Norb,1))
-!           sgn = Sup - Sdw
-!           vvinit(m) = 0.5d0*sgn*state_cvec(m) 
-!        enddo
-!        call delete_sector(isector,HI)
-!        !
-!        norm2=dot_product(vvinit,vvinit)
-!        vvinit=vvinit/sqrt(norm2)
-!        !
-!        nlanc=min(idim,lanc_nGFiter)
-!        allocate(alfa_(nlanc),beta_(nlanc))
-!        !
-!        call build_Hv_sector(isector)
-! #ifdef _MP
-!        if(MpiStatus)then
-!           call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvinit,alfa_,beta_)
-!        else
-!           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-!        endif
-! #else
-!        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-! #endif
-!        !particles
-!        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,Norb+1)
-!        !holes
-!        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,-1,Norb+1)
-!        !
-!        call delete_Hv_sector()
-!        !
-!        deallocate(vvinit,alfa_,beta_)
-!        nullify(state_cvec)
-!     enddo
-!     return
-!   end subroutine lanc_ed_build_spinChi_tot_orbs

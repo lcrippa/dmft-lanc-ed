@@ -18,9 +18,6 @@ MODULE ED_SETUP
   public :: build_sector
   public :: delete_sector
   !
-  public :: setup_eigenspace
-  public :: delete_eigenspace
-  !  
   public :: get_Sector
   public :: get_Indices
   public :: get_Nup
@@ -401,34 +398,6 @@ contains
 
 
 
-  !+------------------------------------------------------------------+
-  !PURPOSE  : Setting up the Full ED eigen-Space
-  !+------------------------------------------------------------------+
-  subroutine setup_eigenspace
-    integer :: isector,dim,jsector
-    if(allocated(espace)) deallocate(espace)
-    allocate(espace(1:Nsectors))
-    do isector=1,Nsectors
-       dim=GetDim(isector);if(dim==0)stop "setup_eigenspace: dim==0!"
-       allocate(espace(isector)%e(dim))
-       allocate(espace(isector)%M(dim,dim))
-    enddo
-  end subroutine setup_eigenspace
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : Deleting the Full ED eigen-Space (free the memory)
-  !+------------------------------------------------------------------+
-  subroutine delete_eigenspace
-    integer :: isector
-    if(allocated(espace))then
-       do isector=1,size(espace)
-          deallocate(espace(isector)%e)
-          deallocate(espace(isector)%M)
-       end do
-       deallocate(espace)
-    endif
-  end subroutine delete_eigenspace
 
 
 

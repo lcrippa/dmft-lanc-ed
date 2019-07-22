@@ -341,6 +341,7 @@ contains
     !
     !Get the ground state energy and rescale energies
     egs=minval(e0)
+    gs_energy=egs
     forall(isector=1:Nsectors)espace(isector)%e = espace(isector)%e - egs
     !
     !Get the partition function Z
