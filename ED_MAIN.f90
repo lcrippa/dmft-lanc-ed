@@ -109,6 +109,9 @@ contains
     MPI_RANK   = get_Rank_MPI(MpiComm)
     MPI_MASTER = get_Master_MPI(MpiComm)
     !
+    !
+    if(MPI_MASTER.AND.ed_diag_type=="full")stop "ED ERROR: ed_diag_type=FULL + MPI: not possible at the moment"
+    !
     write(LOGfile,"(A)")"INIT SOLVER FOR "//trim(ed_file_suffix)
     !
     !Init ED Structure & memory

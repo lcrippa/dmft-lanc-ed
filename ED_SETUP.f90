@@ -17,6 +17,9 @@ MODULE ED_SETUP
   !
   public :: build_sector
   public :: delete_sector
+  !
+  public :: setup_eigenspace
+  public :: delete_eigenspace
   !  
   public :: get_Sector
   public :: get_Indices
@@ -41,7 +44,7 @@ MODULE ED_SETUP
   public :: flip_state
   !
   public :: binary_search
-  
+
 #ifdef _MPI
   public :: scatter_vector_MPI
   public :: scatter_basis_MPI
@@ -53,12 +56,13 @@ MODULE ED_SETUP
 contains
 
   subroutine ed_checks_global
+    !
     if(Lfit>Lmats)Lfit=Lmats
     if(Nspin>2)stop "ED ERROR: Nspin > 2 is currently not supported"
     if(Norb>5)stop "ED ERROR: Norb > 5 is currently not supported"
     !
     if(.not.ed_total_ud)then
-       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid" 
+       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid"
        if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
     endif
     !
@@ -71,6 +75,7 @@ contains
        if(lanc_nstates_total>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_total==1, T=0"
        if(lanc_nstates_sector>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_sector==1, T=0"
     endif
+    !
   end subroutine ed_checks_global
 
 
@@ -198,6 +203,10 @@ contains
     !
     offdiag_gf_flag=ed_solve_offdiag_gf
     if(bath_type/="normal")offdiag_gf_flag=.true.
+    if(.not.ed_total_ud.AND.offdiag_gf_flag)then
+       write(LOGfile,"(A)")"ED WARNING: can not do offdiag_gf_flag=T.AND.ed_total_ud=F. Set to F."
+       offdiag_gf_flag=.false.
+    endif
     !
     !
     if(nread/=0.d0)then
@@ -389,6 +398,37 @@ contains
     return
   end subroutine setup_global
 
+
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Setting up the Full ED eigen-Space
+  !+------------------------------------------------------------------+
+  subroutine setup_eigenspace
+    integer :: isector,dim,jsector
+    if(allocated(espace)) deallocate(espace)
+    allocate(espace(1:Nsectors))
+    do isector=1,Nsectors
+       dim=GetDim(isector);if(dim==0)stop "setup_eigenspace: dim==0!"
+       allocate(espace(isector)%e(dim))
+       allocate(espace(isector)%M(dim,dim))
+    enddo
+  end subroutine setup_eigenspace
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Deleting the Full ED eigen-Space (free the memory)
+  !+------------------------------------------------------------------+
+  subroutine delete_eigenspace
+    integer :: isector
+    if(allocated(espace))then
+       do isector=1,size(espace)
+          deallocate(espace(isector)%e)
+          deallocate(espace(isector)%M)
+       end do
+       deallocate(espace)
+    endif
+  end subroutine delete_eigenspace
 
 
 

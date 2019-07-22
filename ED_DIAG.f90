@@ -35,9 +35,14 @@ contains
   ! GS, build the Green's functions calling all the necessary routines
   !+------------------------------------------------------------------+
   subroutine diagonalize_impurity()
-    call ed_pre_diag
-    call ed_diag_d
-    call ed_post_diag
+    select case(ed_diag_type)
+    case default
+       call ed_pre_diag
+       call ed_diag_d
+       call ed_post_diag
+    case ("full")
+       call ed_full_d
+    end select
   end subroutine diagonalize_impurity
 
 
@@ -261,6 +266,105 @@ contains
   end subroutine ed_diag_d
 
 
+
+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : diagonalize the Hamiltonian in each sector and find the 
+  ! spectrum 
+  !+------------------------------------------------------------------+
+  subroutine ed_full_d
+    integer                     :: nup,ndw,isector,dim
+    integer                     :: i,j,unit,iter
+    integer                     :: DimUps(Ns_Ud),DimUp
+    integer                     :: DimDws(Ns_Ud),DimDw
+    integer                     :: Nups(Ns_Ud)
+    integer                     :: Ndws(Ns_Ud)
+    real(8),dimension(Nsectors) :: e0 
+    real(8)                     :: egs
+    logical                     :: Tflag
+    !
+    e0=1000.d0
+    if(MPIMASTER)then
+       write(LOGfile,"(A)")"Diagonalize impurity H:"
+       call start_timer()
+    endif
+    !
+    !
+    iter=0
+    sector: do isector=1,Nsectors
+       call get_Nup(isector,nups)
+       call get_Ndw(isector,ndws)
+       Dim  = getdim(isector)
+       iter = iter + 1
+       !
+       if(MPIMASTER)then
+          call get_DimUp(isector,DimUps) ; DimUp = product(DimUps)
+          call get_DimDw(isector,DimDws) ; DimDw = product(DimDws)
+          if(ed_verbose>=3)then
+             write(LOGfile,"(1X,I9,A,I9,A6,"&
+                  //str(Ns_Ud)//"I3,A6,"&
+                  //str(Ns_Ud)//"I3,A7,"&
+                  //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I20)")&
+                  iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
+                  DimUps,DimDws,getdim(isector)
+          elseif(ed_verbose==1.OR.ed_verbose==2)then
+             call eta(isector,Nsectors,LOGfile)
+          endif
+       endif
+       !
+       !
+       if(ed_verbose>=3.AND.MPIMASTER)call start_timer()
+       call build_Hv_sector(isector,espace(isector)%M)
+       if(MpiMaster)call eigh(espace(isector)%M, espace(isector)%e, jobz='V',uplo='U')
+       if(dim==1)espace(isector)%M=1d0
+       call delete_Hv_sector()
+       if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
+       !
+       if(ed_verbose>=4)then
+          write(LOGfile,*)"EigValues: ",espace(isector)%e(:lanc_nstates_sector)
+          write(LOGfile,*)""
+          write(LOGfile,*)""
+       endif
+       !
+       if(MPIMASTER)then
+          unit=free_unit()
+          open(unit,file="eigenvalues_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
+          call print_eigenvalues_list(isector,espace(isector)%e(1:lanc_nstates_sector),unit,.false.,.true.)
+          close(unit)
+       endif
+       !
+       e0(isector)=minval(espace(isector)%e)
+       !
+    enddo sector
+    !
+    if(MPIMASTER)call stop_timer(LOGfile)
+    !
+    !Get the ground state energy and rescale energies
+    egs=minval(e0)
+    forall(isector=1:Nsectors)espace(isector)%e = espace(isector)%e - egs
+    !
+    !Get the partition function Z
+    zeta_function=0d0
+    do isector=1,Nsectors
+       dim=getdim(isector)
+       do i=1,dim
+          zeta_function=zeta_function+exp(-beta*espace(isector)%e(i))
+       enddo
+    enddo
+    !
+    write(LOGfile,"(A)")"DIAG resume:"
+    open(free_unit(unit),file='egs'//reg(ed_file_suffix)//".ed",position='append')
+    do isector=1,Nsectors
+       if(e0(isector)/=0d0)cycle
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       write(LOGfile,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',e0(isector),nups,ndws
+       write(unit,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',e0(isector),nups,ndws
+    enddo
+    write(LOGfile,"(A,F20.12)")'Z   =',zeta_function
+    close(unit)
+    return
+  end subroutine ed_full_d
 
 
 

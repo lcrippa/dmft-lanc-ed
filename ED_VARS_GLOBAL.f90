@@ -19,6 +19,12 @@ MODULE ED_VARS_GLOBAL
   end type effective_bath
 
 
+  !--------------- HAMILTONIAN EIG-SPACE STRUCTURE -------------------! 
+  type full_espace
+     real(8),dimension(:),pointer   :: e
+     real(8),dimension(:,:),pointer :: M
+  end type full_espace
+
 
 
   !---------------- SECTOR-TO-FOCK SPACE STRUCTURE -------------------!
@@ -91,6 +97,12 @@ MODULE ED_VARS_GLOBAL
   type(sparse_matrix_csr),dimension(:),allocatable   :: spH0ups,spH0dws !reduced UP and DW parts
   !
   procedure(dd_sparse_HxV),pointer                   :: spHtimesV_p=>null()
+
+
+  !Eigenvalues,Eigenvectors FULL DIAGONALIZATION
+  !PRIVATE
+  !=========================================================
+  type(full_espace),dimension(:),allocatable         :: espace
 
 
   !Variables for DIAGONALIZATION
