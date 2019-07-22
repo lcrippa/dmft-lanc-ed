@@ -1,7 +1,7 @@
 module ED_MAIN
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
-  USE ED_EIGENSPACE, only: state_list,es_delete_espace
+  USE ED_EIGENSPACE, only: state_list,es_delete_espace,delete_eigenspace
   USE ED_AUX_FUNX
   USE ED_SETUP
   USE ED_BATH
@@ -260,15 +260,21 @@ contains
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
     !
+    !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
     call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
     if(chiflag)call buildchi_impurity() !build the local susceptibilities (spin [todo charge])
     call observables_impurity()         !obtain impurity observables as thermal averages.          
-    call local_energy_impurity()        !obtain the local energy of the effective impurity problem.
+    call local_energy_impurity()        !obtain the local energy of the effective impurity problem
     !
-    call deallocate_dmft_bath(dmft_bath)   
-    call es_delete_espace(state_list)
+    call deallocate_dmft_bath(dmft_bath)
+    select case(ed_diag_type)
+    case default
+       call es_delete_espace(state_list)
+    case ("full")
+       call delete_eigenspace()
+    end select
     !
     nullify(spHtimesV_p)
   end subroutine ed_solve_single

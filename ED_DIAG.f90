@@ -104,7 +104,6 @@ contains
           Nitermax = min(dim,lanc_niter)
           Nblock   = 1
        end select
-
        !
        lanc_solve  = .true.
        if(Neigen==dim)lanc_solve=.false.
@@ -203,7 +202,7 @@ contains
           !
           call build_Hv_sector(isector,eig_basis_tmp)
           !
-          if(MpiMaster)call eigh(eig_basis_tmp,eig_values,jobz='V',uplo='U')
+          if(MpiMaster)call eigh(eig_basis_tmp,eig_values)
           if(dim==1)eig_basis_tmp(dim,dim)=1d0
           !
           call delete_Hv_sector()
@@ -274,7 +273,7 @@ contains
   !+------------------------------------------------------------------+
   subroutine ed_full_d
     integer                     :: nup,ndw,isector,dim
-    integer                     :: i,j,unit,iter
+    integer                     :: i,j,unit,iter,Nprint
     integer                     :: DimUps(Ns_Ud),DimUp
     integer                     :: DimDws(Ns_Ud),DimDw
     integer                     :: Nups(Ns_Ud)
@@ -282,6 +281,8 @@ contains
     real(8),dimension(Nsectors) :: e0 
     real(8)                     :: egs
     logical                     :: Tflag
+    !
+    call setup_eigenspace()
     !
     e0=1000.d0
     if(MPIMASTER)then
@@ -312,16 +313,17 @@ contains
           endif
        endif
        !
+       Nprint=min(dim,lanc_nstates_sector)
        !
        if(ed_verbose>=3.AND.MPIMASTER)call start_timer()
        call build_Hv_sector(isector,espace(isector)%M)
-       if(MpiMaster)call eigh(espace(isector)%M, espace(isector)%e, jobz='V',uplo='U')
+       if(MpiMaster)call eigh(espace(isector)%M, espace(isector)%e)
        if(dim==1)espace(isector)%M=1d0
        call delete_Hv_sector()
        if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
        !
        if(ed_verbose>=4)then
-          write(LOGfile,*)"EigValues: ",espace(isector)%e(:lanc_nstates_sector)
+          write(LOGfile,*)"EigValues: ",espace(isector)%e(:Nprint)
           write(LOGfile,*)""
           write(LOGfile,*)""
        endif
@@ -329,7 +331,7 @@ contains
        if(MPIMASTER)then
           unit=free_unit()
           open(unit,file="eigenvalues_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
-          call print_eigenvalues_list(isector,espace(isector)%e(1:lanc_nstates_sector),unit,.false.,.true.)
+          call print_eigenvalues_list(isector,espace(isector)%e(1:Nprint),unit,.false.,.true.)
           close(unit)
        endif
        !
