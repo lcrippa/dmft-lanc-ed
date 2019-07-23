@@ -20,7 +20,8 @@ module ED_DIAG
 
 
   public :: diagonalize_impurity
-
+  
+  real(8),dimension(:),pointer       :: state_cvec
 
 
 contains
@@ -55,7 +56,7 @@ contains
   ! spectrum DOUBLE PRECISION
   !+------------------------------------------------------------------+
   subroutine ed_diag_d
-    integer             :: isector,Dim
+    integer             :: isector,Dim,istate
     integer             :: DimUps(Ns_Ud),DimUp
     integer             :: DimDws(Ns_Ud),DimDw
     integer             :: Nups(Ns_Ud)
@@ -262,6 +263,32 @@ contains
        !
     enddo sector
     if(MPIMASTER)call stop_timer(LOGfile)
+    !     !>DEBUG
+    !     do istate=1,state_list%size
+    !        isector = es_return_sector(state_list,istate)
+    !        Ei      = es_return_energy(state_list,istate)
+    !        !
+    !        call get_Nup(isector,Nups)
+    !        call get_Ndw(isector,Ndws)
+    ! #ifdef _MPI
+    !        if(MpiStatus)then
+    !           state_cvec => es_return_cvector(MpiComm,state_list,istate)
+    !        else
+    !           state_cvec => es_return_cvector(state_list,istate)
+    !        endif
+    ! #else
+    !        state_cvec => es_return_cvector(state_list,istate)
+    ! #endif
+    !        unit=free_unit()
+    !        open(unit,file="eigenvectors_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
+    !        write(unit,*)"Isector=",isector,nups,ndws
+    !        do i=1,size(state_cvec)
+    !           write(unit,*)state_cvec(i)
+    !        enddo
+    !        write(unit,*)""
+    !        close(unit)       
+    !     enddo
+    !     !<DEBUG
   end subroutine ed_diag_d
 
 
@@ -272,19 +299,22 @@ contains
   ! spectrum 
   !+------------------------------------------------------------------+
   subroutine ed_full_d
-    integer                     :: nup,ndw,isector,dim
+    integer                     :: nup,ndw,isector,dim,istate
     integer                     :: i,j,unit,iter,Nprint
     integer                     :: DimUps(Ns_Ud),DimUp
     integer                     :: DimDws(Ns_Ud),DimDw
     integer                     :: Nups(Ns_Ud)
     integer                     :: Ndws(Ns_Ud)
-    real(8),dimension(Nsectors) :: e0 
-    real(8)                     :: egs
+    real(8),dimension(Nsectors) :: e0
+    real(8)                     :: egs,Ei,Enemin,oldzero
     logical                     :: Tflag
     !
+    if(state_list%status)call es_delete_espace(state_list)
+    state_list=es_init_espace()
     call setup_eigenspace()
     !
     e0=1000.d0
+    oldzero=1000.d0
     if(MPIMASTER)then
        write(LOGfile,"(A)")"Diagonalize impurity H:"
        call start_timer()
@@ -335,7 +365,17 @@ contains
           close(unit)
        endif
        !
-       e0(isector)=minval(espace(isector)%e)
+       e0(isector)= minval(espace(isector)%e)
+       !
+       enemin     = e0(isector)
+       if (enemin < oldzero-10.d0*gs_threshold)then
+          oldzero=enemin
+          call es_free_espace(state_list)
+          call es_add_state(state_list,enemin,espace(isector)%M(:,1),isector)
+       elseif(abs(enemin-oldzero) <= gs_threshold)then
+          oldzero=min(oldzero,enemin)
+          call es_add_state(state_list,enemin,espace(isector)%M(:,1),isector)
+       endif
        !
     enddo sector
     !
@@ -357,15 +397,32 @@ contains
     !
     write(LOGfile,"(A)")"DIAG resume:"
     open(free_unit(unit),file='egs'//reg(ed_file_suffix)//".ed",position='append')
-    do isector=1,Nsectors
-       if(e0(isector)/=0d0)cycle
+    ! !>DEBUG
+    ! open(846,file="eigenvectors_list"//reg(ed_file_suffix)//".ed",position='append')
+    ! !<DEBUG
+    do istate=1,state_list%size
+       isector = es_return_sector(state_list,istate)
+       Ei      = es_return_energy(state_list,istate)
        call get_Nup(isector,Nups)
        call get_Ndw(isector,Ndws)
-       write(LOGfile,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',e0(isector),nups,ndws
-       write(unit,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',e0(isector),nups,ndws
+       write(LOGfile,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',Ei,nups,ndws
+       write(unit,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',Ei,nups,ndws
+       !
+       ! !>DEBUG
+       ! state_cvec => es_return_cvector(state_list,istate)
+       ! write(846,*)"Isector=",isector,nups,ndws
+       ! do i=1,size(state_cvec)
+       !    write(846,*)state_cvec(i)
+       ! enddo
+       ! write(846,*)""
+       ! !<DEBUG
     enddo
-    write(LOGfile,"(A,F20.12)")'Z   =',zeta_function
+    ! !>DEBUG
+    ! close(846)
+    ! !<DEBUG
     close(unit)
+    write(LOGfile,"(A,F20.12)")'Z   =',zeta_function
+    if(state_list%status)call es_delete_espace(state_list)
     return
   end subroutine ed_full_d
 
