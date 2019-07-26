@@ -102,20 +102,15 @@ contains
     logical                            :: check 
     logical,save                       :: isetup=.true.
     integer                            :: i
-    logical                            :: MPI_MASTER=.true.
-    integer                            :: MPI_RANK
-    integer                            :: MPI_ERR
-    !
-    MPI_RANK   = get_Rank_MPI(MpiComm)
-    MPI_MASTER = get_Master_MPI(MpiComm)
     !
     !
-    if(MPI_MASTER.AND.ed_diag_type=="full")stop "ED ERROR: ed_diag_type=FULL + MPI: not possible at the moment"
+    !SET THE LOCAL MPI COMMUNICATOR :
+    call ed_set_MpiComm(MpiComm)
     !
     write(LOGfile,"(A)")"INIT SOLVER FOR "//trim(ed_file_suffix)
     !
     !Init ED Structure & memory
-    if(isetup)call init_ed_structure(MpiComm)
+    if(isetup)call init_ed_structure()
     !
     !Init bath:
     call set_hloc(Hloc)
@@ -137,7 +132,7 @@ contains
     call deallocate_dmft_bath(dmft_bath)
     isetup=.false.
     !
-    call MPI_Barrier(MpiComm,MPI_ERR)
+    call ed_del_MpiComm()
     !
   end subroutine ed_init_solver_single_mpi
 #endif
@@ -199,7 +194,8 @@ contains
        !
        ed_file_suffix=reg(ineq_site_suffix)//str(ilat,site_indx_padding)
        !
-       call ed_init_solver_single_mpi(MpiComm,bath(ilat,:),Hloc(ilat,:,:,:,:))
+       ! call ed_init_solver_single_mpi(MpiComm,bath(ilat,:),Hloc(ilat,:,:,:,:))
+       call ed_init_solver_single(bath(ilat,:),Hloc(ilat,:,:,:,:))
        !
     end do
     Nsect = Nsectors !get_Nsectors() !< get # sectors to allocate the following array
@@ -241,13 +237,11 @@ contains
   !                              SINGLE SITE                                      !
   !+-----------------------------------------------------------------------------+!
   subroutine ed_solve_single(bath,Hloc)
-    integer                         :: MpiComm
     real(8),dimension(:),intent(in) :: bath
     complex(8),optional,intent(in)  :: Hloc(Nspin,Nspin,Norb,Norb)
     logical                         :: check
-    logical                         :: MPI_MASTER=.true.
     !
-    if(MPI_MASTER)call save_input_file(str(ed_input_file))
+    if(MpiMaster)call save_input_file(str(ed_input_file))
     !
     if(present(Hloc))call set_Hloc(Hloc)
     !
@@ -258,7 +252,7 @@ contains
     if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call set_dmft_bath(bath,dmft_bath)
     call write_dmft_bath(dmft_bath,LOGfile)
-    if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
+    if(MpiMaster)call save_dmft_bath(dmft_bath,used=.true.)
     !
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
@@ -290,11 +284,11 @@ contains
     real(8),dimension(:),intent(in) :: bath
     complex(8),optional,intent(in)  :: Hloc(Nspin,Nspin,Norb,Norb)
     logical                         :: check
-    logical                         :: MPI_MASTER=.true.
     !
-    MPI_MASTER = get_Master_MPI(MpiComm)
+    !SET THE LOCAL MPI COMMUNICATOR :
+    call ed_set_MpiComm(MpiComm)
     !
-    if(MPI_MASTER)call save_input_file(str(ed_input_file))
+    if(MpiMaster)call save_input_file(str(ed_input_file))
     !
     if(present(Hloc))call set_Hloc(Hloc)
     !
@@ -305,10 +299,8 @@ contains
     if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call set_dmft_bath(bath,dmft_bath)
     call write_dmft_bath(dmft_bath,LOGfile)
-    if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
+    if(MpiMaster)call save_dmft_bath(dmft_bath,used=.true.)
     !
-    !SET THE LOCAL MPI COMMUNICATOR :
-    call ed_set_MpiComm(MpiComm)
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian

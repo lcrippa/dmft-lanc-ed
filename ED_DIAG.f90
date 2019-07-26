@@ -188,7 +188,26 @@ contains
              call sp_lanc_eigh(spHtimesV_p,eig_values(1),eig_basis(:,1),Nitermax,&
                   iverbose=(ed_verbose>3),threshold=lanc_tolerance)
 #endif
+             !
+             !
+          case ("dvdson")
+#ifdef _MPI
+             if(MpiStatus)then
+                call sp_dvdson_eigh(spHtimesV_p,eig_values,eig_basis,&
+                     nitermax=Nitermax,&
+                     tol=max(1d-15,lanc_tolerance))
+             else
+                call sp_dvdson_eigh(spHtimesV_p,eig_values,eig_basis,&
+                     nitermax=Nitermax,&
+                     tol=max(1d-15,lanc_tolerance))
+             endif
+#else
+             call sp_dvdson_eigh(spHtimesV_p,eig_values,eig_basis,&
+                  nitermax=Nitermax,&
+                  tol=max(1d-15,lanc_tolerance))
+#endif
           end select
+          !
           !
           if(MpiMaster.AND.ed_verbose>3)write(LOGfile,*)""
           call delete_Hv_sector()

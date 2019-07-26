@@ -73,6 +73,15 @@ contains
        if(lanc_nstates_sector>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_sector==1, T=0"
     endif
     !
+    if(lanc_method=="dvdson".AND.MpiStatus)then
+       if(mpiSIZE>1)stop "ED ERROR: lanc_method=Dvdson + MPIsize>1: not possible at the moment"       
+    endif
+    !
+    if(ed_diag_type=="full".AND.MpiStatus)then
+       if(mpiSIZE>1)stop "ED ERROR: ed_diag_type=FULL + MPIsize>1: not possible at the moment"
+    end if
+    !
+
   end subroutine ed_checks_global
 
 
@@ -111,16 +120,10 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE  : Init ED structure and calculation
   !+------------------------------------------------------------------+
-  subroutine init_ed_structure(MpiComm)
-    integer,optional         :: MpiComm
-    logical                  :: control
-    integer                  :: i,iud,iorb,jorb,ispin,jspin
-    logical                  :: MPI_MASTER=.true.
+  subroutine init_ed_structure()
+    logical                          :: control
+    integer                          :: i,iud,iorb,jorb,ispin,jspin
     integer,dimension(:),allocatable :: DimUps,DimDws
-    !
-#ifdef _MPI
-    if(present(MpiComm))MPI_MASTER=get_Master_MPI(MpiComm)
-#endif
     !
     call ed_checks_global
     !
@@ -133,19 +136,21 @@ contains
        DimUps(iud) = get_sector_dimension(Ns_Orb,Ns_Orb/2)
        DimDws(iud) = get_sector_dimension(Ns_Orb,Ns_Orb-Ns_Orb/2)
     enddo
-    write(LOGfile,"(A)")"Summary:"
-    write(LOGfile,"(A)")"--------------------------------------------"
-    write(LOGfile,"(A,I15)")'# of levels/spin      = ',Ns
-    write(LOGfile,"(A,I15)")'Total size            = ',2*Ns
-    write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
-    write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
-    write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
-    write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
-    write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
-    write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
-    write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
-         'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
-    write(LOGfile,"(A)")"--------------------------------------------"
+    if(MpiMaster)then
+       write(LOGfile,"(A)")"Summary:"
+       write(LOGfile,"(A)")"--------------------------------------------"
+       write(LOGfile,"(A,I15)")'# of levels/spin      = ',Ns
+       write(LOGfile,"(A,I15)")'Total size            = ',2*Ns
+       write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
+       write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
+       write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
+       write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
+       write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
+       write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
+       write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
+            'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
+       write(LOGfile,"(A)")"--------------------------------------------"
+    endif
     call sleep(1)
     !
     allocate(impHloc(Nspin,Nspin,Norb,Norb))

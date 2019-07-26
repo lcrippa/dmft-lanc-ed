@@ -108,7 +108,7 @@ MODULE ED_VARS_GLOBAL
   !=========================================================
   real(8)                                            :: zeta_function
   real(8)                                            :: gs_energy
-  
+
 
 
   !Impurity Green's function and Self-Energies: (Nspin,Nspin,Norb,Norb,:)
