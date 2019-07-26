@@ -203,8 +203,19 @@ contains
           !
           call build_Hv_sector(isector,eig_basis_tmp)
           !
+          if(dim==1)print*,eig_basis_tmp          
           if(MpiMaster)call eigh(eig_basis_tmp,eig_values)
+          if(dim==1)print*,eig_values
           if(dim==1)eig_basis_tmp(dim,dim)=1d0
+
+          if(ed_total_ud)then
+             if(Nups(1)==0.AND.Ndws(1)==3)print*,"Nup=0,Ndw=3",eig_values
+          else
+             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==0.AND.Ndws(2)==3)print*,"Nup=0.0,Ndw=0.3",eig_values
+             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==1.AND.Ndws(2)==2)print*,"Nup=0.0,Ndw=1.2",eig_values
+             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==2.AND.Ndws(2)==1)print*,"Nup=0.0,Ndw=2.1",eig_values
+             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==3.AND.Ndws(2)==0)print*,"Nup=0.0,Ndw=3.0",eig_values
+          endif
           !
           call delete_Hv_sector()
 #ifdef _MPI

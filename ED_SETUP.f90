@@ -50,6 +50,14 @@ MODULE ED_SETUP
 #endif
 
 
+
+  interface print_state_vector
+     module procedure print_state_vector_ivec
+     module procedure print_state_vector_ivec_ud
+     module procedure print_state_vector_int
+  end interface print_state_vector
+  public :: print_state_vector
+
 contains
 
   subroutine ed_checks_global
@@ -1063,6 +1071,70 @@ contains
 
 
 
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : print a state vector |{up}>|{dw}>
+  !+------------------------------------------------------------------+
+  subroutine print_state_vector_ivec(ivec,unit)
+    integer,intent(in) :: ivec(:)
+    integer,optional   :: unit
+    integer            :: unit_
+    integer            :: i,j,Ntot
+    character(len=2)   :: fbt
+    character(len=16)  :: fmt
+    unit_=6;if(present(unit))unit_=unit
+    Ntot = size(ivec)
+    write(fbt,'(I2.2)')Ntot
+    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+    i= bjoin(ivec,Ntot)
+    write(unit_,"(I9,1x,A1)",advance="no")i,"|"
+    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+    write(unit_,"(A4)",advance="no")"> - "
+    write(unit_,fmt,advance="yes")i
+  end subroutine print_state_vector_ivec
+  !
+  subroutine  print_state_vector_ivec_ud(ivec,jvec,unit)
+    integer,intent(in) :: ivec(:),jvec(size(ivec))
+    integer,optional   :: unit
+    integer            :: unit_
+    integer            :: i,j,iup,idw,Ntot
+    character(len=2)   :: fbt
+    character(len=20)  :: fmt
+    unit_=6;if(present(unit))unit_=unit
+    Ntot = size(ivec)
+    write(fbt,'(I2.2)')Ntot
+    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//",1x,B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+    iup = bjoin(ivec,Ntot)
+    idw = bjoin(jvec,Ntot)
+    i = bjoin([ivec,jvec],2*Ntot)
+    write(unit_,"(I9,1x,I4,1x,A1)",advance="no")i,iup,"|"
+    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+    write(unit_,"(A1,I4,A2)",advance="no")">",idw," |"
+    write(unit_,"(10I1)",advance="no")(jvec(j),j=1,Ntot)
+    write(unit_,"(A4)",advance="no")"> - "
+    write(unit_,fmt,advance="yes")ibits(i,0,Ntot),ibits(i,Ntot,2*Ntot)
+  end subroutine print_state_vector_ivec_ud
+  !
+  subroutine print_state_vector_int(i,Ntot,unit)
+    integer,intent(in) :: i
+    integer,intent(in) :: Ntot
+    integer,optional   :: unit
+    integer            :: unit_
+    integer            :: j
+    integer            :: ivec(Ntot)
+    character(len=2)   :: fbt
+    character(len=16)  :: fmt
+    unit_=6;if(present(unit))unit_=unit
+    write(fbt,'(I2.2)')Ntot
+    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+    ivec = bdecomp(i,Ntot)
+    write(unit_,"(I9,1x,A1)",advance="no")i,"|"
+    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+    write(unit_,"(A4)",advance="no")"> - "
+    write(unit_,fmt,advance="yes")i
+  end subroutine print_state_vector_int
+
 end MODULE ED_SETUP
 
 
@@ -1071,74 +1143,6 @@ end MODULE ED_SETUP
 
 
 
-! interface print_state_vector
-!    module procedure print_state_vector_ivec
-!    module procedure print_state_vector_ivec_ud
-!    module procedure print_state_vector_int
-! end interface print_state_vector
-
-
-! !+------------------------------------------------------------------+
-! !PURPOSE  : print a state vector |{up}>|{dw}>
-! !+------------------------------------------------------------------+
-! subroutine print_state_vector_ivec(ivec,unit)
-!   integer,intent(in) :: ivec(:)
-!   integer,optional   :: unit
-!   integer            :: unit_
-!   integer            :: i,j,Ntot
-!   character(len=2)   :: fbt
-!   character(len=16)  :: fmt
-!   unit_=6;if(present(unit))unit_=unit
-!   Ntot = size(ivec)
-!   write(fbt,'(I2.2)')Ntot
-!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-!   i= bjoin(ivec,Ntot)
-!   write(unit_,"(I9,1x,A1)",advance="no")i,"|"
-!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-!   write(unit_,"(A4)",advance="no")"> - "
-!   write(unit_,fmt,advance="yes")i
-! end subroutine print_state_vector_ivec
-! !
-! subroutine  print_state_vector_ivec_ud(ivec,jvec,unit)
-!   integer,intent(in) :: ivec(:),jvec(size(ivec))
-!   integer,optional   :: unit
-!   integer            :: unit_
-!   integer            :: i,j,iup,idw,Ntot
-!   character(len=2)   :: fbt
-!   character(len=20)  :: fmt
-!   unit_=6;if(present(unit))unit_=unit
-!   Ntot = size(ivec)
-!   write(fbt,'(I2.2)')Ntot
-!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//",1x,B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-!   iup = bjoin(ivec,Ntot)
-!   idw = bjoin(jvec,Ntot)
-!   i = bjoin([ivec,jvec],2*Ntot)
-!   write(unit_,"(I9,1x,I4,1x,A1)",advance="no")i,iup,"|"
-!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-!   write(unit_,"(A1,I4,A2)",advance="no")">",idw," |"
-!   write(unit_,"(10I1)",advance="no")(jvec(j),j=1,Ntot)
-!   write(unit_,"(A4)",advance="no")"> - "
-!   write(unit_,fmt,advance="yes")ibits(i,0,Ntot),ibits(i,Ntot,2*Ntot)
-! end subroutine print_state_vector_ivec_ud
-! !
-! subroutine print_state_vector_int(i,Ntot,unit)
-!   integer,intent(in) :: i
-!   integer,intent(in) :: Ntot
-!   integer,optional   :: unit
-!   integer            :: unit_
-!   integer            :: j
-!   integer            :: ivec(Ntot)
-!   character(len=2)   :: fbt
-!   character(len=16)  :: fmt
-!   unit_=6;if(present(unit))unit_=unit
-!   write(fbt,'(I2.2)')Ntot
-!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-!   ivec = bdecomp(i,Ntot)
-!   write(unit_,"(I9,1x,A1)",advance="no")i,"|"
-!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-!   write(unit_,"(A4)",advance="no")"> - "
-!   write(unit_,fmt,advance="yes")i
-! end subroutine print_state_vector_int
 
 
 

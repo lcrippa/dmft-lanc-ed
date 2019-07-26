@@ -55,8 +55,6 @@ MODULE ED_AUX_FUNX
 
 
 
-
-
 contains
 
 
@@ -569,6 +567,8 @@ contains
     var_old  = var
     !
   end subroutine search_chemical_potential
+
+
 
 
 

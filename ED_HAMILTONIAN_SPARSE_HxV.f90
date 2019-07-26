@@ -1,6 +1,7 @@
 ! > BUILD SPARSE HAMILTONIAN of the SECTOR
 MODULE ED_HAMILTONIAN_SPARSE_HxV
   USE ED_HAMILTONIAN_COMMON
+  USE ED_SETUP
   implicit none
   private
 
@@ -144,7 +145,7 @@ contains
   subroutine ed_buildh_orbs(isector,Hmat)
     integer                             :: isector   
     real(8),dimension(:,:),optional     :: Hmat
-    real(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx
+    real(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw,Hrdx_up,Hrdx_dw
     integer,dimension(2*Ns_Ud)          :: Indices    ![2-2*Norb]
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: Nup,Ndw    ![Ns]
@@ -203,20 +204,72 @@ contains
 #else
        call sp_dump_matrix(spH0d,Hmat)
 #endif
+       !>DEBUG
+       if(isector==7)then
+          print*,"Nup=0.0,Ndw=1.2, Hdiag"
+          do i=1,Dim
+             write(*,*)(Hmat(i,j),j=1,Dim)
+          enddo
+       endif
+       !<DEBUG
+
+       if(dim==1)print*,"ED_DIAG Hmat diag:",Hmat
        do iud=1,Ns_Ud
-          allocate(Hrdx(DimDws(iud),DimDws(iud)));Hrdx=0d0
-          call sp_dump_matrix(spH0dws(iud),Hrdx)
-          call build_Htmp_dw(iud,Hrdx,DimDws(iud),Htmp_dw)
-          Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
-          deallocate(Hrdx)
+
+          allocate(Hrdx_up(DimUps(iud),DimUps(iud)));Hrdx_up=0d0          
+          allocate(Hrdx_dw(DimDws(iud),DimDws(iud)));Hrdx_dw=0d0
           !
-          allocate(Hrdx(DimUps(iud),DimUps(iud)));Hrdx=0d0
-          call sp_dump_matrix(spH0ups(iud),Hrdx)
-          call build_Htmp_up(iud,Hrdx,DimUps(iud),Htmp_up)
+          call sp_dump_matrix(spH0ups(iud),Hrdx_up)
+          call sp_dump_matrix(spH0dws(iud),Hrdx_dw)
+          !
+          !>DEBUG
+          if(isector==7)then
+             print*,"Nup=0.0,Ndw=1.2, Hrdxs",iud
+             print*,"UP"
+             do i=1,DimUps(iud)
+                write(*,*)(Hrdx_up(i,j),j=1,DimUps(Iud))
+             enddo
+             print*,"DW"
+             do i=1,DimDws(iud)
+                write(*,*)(Hrdx_dw(i,j),j=1,DimDws(Iud))
+             enddo
+          endif
+          !<DEBUG
+          call build_Htmp_up(iud,Hrdx_up,DimUps(iud),Htmp_up)
+          call build_Htmp_dw(iud,Hrdx_dw,DimDws(iud),Htmp_dw)
+          !>DEBUG
+          if(isector==7)then
+             print*,"Nup=0.0,Ndw=1.2, Htmp",iud
+             print*,"UP"
+             do i=1,DimUp
+                write(*,*)(Htmp_up(i,j),j=1,DimUp)
+             enddo
+             print*,"DW"
+             do i=1,DimDw
+                write(*,*)(Htmp_dw(i,j),j=1,DimDw)
+             enddo
+          endif
+          !<DEBUG
+
           Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
-          deallocate(Hrdx)
+          Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))         
           !
+          !>DEBUG
+          if(isector==7)then
+             print*,"Nup=0.0,Ndw=1.2, Hmat",iud
+             do i=1,Dim
+                write(*,*)(Hmat(i,j),j=1,Dim)
+             enddo
+          endif
+          !<DEBUG
+
+          deallocate(Hrdx_up,Hrdx_dw)
        enddo
+       !
+       ! call sp_dump_matrix(spH0ups(1),Htmp_up)
+       ! call sp_dump_matrix(spH0dws(1),Htmp_dw)
+       ! Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
+       ! Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
        !
        deallocate(Htmp_up,Htmp_dw)
     endif
@@ -236,7 +289,7 @@ contains
          Hup= kronecker_product(eye(product(DimUps(1:Ns_Ud-1))),H)
       else
          Hup= kronecker_product( &
-              kronecker_product( &
+              kronecker_product(&
               eye(product(DimUps(1:iud-1))), H) , eye(product(DimUps(iud+1:Ns_Ud))) )
       end if
     end subroutine build_Htmp_up
