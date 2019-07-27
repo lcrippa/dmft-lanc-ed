@@ -198,9 +198,10 @@ contains
        call ed_init_solver_single(bath(ilat,:),Hloc(ilat,:,:,:,:))
        !
     end do
-    Nsect = Nsectors !get_Nsectors() !< get # sectors to allocate the following array
-    if(allocated(neigen_sectorii))deallocate(neigen_sectorii) ; allocate(neigen_sectorii(Nineq,Nsect))
-    if(allocated(neigen_totalii))deallocate(neigen_totalii) ; allocate(neigen_totalii(Nineq))
+    if(allocated(neigen_sectorii))deallocate(neigen_sectorii)
+    if(allocated(neigen_totalii))deallocate(neigen_totalii)
+    allocate(neigen_sectorii(Nineq,Nsectors))
+    allocate(neigen_totalii(Nineq))
     !
     do ilat=1,Nineq             !all nodes check the bath, u never know...
        neigen_sectorii(ilat,:) = neigen_sector(:)
@@ -307,7 +308,7 @@ contains
     call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
     if(chiflag)call buildchi_impurity() !build the local susceptibilities (spin [todo charge])    
     call observables_impurity()         !obtain impurity observables as thermal averages.
-    call local_energy_impurity()        !obtain the local energy of the effective impurity problem.
+    call local_energy_impurity()        !obtain the local energy of the effective impurity problem
     !
     call deallocate_dmft_bath(dmft_bath)
     call es_delete_espace(state_list)
