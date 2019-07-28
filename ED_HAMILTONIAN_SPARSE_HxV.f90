@@ -143,14 +143,14 @@ contains
 
 
   subroutine ed_buildh_orbs(isector,Hmat)
-    integer                             :: isector
-    integer                             :: mDimUp,mDimDw
-    real(8),dimension(:,:),optional     :: Hmat
-    real(8),dimension(:,:),allocatable  :: Hrdx_up,Hrdx_dw
-    real(8),dimension(:,:),allocatable  :: Htmp_up,Htmp_dw
-    integer,dimension(2*Ns_Ud)          :: Indices    ![2-2*Norb]
-    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)               :: Nup,Ndw    ![Ns]
+    integer                            :: isector
+    integer                            :: mDimUp,mDimDw
+    real(8),dimension(:,:),optional    :: Hmat
+    integer,dimension(2*Ns_Ud)         :: Indices,Jndices
+    integer,dimension(Ns_Ud,Ns_Orb)    :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)              :: Nup,Ndw    ![Ns]
+    integer                            :: i,j,jj,iud
+    integer                            :: iup,idw,jup,jdw
     !
 #ifdef _MPI
     if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
@@ -194,7 +194,6 @@ contains
     !
     if(present(Hmat))then
        Hmat = 0d0       
-       !
 #ifdef _MPI
        if(MpiStatus)then
           call sp_dump_matrix(MpiComm,spH0d,Hmat)
@@ -204,62 +203,31 @@ contains
 #else
        call sp_dump_matrix(spH0d,Hmat)
 #endif
-       !
-       allocate(Htmp_up(DimUp,DimUp));Htmp_up=0d0
-       allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=0d0
-       do iud=1,Ns_Ud
-          mDimUp=DimUps(iud)
-          allocate(Hrdx_up(mDimUp,mDimUp));Hrdx_up=0d0
-          call sp_dump_matrix(spH0ups(iud),Hrdx_up)
-          call build_Htmp_up(iud,Hrdx_up,mDimUp,Htmp_up)
-          Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
-          !
-          mDimDw=DimDws(iud)
-          allocate(Hrdx_dw(mDimDw,mDimDw));Hrdx_dw=0d0
-          call sp_dump_matrix(spH0dws(iud),Hrdx_dw)
-          call build_Htmp_dw(iud,Hrdx_dw,mDimDw,Htmp_dw)
-          Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
-          !
-          deallocate(Hrdx_up,Hrdx_dw)
+       do i=1,Dim
+          call state2indices(i,[DimUps,DimDws],Indices)
+          do iud=1,Ns_Ud
+             !UP:
+             iup = Indices(iud)
+             do jj=1,spH0ups(iud)%row(iup)%Size
+                Jndices = Indices ; Jndices(iud) = spH0ups(iud)%row(iup)%cols(jj)
+                call indices2state(Jndices,[DimUps,DimDws],j)
+                Hmat(i,j) = Hmat(i,j) + spH0ups(iud)%row(iup)%vals(jj)
+             enddo
+             !DW:
+             idw = Indices(iud+Ns_Ud)
+             do jj=1,spH0dws(iud)%row(idw)%Size
+                Jndices = Indices ; Jndices(iud+Ns_Ud) = spH0dws(iud)%row(idw)%cols(jj)
+                call indices2state(Jndices,[DimUps,DimDws],j)
+                Hmat(i,j) = Hmat(i,j) + spH0dws(iud)%row(idw)%vals(jj)
+             enddo
+             !
+          enddo
        enddo
-       deallocate(Htmp_up,Htmp_dw)
     endif
     !
     deallocate(diag_hybr,bath_diag)
     return
     !
-  contains
-
-    subroutine build_Htmp_up(iud,H,Dim,Hup)
-      integer                        :: iud,Dim,i
-      real(8),dimension(Dim,Dim)     :: H
-      real(8),dimension(DimUp,DimUp) :: Hup
-      if(dim/=DimUps(iud))stop "error in build_Htmp_up"
-      Hup = 0d0
-      if(iud==1)then
-         Hup= kronecker_product(H,eye(product(DimUps(2:))))
-      else if(iud==Ns_Ud)then
-         Hup= kronecker_product(eye(product(DimUps(1:Ns_Ud-1))),H)
-      else
-         Hup= kronecker_product(eye(product(DimUps(1:iud-1))),&
-              kronecker_product(H,eye(product(DimUps(iud+1:Ns_Ud)))))
-      end if
-    end subroutine build_Htmp_up
-    subroutine build_Htmp_dw(iud,H,Dim,Hdw)
-      integer                        :: iud,Dim,i
-      real(8),dimension(Dim,Dim)     :: H
-      real(8),dimension(DimDw,DimDw) :: Hdw
-      if(dim/=DimDws(iud))stop "error in build_Htmp_dw"
-      Hdw=0d0
-      if(iud==1)then
-         Hdw= kronecker_product(H,eye(product(DimDws(2:))))
-      else if(iud==Ns_Ud)then
-         Hdw= kronecker_product(eye(product(DimDws(1:Ns_Ud-1))),H)
-      else
-         Hdw= kronecker_product(eye(product(DimDws(1:iud-1))),&
-              kronecker_product(H,eye(product(DimDws(iud+1:Ns_Ud)))))
-      end if
-    end subroutine build_Htmp_dw
   end subroutine ed_buildh_orbs
 
 

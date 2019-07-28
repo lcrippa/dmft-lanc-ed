@@ -69,6 +69,8 @@ contains
     if(.not.ed_total_ud)then
        if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid"
        if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
+       ! !<ACTHUNG:
+       ! lanc_dim_threshold=2
     endif
     !
     if(Nspin>1.AND.ed_twin.eqv..true.)then
