@@ -128,6 +128,11 @@ contains
     integer,dimension(2)        :: Iud,Jud
     type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
     !
+    integer                     :: Nups(Ns_Ud)
+    integer                     :: Ndws(Ns_Ud)
+    integer                     :: Mups(Ns_Ud)
+    integer                     :: Mdws(Ns_Ud)
+    !
     if(ed_total_ud)then
        ialfa = 1
        iorb1 = iorb
@@ -152,6 +157,9 @@ contains
 #endif
        !
        idim  = getdim(isector)
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")'From sector:',isector,Nups,Ndws
        call get_DimUp(isector,iDimUps)
        call get_DimDw(isector,iDimDws)
        iDimUp = product(iDimUps)
@@ -163,13 +171,15 @@ contains
        if(jsector/=0)then 
           !
           jdim   = getdim(jsector)
+          call get_Nup(jsector,nups)
+          call get_Ndw(jsector,ndws)
           call get_DimUp(jsector,jDimUps)
           call get_DImDw(jsector,jDimDws)
           jDimUp = product(jDimUps)
           jDimDw = product(jDimDws)
           !The Op|gs> is worked out by the master only:
           if(MpiMaster)then
-             if(ed_verbose>=3)write(LOGfile,"(A,I6)")' add particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")' add particle:',jsector,Nups,Ndws
              !
              allocate(vvinit(jdim)) ; vvinit=zero
              !
@@ -222,18 +232,22 @@ contains
           if(allocated(vvloc))deallocate(vvloc)
        endif
        !
+       call wait(200)
+       !
        !REMOVE ONE PARTICLE:
        jsector = getCsector(ialfa,ispin,isector)
        if(jsector/=0)then
           !            
           jdim   = getdim(jsector)
+          call get_Nup(jsector,nups)
+          call get_Ndw(jsector,ndws)
           call get_DimUp(jsector,jDimUps)
           call get_DImDw(jsector,jDimDws)
           jDimUp = product(jDimUps)
           jDimDw = product(jDimDws)
           !
           if(MpiMaster)then
-             if(ed_verbose>=3)write(LOGfile,"(A,I6)")' del particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")' del particle:',jsector,Nups,Ndws
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)

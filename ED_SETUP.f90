@@ -376,8 +376,8 @@ contains
        !ADD
        do iud=1,Ns_Ud
           Jups=Nups
-          Jdws=Ndws 
-          Jups(iud)=Jups(iud)+1; if(Jups(iud) > Ns)cycle
+          Jdws=Ndws
+          Jups(iud)=Jups(iud)+1; if(Jups(iud) > Ns_Orb)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCDGsector(iud,1,isector)=jsector
        enddo
@@ -395,7 +395,7 @@ contains
        do iud=1,Ns_Ud
           Jups=Nups
           Jdws=Ndws 
-          Jdws(iud)=Jdws(iud)+1; if(Jdws(iud) > Ns)cycle
+          Jdws(iud)=Jdws(iud)+1; if(Jdws(iud) > Ns_Orb)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCDGsector(iud,2,isector)=jsector
        enddo

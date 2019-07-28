@@ -203,19 +203,8 @@ contains
           !
           call build_Hv_sector(isector,eig_basis_tmp)
           !
-          if(dim==1)print*,eig_basis_tmp          
           if(MpiMaster)call eigh(eig_basis_tmp,eig_values)
-          if(dim==1)print*,eig_values
           if(dim==1)eig_basis_tmp(dim,dim)=1d0
-
-          if(ed_total_ud)then
-             if(Nups(1)==0.AND.Ndws(1)==3)print*,"Nup=0,Ndw=3",eig_values
-          else
-             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==0.AND.Ndws(2)==3)print*,"Nup=0.0,Ndw=0.3",eig_values
-             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==1.AND.Ndws(2)==2)print*,"Nup=0.0,Ndw=1.2",eig_values
-             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==2.AND.Ndws(2)==1)print*,"Nup=0.0,Ndw=2.1",eig_values
-             if(Nups(1)==0.AND.Nups(2)==0.AND.Ndws(1)==3.AND.Ndws(2)==0)print*,"Nup=0.0,Ndw=3.0",eig_values
-          endif
           !
           call delete_Hv_sector()
 #ifdef _MPI
@@ -274,32 +263,6 @@ contains
        !
     enddo sector
     if(MPIMASTER)call stop_timer(LOGfile)
-    !     !>DEBUG
-    !     do istate=1,state_list%size
-    !        isector = es_return_sector(state_list,istate)
-    !        Ei      = es_return_energy(state_list,istate)
-    !        !
-    !        call get_Nup(isector,Nups)
-    !        call get_Ndw(isector,Ndws)
-    ! #ifdef _MPI
-    !        if(MpiStatus)then
-    !           state_cvec => es_return_cvector(MpiComm,state_list,istate)
-    !        else
-    !           state_cvec => es_return_cvector(state_list,istate)
-    !        endif
-    ! #else
-    !        state_cvec => es_return_cvector(state_list,istate)
-    ! #endif
-    !        unit=free_unit()
-    !        open(unit,file="eigenvectors_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
-    !        write(unit,*)"Isector=",isector,nups,ndws
-    !        do i=1,size(state_cvec)
-    !           write(unit,*)state_cvec(i)
-    !        enddo
-    !        write(unit,*)""
-    !        close(unit)       
-    !     enddo
-    !     !<DEBUG
   end subroutine ed_diag_d
 
 

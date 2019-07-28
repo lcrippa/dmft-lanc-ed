@@ -9,10 +9,6 @@
      Nup = Breorder(Nups)
      Ndw = Breorder(Ndws)
      !
-     if(isector==7)then
-        call print_state_vector(Nup,Ndw)
-     endif
-     !     
      !> H_Imp: Diagonal Elements, i.e. local part
      htmp = zero
      do iorb=1,Norb
