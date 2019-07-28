@@ -282,32 +282,6 @@ contains
        !
     enddo sector
     if(MPIMASTER)call stop_timer(LOGfile)
-    !     !>DEBUG
-    !     do istate=1,state_list%size
-    !        isector = es_return_sector(state_list,istate)
-    !        Ei      = es_return_energy(state_list,istate)
-    !        !
-    !        call get_Nup(isector,Nups)
-    !        call get_Ndw(isector,Ndws)
-    ! #ifdef _MPI
-    !        if(MpiStatus)then
-    !           state_cvec => es_return_cvector(MpiComm,state_list,istate)
-    !        else
-    !           state_cvec => es_return_cvector(state_list,istate)
-    !        endif
-    ! #else
-    !        state_cvec => es_return_cvector(state_list,istate)
-    ! #endif
-    !        unit=free_unit()
-    !        open(unit,file="eigenvectors_list"//reg(ed_file_suffix)//".ed",position='append',action='write')
-    !        write(unit,*)"Isector=",isector,nups,ndws
-    !        do i=1,size(state_cvec)
-    !           write(unit,*)state_cvec(i)
-    !        enddo
-    !        write(unit,*)""
-    !        close(unit)       
-    !     enddo
-    !     !<DEBUG
   end subroutine ed_diag_d
 
 
