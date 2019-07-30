@@ -195,16 +195,16 @@ contains
              if(MpiStatus)then
                 call sp_dvdson_eigh(spHtimesV_p,eig_values,eig_basis,&
                      nitermax=Nitermax,&
-                     tol=max(1d-15,lanc_tolerance))
+                     tol=min(1d-15,lanc_tolerance))
              else
                 call sp_dvdson_eigh(spHtimesV_p,eig_values,eig_basis,&
                      nitermax=Nitermax,&
-                     tol=max(1d-15,lanc_tolerance))
+                     tol=min(1d-15,lanc_tolerance))
              endif
 #else
              call sp_dvdson_eigh(spHtimesV_p,eig_values,eig_basis,&
                   nitermax=Nitermax,&
-                  tol=max(1d-15,lanc_tolerance))
+                  tol=min(1d-15,lanc_tolerance))
 #endif
           end select
           !
@@ -217,11 +217,8 @@ contains
           !
           !
           allocate(eig_values(Dim)) ; eig_values=0d0
-          !
           allocate(eig_basis_tmp(Dim,Dim)) ; eig_basis_tmp=0d0
-          !
           call build_Hv_sector(isector,eig_basis_tmp)
-          !
           if(MpiMaster)call eigh(eig_basis_tmp,eig_values)
           if(dim==1)eig_basis_tmp(dim,dim)=1d0
           !
