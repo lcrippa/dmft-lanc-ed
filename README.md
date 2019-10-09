@@ -1,4 +1,4 @@
-# DMFT Lanczos Exact Diagonaization
+# DMFT Lanczos Exact Diagonalization
 
 A Lanczos based solver for the Dynamical Mean-Field Theory using the N_up:N_dw implementation.  
 **This code solves the normal (N_up, N_dw) case only.**
@@ -23,7 +23,7 @@ An example, solving the Hubbard model on the Bethe lattice, is contained in the 
 --
 
 ***COPYRIGHT & LICENSING***  
-Copyright 2012 -  (c), Adriano Amaricci.  
+Copyright 2012 -  (c), Adriano Amaricci, Massimo Capone, Lorenzo Crippa  
 All rights reserved. 
 
 The software is provided with no license, as such it is protected by copyright.

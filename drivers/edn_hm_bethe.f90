@@ -21,11 +21,15 @@ program hm_Nbands_bethe
   complex(8),allocatable,dimension(:,:,:,:,:) :: Weiss,Smats,Sreal,Gmats,Greal,Weiss_
   complex(8),allocatable,dimension(:) :: Gtest
   character(len=16)                           :: finput
-  real(8)                                     :: wmixing
+  real(8)                                     :: wmixing,dw,dt,tmax
   !
   integer                                     :: comm,rank
   logical                                     :: master
   logical :: betheSC,wGimp,mixG0,symOrbs
+
+  real(8),dimension(:),allocatable :: Aw,wr
+  complex(8),dimension(:),allocatable :: Gw_gtr,Gt_gtr
+
 
   call init_MPI()
   comm = MPI_COMM_WORLD
@@ -168,8 +172,56 @@ program hm_Nbands_bethe
 
 
 
+  if(.true.)then
+     print*,"Get FFT of impG_realw"
+     !1. Get the spectrum = ImGimp
+     call ed_get_gimp_real(Greal)
+     !
+     allocate(Aw(Lreal),wr(Lreal))
+     allocate(Gw_gtr(Lreal),Gt_gtr(0:Lreal))
+     Aw = -dimag(Greal(1,1,1,1,:))/pi
+     wr = linspace(wini,wfin,Lreal,mesh=dw)
+     !2. Obtain  G>(w)
+     Gw_gtr = pi2*xi*(fermi(wr,beta)-1d0)*Aw
+     call splot("Gw_gtr.out",wr,Gw_gtr)
+     !3. FFt G>(w) --> G>(t)
+     Gt_gtr  =  fft_rw2rt(Gw_gtr)*dw/pi2
+     dt      = pi/wfin
+     tmax    = dt*Lreal/2
+     call splot("Gt_gtr.out",linspace(-tmax,tmax,Lreal+1),Gt_gtr)
+  endif
+
+
   call finalize_MPI()
 
+
+contains
+
+
+
+  !+----------------------------------------------------------------+
+  !PURPOSE  : Modified real-axis FFT to deal with the special 0:L 
+  ! form of the time-axis Keldysh GF.
+  !+----------------------------------------------------------------+
+  function fft_rw2rt(func_in) result(func_out)
+    complex(8),dimension(:)               :: func_in
+    complex(8),dimension(0:size(func_in)) :: func_out
+    complex(8),dimension(size(func_in))   :: ftmp
+    ftmp = func_in
+    call fft(ftmp)
+    call fftex(ftmp)
+    func_out = fftshift(ftmp)*size(ftmp)
+  end function fft_rw2rt
+  !
+  function fft_rt2rw(func_in) result(func_out)
+    complex(8),dimension(:)               :: func_in
+    complex(8),dimension(size(func_in)-1) :: func_out
+    complex(8),dimension(size(func_in)-1)  :: ftmp
+    ftmp = func_in(:size(func_in)-1)
+    call ifft(ftmp)
+    call fftex(ftmp)
+    func_out = ifftshift(ftmp)
+  end function fft_rt2rw
 
 end program hm_Nbands_bethe
 
