@@ -28,6 +28,7 @@ MODULE ED_OBSERVABLES
   real(8)                            :: s2tot
   real(8)                            :: Egs
   real(8)                            :: Ei
+  real(8),dimension(:),allocatable   :: Prob
   !
   integer                            :: iorb,jorb,iorb1,jorb1
   integer                            :: ispin,jspin
@@ -66,7 +67,7 @@ contains
   !PURPOSE  : Evaluate and print out many interesting physical qties
   !+-------------------------------------------------------------------+
   subroutine observables_impurity()
-    integer                             :: istate,Nud(2,Ns),iud(2),jud(2)
+    integer                             :: iprob,istate,Nud(2,Ns),iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
     integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
@@ -78,6 +79,7 @@ contains
     allocate(docc(Norb))
     allocate(magz(Norb),sz2(Norb,Norb),n2(Norb,Norb))
     allocate(simp(Norb,Nspin),zimp(Norb,Nspin))
+    allocate(Prob(3**Norb))
     !
     Egs     = state_list%emin
     dens    = 0.d0
@@ -88,6 +90,7 @@ contains
     sz2     = 0.d0
     n2      = 0.d0
     s2tot   = 0.d0
+    Prob    = 0.d0
     !
     do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
@@ -135,6 +138,13 @@ contains
                 sz(iorb) = (nup(iorb) - ndw(iorb))/2d0
                 nt(iorb) =  nup(iorb) + ndw(iorb)
              enddo
+             !
+             !Configuration probability
+             iprob=1
+             do iorb=1,Norb
+                iprob=iprob+nint(nt(iorb))*3**(iorb-1)
+             end do
+             Prob(iprob) = Prob(iprob) + gs_weight
              !
              !Evaluate averages of observables:
              do iorb=1,Norb
@@ -292,7 +302,7 @@ contains
     endif
 #endif
     !
-    deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2)
+    deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2,Prob)
     deallocate(simp,zimp)
   end subroutine observables_impurity
 
@@ -610,6 +620,11 @@ contains
          ((zimp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
          ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin)
     close(unit)         
+    !
+    unit = free_unit()
+    open(unit,file="Occupation_prob"//reg(ed_file_suffix)//".ed")
+    write(unit,"(90F15.9)")Uloc(1),Prob,sum(Prob)
+    close(unit)
   end subroutine write_observables
 
   subroutine write_energy()
