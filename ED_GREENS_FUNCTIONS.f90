@@ -65,7 +65,7 @@ contains
     spinChi_tau=zero
     spinChi_w=zero
     spinChi_iv=zero
-    call build_chi_spin()
+    if(chispin_flag)call build_chi_spin()
     !
     !
     ! !BUILD CHARGE SUSCEPTIBILITY
@@ -75,18 +75,18 @@ contains
     ! densChi_mix_tau=zero
     ! densChi_mix_w=zero
     ! densChi_mix_iv=zero
-    call build_chi_dens()
+    if(chidens_flag)call build_chi_dens()
     !
     !
     ! !BUILD PAIR SUSCEPTIBILITY
     ! pairChi_tau=zero
     ! pairChi_w=zero
     ! pairChi_iv=zero
-    ! call build_chi_pair()
+    !if(chipair_flag)call build_chi_pair()
     !
     !
     !PRINTING:
-    if(MPIMASTER)call ed_print_impChi()
+    if(MPIMASTER.AND.(any([chispin_flag,chidens_flag,chipair_flag])))call ed_print_impChi()
     !
     !
     call deallocate_grids

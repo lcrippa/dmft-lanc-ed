@@ -141,7 +141,7 @@ contains
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
-       allocate(alfa_(nlanc),beta_(nlanc))
+       allocate(alfa_(nlanc),beta_(nlanc));alfa_=0d0;beta_=0d0
        !
        call build_Hv_sector(isector)
 #ifdef _MPI
@@ -157,6 +157,9 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
+       do i=1,nlanc
+          write(200,*)alfa_(i),beta_(i)
+       enddo
        !particles
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
        !holes
@@ -288,8 +291,8 @@ contains
 
 
 
-  subroutine add_to_lanczos_spinChi(vnorm,Ei,alanc,blanc,isign,iorb)
-    real(8)                                    :: vnorm,Ei,Ej,Egs,pesoF,pesoAB,pesoBZ,de,peso
+  subroutine add_to_lanczos_spinChi(vnorm2,Ei,alanc,blanc,isign,iorb)
+    real(8)                                    :: vnorm2,Ei,Ej,Egs,pesoF,pesoAB,pesoBZ,de,peso
     integer                                    :: nlanc
     real(8),dimension(:)                       :: alanc
     real(8),dimension(size(alanc))             :: blanc 
@@ -303,7 +306,7 @@ contains
     !
     Nlanc = size(alanc)
     !
-    pesoF  = vnorm**2/zeta_function 
+    pesoF  = vnorm2/zeta_function 
     pesoBZ = 1d0
     if(finiteT)pesoBZ = exp(-beta*(Ei-Egs))
     !

@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
-PROJECT(dmft_ed Fortran)
+PROJECT(dmft_ed Fortran C)
 SET(VERSION 0.15)
 
 
