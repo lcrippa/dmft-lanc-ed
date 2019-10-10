@@ -255,15 +255,13 @@ contains
        allocate(spinChi_w(Norb+1,Lreal))
        allocate(spinChi_iv(Norb+1,0:Lmats))
        !
-       ! allocate(densChi_tau(Norb,Norb,0:Ltau))
-       ! allocate(densChi_w(Norb,Norb,Lreal))
-       ! allocate(densChi_iv(Norb,Norb,0:Lmats))
+       allocate(densChi_tau(Norb+1,Norb+1,0:Ltau))
+       allocate(densChi_w(Norb+1,Norb+1,Lreal))
+       allocate(densChi_iv(Norb+1,Norb+1,0:Lmats))
+       !
        ! allocate(densChi_mix_tau(Norb,Norb,0:Ltau))
        ! allocate(densChi_mix_w(Norb,Norb,Lreal))
        ! allocate(densChi_mix_iv(Norb,Norb,0:Lmats))
-       ! allocate(densChi_tot_tau(0:Ltau))
-       ! allocate(densChi_tot_w(Lreal))
-       ! allocate(densChi_tot_iv(0:Lmats))
        ! !
        ! allocate(pairChi_tau(Norb,0:Ltau))
        ! allocate(pairChi_w(Norb,Lreal))

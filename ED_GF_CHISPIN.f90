@@ -130,9 +130,9 @@ contains
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
              nud(2,:) = Bdecomp(iud(2),Ns_Orb)
              !
-             sgn = nud(1,iorb1)-nud(2,iorb1)
+             sgn = dble(nud(1,iorb1))-dble(nud(2,iorb1))
              !
-             vvinit(i) = sgn*state_cvec(i)
+             vvinit(i) = 0.5d0*sgn*state_cvec(i)
           enddo
           call delete_sector(isector,HI)
           !

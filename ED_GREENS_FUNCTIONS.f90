@@ -2,7 +2,7 @@ MODULE ED_GREENS_FUNCTIONS
   USE ED_GF_SHARED
   USE ED_GF_NORMAL
   USE ED_GF_CHISPIN
-  ! USE ED_CHI_DENS
+  USE ED_GF_CHIDENS
   ! USE ED_CHI_PAIR
   !
   implicit none
@@ -69,16 +69,13 @@ contains
     !
     !
     ! !BUILD CHARGE SUSCEPTIBILITY
-    ! densChi_tau=zero
-    ! densChi_w=zero
-    ! densChi_iv=zero
+    densChi_tau=zero
+    densChi_w=zero
+    densChi_iv=zero
     ! densChi_mix_tau=zero
     ! densChi_mix_w=zero
     ! densChi_mix_iv=zero
-    ! densChi_tot_tau=zero
-    ! densChi_tot_w=zero
-    ! densChi_tot_iv=zero
-    ! call build_chi_dens()
+    call build_chi_dens()
     !
     !
     ! !BUILD PAIR SUSCEPTIBILITY

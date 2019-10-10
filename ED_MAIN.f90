@@ -42,8 +42,6 @@ module ED_MAIN
   !>
   public :: ed_solve
 
-
-  real(8),dimension(:),allocatable                   :: wr,wm
   character(len=64)                                  :: suffix
 
 

@@ -1,5 +1,4 @@
 MODULE ED_INPUT_VARS
-  USE ED_VARS_GLOBAL
   USE SF_VERSION
   USE SF_PARSE_INPUT
   USE SF_IOTOOLS, only:str
@@ -90,6 +89,8 @@ MODULE ED_INPUT_VARS
   character(len=100)   :: Hfile,HLOCfile
   integer,save         :: LOGfile
 
+  !THIS IS JUST A RELOCATED GLOBAL VARIABLE
+  character(len=200)                                 :: ed_input_file=""
 
 
 contains

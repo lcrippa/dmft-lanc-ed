@@ -29,6 +29,7 @@ program hm_Nbands_bethe
 
   real(8),dimension(:),allocatable :: Aw,wr
   complex(8),dimension(:),allocatable :: Gw_gtr,Gt_gtr
+  real(8) :: impHloc
 
 
   call init_MPI()
