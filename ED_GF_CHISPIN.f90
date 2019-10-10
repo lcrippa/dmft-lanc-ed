@@ -157,9 +157,6 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       do i=1,nlanc
-          write(200,*)alfa_(i),beta_(i)
-       enddo
        !particles
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
        !holes
