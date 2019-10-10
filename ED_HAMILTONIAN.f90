@@ -74,6 +74,7 @@ contains
           deallocate(MpiMembers)
           mpiAllThreads=.false.
           call Barrier_MPI(MpiComm_Global)
+#ifdef _DEBUG
           if(ed_verbose>4)then
              if(MpiMaster)write(LOGfile,*)&
                   "       mpiRank,   MpiComm, Comm_Global, Comm_World, Comm_Null, Undefined"
@@ -83,6 +84,7 @@ contains
              enddo
              call Barrier_MPI(MpiComm_Global)
           endif
+#endif
        endif
        if( MpiComm /= MPI_COMM_NULL )then
           MpiRank = Get_Rank_MPI(MpiComm)
@@ -108,6 +110,7 @@ contains
     !
     !
 #ifdef _MPI
+#ifdef _DEBUG
     if(MpiStatus.AND.ed_verbose>4.AND.(MpiComm/=Mpi_Comm_Null).AND.MpiSize>=1)then
        if(MpiMaster)write(LOGfile,*)&
             "         mpiRank,   mpi_Q,   mpi_R,      mpi_Qdw,      mpiR_dw,  mpi_Istart,  mpi_Iend,  Iend-Istart,  Comm, Comm_Global"
@@ -117,6 +120,7 @@ contains
        enddo
        call Barrier_MPI(MpiComm)
     endif
+#endif
 #endif
     !
     !

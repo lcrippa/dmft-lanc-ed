@@ -55,8 +55,6 @@ MODULE ED_AUX_FUNX
 
 
 
-
-
 contains
 
 
@@ -399,6 +397,7 @@ contains
     if(count>1)chich = (ntmp-nold)/(var-var_old)
     !
     !Add here controls on chich: not to be too small....
+    if(chich<0.1d0)chich=0.1d0*chich/abs(chich)
     !
     !update chemical potential
     var_new = var - ndiff/chich
@@ -569,6 +568,8 @@ contains
     var_old  = var
     !
   end subroutine search_chemical_potential
+
+
 
 
 

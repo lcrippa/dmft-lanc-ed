@@ -30,7 +30,7 @@ program ed_bhz
   complex(8),allocatable :: Smats(:,:,:,:,:),Sreal(:,:,:,:,:)
   complex(8),allocatable :: Gmats(:,:,:,:,:),Greal(:,:,:,:,:)
   !hamiltonian input:
-  complex(8),allocatable :: Hk(:,:,:),bhzHloc(:,:)
+  complex(8),allocatable :: Hk(:,:,:),bhzHloc(:,:),sigmaBHZ(:,:),Zmats(:,:)
   real(8),allocatable    :: Wtk(:)
   real(8),allocatable    :: kxgrid(:),kygrid(:)
   integer,allocatable    :: ik2ix(:),ik2iy(:)
@@ -39,7 +39,7 @@ program ed_bhz
   real(8)                :: mh,lambda,wmixing,akrange,rh
   character(len=16)      :: finput
   character(len=32)      :: hkfile
-  logical                :: spinsym,getak,getdeltaw,getpoles
+  logical                :: spinsym,getak,getdeltaw,getpoles,usez
   type(finter_type)      :: finter_func
   !
   real(8),dimension(2)   :: Eout
@@ -69,6 +69,7 @@ program ed_bhz
   call parse_input_variable(wmixing,"WMIXING",finput,default=0.75d0)
   call parse_input_variable(spinsym,"SPINSYM",finput,default=.true.)
   call parse_input_variable(lambda,"LAMBDA",finput,default=0.d0)
+  call parse_input_variable(usez,"USEZ",finput,default=.false.)
   !
   call ed_read_input(trim(finput),MPI_COMM_WORLD)
   !
@@ -91,6 +92,8 @@ program ed_bhz
   allocate(Sreal(Nspin,Nspin,Norb,Norb,Lreal))
   allocate(Greal(Nspin,Nspin,Norb,Norb,Lreal))
   allocate(dens(Norb))
+  allocate(SigmaBHZ(Nso,Nso))
+  allocate(Zmats(Nso,Nso))
 
   !Buil the Hamiltonian on a grid or on  path
   call build_hk(trim(hkfile))
@@ -166,11 +169,12 @@ program ed_bhz
      if(master)call end_loop
   enddo
 
-  call dmft_gloc_realaxis(comm,Hk,Wtk,Greal,Sreal)
-  if(master)call dmft_print_gf_realaxis(Greal,"Gloc",iprint=1)
+  !call dmft_gloc_realaxis(comm,Hk,Wtk,Greal,Sreal)
+  !if(master)call dmft_print_gf_realaxis(Greal,"Gloc",iprint=1)
 
 
-  call dmft_kinetic_energy(comm,Hk,Wtk,Smats)
+  !call dmft_kinetic_energy(comm,Hk,Wtk,Smats)
+  call solve_hk_topological(so2j(Smats(:,:,:,:,1),Nso))
 
   call finalize_MPI()
 
@@ -194,9 +198,11 @@ contains
     complex(8),dimension(Nso,Nso,Lmats) :: Gmats
     complex(8),dimension(Nso,Nso,Lreal) :: Greal
     real(8)                             :: wm(Lmats),wr(Lreal),dw
-
+    !
+    call set_sigmaBHZ()
+    !
     call build_hk_GXMG()
-
+    !
     if(master)write(LOGfile,*)"Build H(k) for BHZ:"
     Lk=Nk**2
     if(master)write(*,*)"# of k-points     :",Lk
@@ -278,6 +284,7 @@ contains
     if(allocated(wtk))deallocate(wtk)
     allocate(Hk(Nso,Nso,Lk))
     allocate(wtk(Lk))
+    call set_sigmaBHZ()
     call TB_build_model(Hk,hk_bhz,Nso,kpath,Nkpath)
     wtk = 1d0/Lk
     if(master)  call TB_Solve_model(hk_bhz,Nso,kpath,Nkpath,&
@@ -287,7 +294,55 @@ contains
   end subroutine build_hk_GXMG
 
 
+  !--------------------------------------------------------------------!
+  !PURPOSE: Set the Self-Energy
+  !--------------------------------------------------------------------!
+  !
+  subroutine set_SigmaBHZ(sigma)
+    complex(8),dimension(Nso,Nso),optional :: sigma(Nso,Nso)
+    sigmaBHZ = zero;if(present(sigma))sigmaBHZ=sigma
+  end subroutine set_SigmaBHZ
+  
 
+  !--------------------------------------------------------------------!
+  !PURPOSE: Solve the topological Hamiltonian
+  !--------------------------------------------------------------------!
+  
+  
+  subroutine solve_hk_topological(sigma)
+    integer                                :: i,j
+    integer                                :: Npts
+    complex(8),dimension(Nso,Nso)          :: sigma(Nso,Nso)
+    real(8),dimension(:,:),allocatable     :: kpath
+    !
+    !This routine build the H(k) along the GXMG path in BZ, Hk(k) is constructed along this path.
+    write(LOGfile,*)"Build H_TOP(k) BHZ along path:"
+    !
+    call set_sigmaBHZ()
+    !
+     Npts = 8
+     Lk=(Npts-1)*Nkpath
+     allocate(kpath(Npts,3))
+     kpath(1,:)=kpoint_m1
+     kpath(2,:)=kpoint_x2
+     kpath(3,:)=kpoint_gamma
+     kpath(4,:)=kpoint_x1
+     kpath(5,:)=kpoint_m2
+     kpath(6,:)=kpoint_r
+     kpath(7,:)=kpoint_x3
+     kpath(8,:)=kpoint_gamma
+   call set_sigmaBHZ(sigma)
+   call TB_solve_model(hk_bhz,Nso,kpath,Nkpath,&
+         colors_name=[red1,blue1,red1,blue1],&
+         points_name=[character(len=20) :: "M","X","G","X1","A","R","Z","G"],&
+         file="Eig_Htop.ed")
+    if (usez) then
+      write(*,*) "Z11=",Zmats(1,1)
+      write(*,*) "Z22=",Zmats(2,2)
+      write(*,*) "Z33=",Zmats(3,3)
+      write(*,*) "Z44=",Zmats(4,4)
+    endif
+  end subroutine solve_hk_topological
 
 
 
@@ -720,7 +775,7 @@ contains
     real(8),dimension(:)      :: kvec
     complex(8),dimension(N,N) :: hk
     real(8)                   :: kx,ky
-    integer                   :: N
+    integer                   :: N,ii
     if(N/=Nso)stop "hk_bhz error: N != Nspin*Norb == 4"
     kx=kvec(1)
     ky=kvec(2)
@@ -731,6 +786,16 @@ contains
     ! Hk(2,3) =  delta ; Hk(3,2)= delta
     Hk(1,3) = xi*rh*(sin(kx)-xi*sin(ky))
     Hk(3,1) =-xi*rh*(sin(kx)+xi*sin(ky))
+    !add the SigmaBHZ term to get Topologial Hamiltonian if required:
+    Hk = Hk + dreal(SigmaBHZ)
+    !
+    if (usez) then
+      Zmats=zero
+      do ii=1,Nso
+        Zmats(ii,ii)  = 1.d0/abs( 1.d0 +  abs(dimag(sigmaBHZ(ii,ii))/(pi/beta)) )
+      end do
+      Hk = matmul(Zmats,Hk)
+    endif 
   end function hk_bhz
 
   function hk_bhz2x2(kx,ky) result(hk)

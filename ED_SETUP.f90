@@ -17,7 +17,7 @@ MODULE ED_SETUP
   !
   public :: build_sector
   public :: delete_sector
-  !  
+  !
   public :: get_Sector
   public :: get_Indices
   public :: get_Nup
@@ -41,7 +41,7 @@ MODULE ED_SETUP
   public :: flip_state
   !
   public :: binary_search
-  
+
 #ifdef _MPI
   public :: scatter_vector_MPI
   public :: scatter_basis_MPI
@@ -50,16 +50,27 @@ MODULE ED_SETUP
 #endif
 
 
+
+  interface print_state_vector
+     module procedure print_state_vector_ivec
+     module procedure print_state_vector_ivec_ud
+     module procedure print_state_vector_int
+  end interface print_state_vector
+  public :: print_state_vector
+
 contains
 
   subroutine ed_checks_global
+    !
     if(Lfit>Lmats)Lfit=Lmats
     if(Nspin>2)stop "ED ERROR: Nspin > 2 is currently not supported"
     if(Norb>5)stop "ED ERROR: Norb > 5 is currently not supported"
     !
     if(.not.ed_total_ud)then
-       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid" 
+       if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid"
        if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
+       ! !<ACTHUNG:
+       ! lanc_dim_threshold=2
     endif
     !
     if(Nspin>1.AND.ed_twin.eqv..true.)then
@@ -71,6 +82,16 @@ contains
        if(lanc_nstates_total>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_total==1, T=0"
        if(lanc_nstates_sector>1)stop "ED ERROR: lanc_method==lanczos available only for lanc_nstates_sector==1, T=0"
     endif
+    !
+    if(lanc_method=="dvdson".AND.MpiStatus)then
+       if(mpiSIZE>1)stop "ED ERROR: lanc_method=Dvdson + MPIsize>1: not possible at the moment"       
+    endif
+    !
+    if(ed_diag_type=="full".AND.MpiStatus)then
+       if(mpiSIZE>1)stop "ED ERROR: ed_diag_type=FULL + MPIsize>1: not possible at the moment"
+    end if
+    !
+
   end subroutine ed_checks_global
 
 
@@ -109,16 +130,10 @@ contains
   !+------------------------------------------------------------------+
   !PURPOSE  : Init ED structure and calculation
   !+------------------------------------------------------------------+
-  subroutine init_ed_structure(MpiComm)
-    integer,optional         :: MpiComm
-    logical                  :: control
-    integer                  :: i,iud,iorb,jorb,ispin,jspin
-    logical                  :: MPI_MASTER=.true.
+  subroutine init_ed_structure()
+    logical                          :: control
+    integer                          :: i,iud,iorb,jorb,ispin,jspin
     integer,dimension(:),allocatable :: DimUps,DimDws
-    !
-#ifdef _MPI
-    if(present(MpiComm))MPI_MASTER=get_Master_MPI(MpiComm)
-#endif
     !
     call ed_checks_global
     !
@@ -131,19 +146,21 @@ contains
        DimUps(iud) = get_sector_dimension(Ns_Orb,Ns_Orb/2)
        DimDws(iud) = get_sector_dimension(Ns_Orb,Ns_Orb-Ns_Orb/2)
     enddo
-    write(LOGfile,"(A)")"Summary:"
-    write(LOGfile,"(A)")"--------------------------------------------"
-    write(LOGfile,"(A,I15)")'# of levels/spin      = ',Ns
-    write(LOGfile,"(A,I15)")'Total size            = ',2*Ns
-    write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
-    write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
-    write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
-    write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
-    write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
-    write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
-    write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
-         'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
-    write(LOGfile,"(A)")"--------------------------------------------"
+    if(MpiMaster)then
+       write(LOGfile,"(A)")"Summary:"
+       write(LOGfile,"(A)")"--------------------------------------------"
+       write(LOGfile,"(A,I15)")'# of levels/spin      = ',Ns
+       write(LOGfile,"(A,I15)")'Total size            = ',2*Ns
+       write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
+       write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
+       write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
+       write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
+       write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
+       write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
+       write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
+            'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
+       write(LOGfile,"(A)")"--------------------------------------------"
+    endif
     call sleep(1)
     !
     allocate(impHloc(Nspin,Nspin,Norb,Norb))
@@ -198,6 +215,10 @@ contains
     !
     offdiag_gf_flag=ed_solve_offdiag_gf
     if(bath_type/="normal")offdiag_gf_flag=.true.
+    if(.not.ed_total_ud.AND.offdiag_gf_flag)then
+       write(LOGfile,"(A)")"ED WARNING: can not do offdiag_gf_flag=T.AND.ed_total_ud=F. Set to F."
+       offdiag_gf_flag=.false.
+    endif
     !
     !
     if(nread/=0.d0)then
@@ -362,8 +383,8 @@ contains
        !ADD
        do iud=1,Ns_Ud
           Jups=Nups
-          Jdws=Ndws 
-          Jups(iud)=Jups(iud)+1; if(Jups(iud) > Ns)cycle
+          Jdws=Ndws
+          Jups(iud)=Jups(iud)+1; if(Jups(iud) > Ns_Orb)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCDGsector(iud,1,isector)=jsector
        enddo
@@ -381,13 +402,16 @@ contains
        do iud=1,Ns_Ud
           Jups=Nups
           Jdws=Ndws 
-          Jdws(iud)=Jdws(iud)+1; if(Jdws(iud) > Ns)cycle
+          Jdws(iud)=Jdws(iud)+1; if(Jdws(iud) > Ns_Orb)cycle
           call get_Sector([Jups,Jdws],Ns_Orb,jsector)
           getCDGsector(iud,2,isector)=jsector
        enddo
     enddo
     return
   end subroutine setup_global
+
+
+
 
 
 
@@ -1054,6 +1078,70 @@ contains
 
 
 
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : print a state vector |{up}>|{dw}>
+  !+------------------------------------------------------------------+
+  subroutine print_state_vector_ivec(ivec,unit)
+    integer,intent(in) :: ivec(:)
+    integer,optional   :: unit
+    integer            :: unit_
+    integer            :: i,j,Ntot
+    character(len=2)   :: fbt
+    character(len=16)  :: fmt
+    unit_=6;if(present(unit))unit_=unit
+    Ntot = size(ivec)
+    write(fbt,'(I2.2)')Ntot
+    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+    i= bjoin(ivec,Ntot)
+    write(unit_,"(I9,1x,A1)",advance="no")i,"|"
+    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+    write(unit_,"(A4)",advance="no")"> - "
+    write(unit_,fmt,advance="yes")i
+  end subroutine print_state_vector_ivec
+  !
+  subroutine  print_state_vector_ivec_ud(ivec,jvec,unit)
+    integer,intent(in) :: ivec(:),jvec(size(ivec))
+    integer,optional   :: unit
+    integer            :: unit_
+    integer            :: i,j,iup,idw,Ntot
+    character(len=2)   :: fbt
+    character(len=20)  :: fmt
+    unit_=6;if(present(unit))unit_=unit
+    Ntot = size(ivec)
+    write(fbt,'(I2.2)')Ntot
+    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//",1x,B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+    iup = bjoin(ivec,Ntot)
+    idw = bjoin(jvec,Ntot)
+    i = bjoin([ivec,jvec],2*Ntot)
+    write(unit_,"(I9,1x,I4,1x,A1)",advance="no")i,iup,"|"
+    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+    write(unit_,"(A1,I4,A2)",advance="no")">",idw," |"
+    write(unit_,"(10I1)",advance="no")(jvec(j),j=1,Ntot)
+    write(unit_,"(A4)",advance="no")"> - "
+    write(unit_,fmt,advance="yes")ibits(i,0,Ntot),ibits(i,Ntot,2*Ntot)
+  end subroutine print_state_vector_ivec_ud
+  !
+  subroutine print_state_vector_int(i,Ntot,unit)
+    integer,intent(in) :: i
+    integer,intent(in) :: Ntot
+    integer,optional   :: unit
+    integer            :: unit_
+    integer            :: j
+    integer            :: ivec(Ntot)
+    character(len=2)   :: fbt
+    character(len=16)  :: fmt
+    unit_=6;if(present(unit))unit_=unit
+    write(fbt,'(I2.2)')Ntot
+    fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
+    ivec = bdecomp(i,Ntot)
+    write(unit_,"(I9,1x,A1)",advance="no")i,"|"
+    write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
+    write(unit_,"(A4)",advance="no")"> - "
+    write(unit_,fmt,advance="yes")i
+  end subroutine print_state_vector_int
+
 end MODULE ED_SETUP
 
 
@@ -1062,74 +1150,6 @@ end MODULE ED_SETUP
 
 
 
-! interface print_state_vector
-!    module procedure print_state_vector_ivec
-!    module procedure print_state_vector_ivec_ud
-!    module procedure print_state_vector_int
-! end interface print_state_vector
-
-
-! !+------------------------------------------------------------------+
-! !PURPOSE  : print a state vector |{up}>|{dw}>
-! !+------------------------------------------------------------------+
-! subroutine print_state_vector_ivec(ivec,unit)
-!   integer,intent(in) :: ivec(:)
-!   integer,optional   :: unit
-!   integer            :: unit_
-!   integer            :: i,j,Ntot
-!   character(len=2)   :: fbt
-!   character(len=16)  :: fmt
-!   unit_=6;if(present(unit))unit_=unit
-!   Ntot = size(ivec)
-!   write(fbt,'(I2.2)')Ntot
-!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-!   i= bjoin(ivec,Ntot)
-!   write(unit_,"(I9,1x,A1)",advance="no")i,"|"
-!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-!   write(unit_,"(A4)",advance="no")"> - "
-!   write(unit_,fmt,advance="yes")i
-! end subroutine print_state_vector_ivec
-! !
-! subroutine  print_state_vector_ivec_ud(ivec,jvec,unit)
-!   integer,intent(in) :: ivec(:),jvec(size(ivec))
-!   integer,optional   :: unit
-!   integer            :: unit_
-!   integer            :: i,j,iup,idw,Ntot
-!   character(len=2)   :: fbt
-!   character(len=20)  :: fmt
-!   unit_=6;if(present(unit))unit_=unit
-!   Ntot = size(ivec)
-!   write(fbt,'(I2.2)')Ntot
-!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//",1x,B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-!   iup = bjoin(ivec,Ntot)
-!   idw = bjoin(jvec,Ntot)
-!   i = bjoin([ivec,jvec],2*Ntot)
-!   write(unit_,"(I9,1x,I4,1x,A1)",advance="no")i,iup,"|"
-!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-!   write(unit_,"(A1,I4,A2)",advance="no")">",idw," |"
-!   write(unit_,"(10I1)",advance="no")(jvec(j),j=1,Ntot)
-!   write(unit_,"(A4)",advance="no")"> - "
-!   write(unit_,fmt,advance="yes")ibits(i,0,Ntot),ibits(i,Ntot,2*Ntot)
-! end subroutine print_state_vector_ivec_ud
-! !
-! subroutine print_state_vector_int(i,Ntot,unit)
-!   integer,intent(in) :: i
-!   integer,intent(in) :: Ntot
-!   integer,optional   :: unit
-!   integer            :: unit_
-!   integer            :: j
-!   integer            :: ivec(Ntot)
-!   character(len=2)   :: fbt
-!   character(len=16)  :: fmt
-!   unit_=6;if(present(unit))unit_=unit
-!   write(fbt,'(I2.2)')Ntot
-!   fmt="(B"//adjustl(trim(fbt))//"."//adjustl(trim(fbt))//")"
-!   ivec = bdecomp(i,Ntot)
-!   write(unit_,"(I9,1x,A1)",advance="no")i,"|"
-!   write(unit_,"(10I1)",advance="no")(ivec(j),j=1,Ntot)
-!   write(unit_,"(A4)",advance="no")"> - "
-!   write(unit_,fmt,advance="yes")i
-! end subroutine print_state_vector_int
 
 
 

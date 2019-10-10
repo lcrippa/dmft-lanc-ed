@@ -21,6 +21,7 @@ MODULE ED_VARS_GLOBAL
 
 
 
+
   !---------------- SECTOR-TO-FOCK SPACE STRUCTURE -------------------!
   type sector_map
      integer,dimension(:),allocatable :: map
@@ -106,6 +107,7 @@ MODULE ED_VARS_GLOBAL
   !PRIVATE
   !=========================================================
   real(8)                                            :: zeta_function
+  real(8)                                            :: gs_energy
 
 
 

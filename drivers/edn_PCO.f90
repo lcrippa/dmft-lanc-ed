@@ -650,9 +650,6 @@ contains
   !
   !
   !
-
-
-
   subroutine hk_from_w90_hr(ham_k,w90_file,Nspin,Norb,Nlat,Nkvec,Porder,kpt_latt,Hkfile,Kpointfile)
     implicit none
     complex(8),allocatable,intent(out)           ::   ham_k(:,:,:)         !(num_wann*nspin,num_wann*nspin,num_kpts)

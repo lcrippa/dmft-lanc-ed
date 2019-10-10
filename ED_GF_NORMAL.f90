@@ -36,11 +36,17 @@ contains
     integer :: iorb,jorb,ispin,i
     logical :: MaskBool
     !
+
     do ispin=1,Nspin
        do iorb=1,Norb
           write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_s"//str(ispin)
           if(MPIMASTER)call start_timer
-          call lanc_build_gf_normal_main(iorb,ispin)
+          select case(ed_diag_type)
+          case default
+             call lanc_build_gf_normal_main(iorb,ispin)
+          case ("full")
+             call full_build_gf_normal_main(iorb,ispin)
+          end select
           if(MPIMASTER)call stop_timer(LOGfile)
        enddo
     enddo
@@ -55,7 +61,12 @@ contains
                 !
                 write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
                 if(MPIMASTER)call start_timer
-                call lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
+                select case(ed_diag_type)
+                case default
+                   call lanc_build_gf_normal_mix_main(iorb,jorb,ispin)
+                case ("full")
+                   call full_build_gf_normal_mix_main(iorb,jorb,ispin)
+                end select
                 if(MPIMASTER)call stop_timer(LOGfile)
              enddo
           enddo
@@ -63,24 +74,32 @@ contains
        !
        !
        !Put here off-diagonal manipulation by symmetry:
-       do ispin=1,Nspin
-          do iorb=1,Norb
-             do jorb=iorb+1,Norb
-                !if(hybrid)always T; if(replica)T iff following condition is T
-                MaskBool=.true.   
-                if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
-                !
-                if(.not.MaskBool)cycle
-                impGmats(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGmats(ispin,ispin,iorb,jorb,:) &
-                     - impGmats(ispin,ispin,iorb,iorb,:) - impGmats(ispin,ispin,jorb,jorb,:))
-                impGreal(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGreal(ispin,ispin,iorb,jorb,:) &
-                     - impGreal(ispin,ispin,iorb,iorb,:) - impGreal(ispin,ispin,jorb,jorb,:))
-                impGmats(ispin,ispin,jorb,iorb,:) = impGmats(ispin,ispin,iorb,jorb,:)
-                impGreal(ispin,ispin,jorb,iorb,:) = impGreal(ispin,ispin,iorb,jorb,:)
+       select case(ed_diag_type)
+       case default
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                do jorb=iorb+1,Norb
+                   !if(hybrid)always T; if(replica)T iff following condition is T
+                   MaskBool=.true.   
+                   if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
+                   !
+                   if(.not.MaskBool)cycle
+                   impGmats(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGmats(ispin,ispin,iorb,jorb,:) &
+                        - impGmats(ispin,ispin,iorb,iorb,:) - impGmats(ispin,ispin,jorb,jorb,:))
+                   impGreal(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGreal(ispin,ispin,iorb,jorb,:) &
+                        - impGreal(ispin,ispin,iorb,iorb,:) - impGreal(ispin,ispin,jorb,jorb,:))
+                   impGmats(ispin,ispin,jorb,iorb,:) = impGmats(ispin,ispin,iorb,jorb,:)
+                   impGreal(ispin,ispin,jorb,iorb,:) = impGreal(ispin,ispin,iorb,jorb,:)
+                enddo
              enddo
           enddo
-       enddo
-    endif
+       case ("full")
+          !>>ACTHUNG: this relation might not be true, it depends on the value of the impHloc_ij
+          ! if impHloc_ij is REAL then it is true. if CMPLX hermiticity must be ensured
+          impGmats(ispin,ispin,jorb,iorb,:) = impGmats(ispin,ispin,iorb,jorb,:)
+          impGreal(ispin,ispin,jorb,iorb,:) = impGreal(ispin,ispin,iorb,jorb,:)
+       end select
+    end if
     !
   end subroutine build_gf_normal
 
@@ -109,6 +128,11 @@ contains
     integer,dimension(2)        :: Iud,Jud
     type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
     !
+    integer                     :: Nups(Ns_Ud)
+    integer                     :: Ndws(Ns_Ud)
+    integer                     :: Mups(Ns_Ud)
+    integer                     :: Mdws(Ns_Ud)
+    !
     if(ed_total_ud)then
        ialfa = 1
        iorb1 = iorb
@@ -133,6 +157,9 @@ contains
 #endif
        !
        idim  = getdim(isector)
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")'From sector:',isector,Nups,Ndws
        call get_DimUp(isector,iDimUps)
        call get_DimDw(isector,iDimDws)
        iDimUp = product(iDimUps)
@@ -144,13 +171,15 @@ contains
        if(jsector/=0)then 
           !
           jdim   = getdim(jsector)
+          call get_Nup(jsector,nups)
+          call get_Ndw(jsector,ndws)
           call get_DimUp(jsector,jDimUps)
           call get_DImDw(jsector,jDimDws)
           jDimUp = product(jDimUps)
           jDimDw = product(jDimDws)
           !The Op|gs> is worked out by the master only:
           if(MpiMaster)then
-             if(ed_verbose>=3)write(LOGfile,"(A,I6)")' add particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")' add particle:',jsector,Nups,Ndws
              !
              allocate(vvinit(jdim)) ; vvinit=zero
              !
@@ -203,18 +232,22 @@ contains
           if(allocated(vvloc))deallocate(vvloc)
        endif
        !
+       call wait(200)
+       !
        !REMOVE ONE PARTICLE:
        jsector = getCsector(ialfa,ispin,isector)
        if(jsector/=0)then
           !            
           jdim   = getdim(jsector)
+          call get_Nup(jsector,nups)
+          call get_Ndw(jsector,ndws)
           call get_DimUp(jsector,jDimUps)
           call get_DImDw(jsector,jDimDws)
           jDimUp = product(jDimUps)
           jDimDw = product(jDimDws)
           !
           if(MpiMaster)then
-             if(ed_verbose>=3)write(LOGfile,"(A,I6)")' del particle:',jsector
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")' del particle:',jsector,Nups,Ndws
              allocate(vvinit(jdim)) ; vvinit=zero
              !
              call build_sector(jsector,HJ)
@@ -288,9 +321,6 @@ contains
 
 
   !################################################################
-  !################################################################
-  !################################################################
-  !################################################################
 
 
 
@@ -307,16 +337,16 @@ contains
     integer,dimension(2)        :: iud,jud
     type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
     !
+    !
     if(ed_total_ud)then
        ialfa = 1
-       jalfa = 1
+       jalfa = ialfa               !this is the condition to evaluate G_ab: ialfa=jalfa
        iorb1 = iorb
        jorb1 = jorb
     else
-       ialfa = iorb
-       jalfa = jorb
-       iorb1 = 1
-       jorb1 = 1
+       ! ialfa = iorb; jalfa = jorb; iorb1 = 1; jorb1 = 1
+       write(LOGfile,"(A)")"ED_GF_NORMAL warning: can not evaluate GF_ab with ed_total_ud=F"
+       return
     endif
     ibeta  = ialfa + (ispin-1)*Ns_Ud
     jbeta  = jalfa + (ispin-1)*Ns_Ud
@@ -517,9 +547,6 @@ contains
 
 
   !################################################################
-  !################################################################
-  !################################################################
-  !################################################################
 
 
 
@@ -562,7 +589,7 @@ contains
        call Bcast_MPI(MpiComm,blanc)
     endif
 #endif
-
+    !
     diag(1:Nlanc)    = alanc(1:Nlanc)
     subdiag(2:Nlanc) = blanc(2:Nlanc)
     call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
@@ -581,6 +608,245 @@ contains
     enddo
   end subroutine add_to_lanczos_gf_normal
 
+
+
+
+
+
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+  !############################################################################################
+
+
+
+
+
+  subroutine full_build_gf_normal_main(iorb,ispin)
+    integer                     :: iorb,ispin
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer,dimension(2)        :: Iud,Jud
+    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
+    complex(8)                  :: op_mat(2)
+    complex(8)                  :: spectral_weight
+    real(8)                     :: sgn_cdg,sgn_c
+    integer                     :: m,i,j,r,k,p,li,rj
+    real(8)                     :: Ei,Ej
+    real(8)                     :: expterm,peso,de,w0
+    complex(8)                  :: iw
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       iorb1 = iorb
+    else
+       ialfa = iorb
+       iorb1 = 1
+    endif
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    !
+    do isector=1,Nsectors
+       jsector=getCDGsector(ialfa,ispin,isector)
+       if(jsector==0)cycle
+       !
+       idim=getdim(isector)     !i-th sector dimension
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       call build_sector(isector,HI)
+       !
+       jdim=getdim(jsector)     !j-th sector dimension
+       call get_DimUp(jsector,jDimUps)
+       call get_DImDw(jsector,jDimDws)
+       jDimUp = product(jDimUps)
+       jDimDw = product(jDimDws)
+       call build_sector(jsector,HJ)
+       !
+       do i=1,iDim          !loop over the states in the i-th sect.
+          do j=1,jDim       !loop over the states in the j-th sect.
+             !
+             expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(jsector)%e(j))
+             if(expterm < cutoff)cycle
+             !
+             op_mat=0d0
+             !
+             do li=1,idim              !loop over the component of |I> (IN state!)
+                call state2indices(li,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                !
+                if(Nud(ispin,iorb1)/=0)cycle
+                call cdg(iorb1,iud(ispin),k,sgn_cdg)
+                Jndices        = Indices
+                Jndices(ibeta) = binary_search(HJ(ibeta)%map,k)
+                call indices2state(Jndices,[jDimUps,jDimDws],rj)
+                !
+                ! op_mat(1)=op_mat(1) + conjg(espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
+                op_mat(1)=op_mat(1) + (espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
+             enddo
+             !
+             do rj=1,jdim
+                call state2indices(rj,[jDimUps,jDimDws],Jndices)
+                iud(1)   = HJ(ialfa)%map(Jndices(ialfa))
+                iud(2)   = HJ(ialfa+Ns_Ud)%map(Jndices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                if(nud(ispin,iorb1)/=1)cycle
+                call c(iorb1,iud(ispin),k,sgn_c)
+                Indices        = Jndices
+                Indices(ibeta) = binary_search(HI(ibeta)%map,k)
+                call indices2state(Indices,[iDimUps,iDimDws],li)
+                !
+                ! op_mat(2)=op_mat(2) + conjg(espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
+                op_mat(2)=op_mat(2) + (espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
+             enddo
+             !
+             Ei=espace(isector)%e(i)
+             Ej=espace(jsector)%e(j)
+             de=Ej-Ei
+             peso=expterm/zeta_function
+             spectral_weight=peso*product(op_mat)
+             !
+             do m=1,Lmats
+                iw=xi*wm(m)
+                impGmats(ispin,ispin,iorb,iorb,m)=impGmats(ispin,ispin,iorb,iorb,m)+spectral_weight/(iw-de)
+             enddo
+             !
+             do m=1,Lreal
+                w0=wr(m);iw=cmplx(w0,eps)
+                impGreal(ispin,ispin,iorb,iorb,m)=impGreal(ispin,ispin,iorb,iorb,m)+spectral_weight/(iw-de)
+             enddo
+             !
+          enddo
+       enddo
+       call delete_sector(isector,HI)
+       call delete_sector(jsector,HJ)
+    enddo
+  end subroutine full_build_gf_normal_main
+
+
+
+
+
+  subroutine full_build_gf_normal_mix_main(iorb,jorb,ispin)
+    integer                     :: iorb,jorb,ispin
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer,dimension(2)        :: Iud,Jud
+    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
+    complex(8)                  :: op_mat(2)
+    complex(8)                  :: spectral_weight
+    real(8)                     :: sgn_cdg,sgn_c
+    integer                     :: m,i,j,r,k,p,li,rj
+    real(8)                     :: Ei,Ej
+    real(8)                     :: expterm,peso,de,w0
+    complex(8)                  :: iw
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       jalfa = ialfa               !this is the condition to evaluate G_ab: ialfa=jalfa
+       iorb1 = iorb
+       jorb1 = jorb
+    else
+       ! ialfa = iorb; jalfa = jorb; iorb1 = 1; jorb1 = 1
+       write(LOGfile,"(A)")"ED_GF_NORMAL warning: can not evaluate GF_ab with ed_total_ud=F"
+       return
+    endif
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    jbeta  = jalfa + (ispin-1)*Ns_Ud
+    !
+    do isector=1,Nsectors
+       jsector=getCDGsector(ialfa,ispin,isector)
+       if(jsector==0)cycle
+       !
+       idim=getdim(isector)     !i-th sector dimension
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       call build_sector(isector,HI)
+       !
+       jdim=getdim(jsector)     !j-th sector dimension
+       call get_DimUp(jsector,jDimUps)
+       call get_DImDw(jsector,jDimDws)
+       jDimUp = product(jDimUps)
+       jDimDw = product(jDimDws)
+       call build_sector(jsector,HJ)
+       !
+       do i=1,iDim          !loop over the states in the i-th sect.
+          do j=1,jDim       !loop over the states in the j-th sect.
+             !
+             expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(jsector)%e(j))
+             if(expterm < cutoff)cycle
+             !
+             op_mat=0d0
+             !
+             do li=1,idim              !loop over the component of |I> (IN state!)
+                call state2indices(li,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                !
+                if(Nud(ispin,iorb1)/=0)cycle
+                call cdg(iorb1,iud(ispin),k,sgn_cdg)
+                Jndices        = Indices
+                Jndices(ibeta) = binary_search(HJ(ibeta)%map,k)
+                call indices2state(Jndices,[jDimUps,jDimDws],rj)
+                !
+                ! op_mat(1)=op_mat(1) + conjg(espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
+                op_mat(1)=op_mat(1) + (espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
+             enddo
+             !
+             do rj=1,jdim
+                call state2indices(rj,[jDimUps,jDimDws],Jndices)
+                iud(1)   = HJ(jalfa)%map(Jndices(jalfa))
+                iud(2)   = HJ(jalfa+Ns_Ud)%map(Jndices(jalfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                if(nud(ispin,jorb1)/=1)cycle
+                call c(jorb1,iud(ispin),k,sgn_c)
+                Indices        = Jndices
+                Indices(jbeta) = binary_search(HI(jbeta)%map,k)
+                call indices2state(Indices,[iDimUps,iDimDws],li)
+                !
+                ! op_mat(2)=op_mat(2) + conjg(espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
+                op_mat(2)=op_mat(2) + (espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
+             enddo
+             !
+             Ei=espace(isector)%e(i)
+             Ej=espace(jsector)%e(j)
+             de=Ej-Ei
+             peso=expterm/zeta_function
+             spectral_weight=peso*product(op_mat)
+             !
+             do m=1,Lmats
+                iw=xi*wm(m)
+                impGmats(ispin,ispin,iorb,jorb,m)=impGmats(ispin,ispin,iorb,jorb,m)+spectral_weight/(iw-de)
+             enddo
+             !
+             do m=1,Lreal
+                w0=wr(m);iw=cmplx(w0,eps)
+                impGreal(ispin,ispin,iorb,jorb,m)=impGreal(ispin,ispin,iorb,jorb,m)+spectral_weight/(iw-de)
+             enddo
+             !
+          enddo
+       enddo
+       call delete_sector(isector,HI)
+       call delete_sector(jsector,HJ)
+    enddo
+  end subroutine full_build_gf_normal_mix_main
 
 
 

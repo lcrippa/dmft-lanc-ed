@@ -1,7 +1,7 @@
 module ED_MAIN
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
-  USE ED_EIGENSPACE, only: state_list,es_delete_espace
+  USE ED_EIGENSPACE, only: state_list,es_delete_espace,delete_eigenspace
   USE ED_AUX_FUNX
   USE ED_SETUP
   USE ED_BATH
@@ -102,17 +102,15 @@ contains
     logical                            :: check 
     logical,save                       :: isetup=.true.
     integer                            :: i
-    logical                            :: MPI_MASTER=.true.
-    integer                            :: MPI_RANK
-    integer                            :: MPI_ERR
     !
-    MPI_RANK   = get_Rank_MPI(MpiComm)
-    MPI_MASTER = get_Master_MPI(MpiComm)
+    !
+    !SET THE LOCAL MPI COMMUNICATOR :
+    call ed_set_MpiComm(MpiComm)
     !
     write(LOGfile,"(A)")"INIT SOLVER FOR "//trim(ed_file_suffix)
     !
     !Init ED Structure & memory
-    if(isetup)call init_ed_structure(MpiComm)
+    if(isetup)call init_ed_structure()
     !
     !Init bath:
     call set_hloc(Hloc)
@@ -134,7 +132,7 @@ contains
     call deallocate_dmft_bath(dmft_bath)
     isetup=.false.
     !
-    call MPI_Barrier(MpiComm,MPI_ERR)
+    call ed_del_MpiComm()
     !
   end subroutine ed_init_solver_single_mpi
 #endif
@@ -196,12 +194,14 @@ contains
        !
        ed_file_suffix=reg(ineq_site_suffix)//str(ilat,site_indx_padding)
        !
-       call ed_init_solver_single_mpi(MpiComm,bath(ilat,:),Hloc(ilat,:,:,:,:))
+       ! call ed_init_solver_single_mpi(MpiComm,bath(ilat,:),Hloc(ilat,:,:,:,:))
+       call ed_init_solver_single(bath(ilat,:),Hloc(ilat,:,:,:,:))
        !
     end do
-    Nsect = Nsectors !get_Nsectors() !< get # sectors to allocate the following array
-    if(allocated(neigen_sectorii))deallocate(neigen_sectorii) ; allocate(neigen_sectorii(Nineq,Nsect))
-    if(allocated(neigen_totalii))deallocate(neigen_totalii) ; allocate(neigen_totalii(Nineq))
+    if(allocated(neigen_sectorii))deallocate(neigen_sectorii)
+    if(allocated(neigen_totalii))deallocate(neigen_totalii)
+    allocate(neigen_sectorii(Nineq,Nsectors))
+    allocate(neigen_totalii(Nineq))
     !
     do ilat=1,Nineq             !all nodes check the bath, u never know...
        neigen_sectorii(ilat,:) = neigen_sector(:)
@@ -238,13 +238,11 @@ contains
   !                              SINGLE SITE                                      !
   !+-----------------------------------------------------------------------------+!
   subroutine ed_solve_single(bath,Hloc)
-    integer                         :: MpiComm
     real(8),dimension(:),intent(in) :: bath
     complex(8),optional,intent(in)  :: Hloc(Nspin,Nspin,Norb,Norb)
     logical                         :: check
-    logical                         :: MPI_MASTER=.true.
     !
-    if(MPI_MASTER)call save_input_file(str(ed_input_file))
+    if(MpiMaster)call save_input_file(str(ed_input_file))
     !
     if(present(Hloc))call set_Hloc(Hloc)
     !
@@ -255,17 +253,23 @@ contains
     if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call set_dmft_bath(bath,dmft_bath)
     call write_dmft_bath(dmft_bath,LOGfile)
-    if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
+    if(MpiMaster)call save_dmft_bath(dmft_bath,used=.true.)
+    !
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
     call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
     if(chiflag)call buildchi_impurity() !build the local susceptibilities (spin [todo charge])
     call observables_impurity()         !obtain impurity observables as thermal averages.          
-    call local_energy_impurity()        !obtain the local energy of the effective impurity problem.
+    call local_energy_impurity()        !obtain the local energy of the effective impurity problem
     !
-    call deallocate_dmft_bath(dmft_bath)   
-    call es_delete_espace(state_list)
+    call deallocate_dmft_bath(dmft_bath)
+    select case(ed_diag_type)
+    case default
+       call es_delete_espace(state_list)
+    case ("full")
+       call delete_eigenspace()
+    end select
     !
     nullify(spHtimesV_p)
   end subroutine ed_solve_single
@@ -281,11 +285,11 @@ contains
     real(8),dimension(:),intent(in) :: bath
     complex(8),optional,intent(in)  :: Hloc(Nspin,Nspin,Norb,Norb)
     logical                         :: check
-    logical                         :: MPI_MASTER=.true.
     !
-    MPI_MASTER = get_Master_MPI(MpiComm)
+    !SET THE LOCAL MPI COMMUNICATOR :
+    call ed_set_MpiComm(MpiComm)
     !
-    if(MPI_MASTER)call save_input_file(str(ed_input_file))
+    if(MpiMaster)call save_input_file(str(ed_input_file))
     !
     if(present(Hloc))call set_Hloc(Hloc)
     !
@@ -296,17 +300,15 @@ contains
     if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call set_dmft_bath(bath,dmft_bath)
     call write_dmft_bath(dmft_bath,LOGfile)
-    if(MPI_MASTER)call save_dmft_bath(dmft_bath,used=.true.)
+    if(MpiMaster)call save_dmft_bath(dmft_bath,used=.true.)
     !
-    !SET THE LOCAL MPI COMMUNICATOR :
-    call ed_set_MpiComm(MpiComm)
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
     call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
     if(chiflag)call buildchi_impurity() !build the local susceptibilities (spin [todo charge])    
     call observables_impurity()         !obtain impurity observables as thermal averages.
-    call local_energy_impurity()        !obtain the local energy of the effective impurity problem.
+    call local_energy_impurity()        !obtain the local energy of the effective impurity problem
     !
     call deallocate_dmft_bath(dmft_bath)
     call es_delete_espace(state_list)
