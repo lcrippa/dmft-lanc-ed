@@ -440,7 +440,7 @@ contains
           densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
        endif
        do i=1,Lmats
-          densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(wm(i)**2+dE**2)
+          densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
        enddo
        do i=0,Ltau
           densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + peso*(exp(-tau(i)*dE) + exp(-(beta-tau(i))*dE))
@@ -451,6 +451,106 @@ contains
     enddo
     !
   end subroutine add_to_lanczos_densChi
+
+
+
+
+
+  !################################################################
+  !################################################################
+  !################################################################
+  !################################################################
+
+
+
+  subroutine full_ed_build_densChi_main(iorb,jorb)
+    integer                     :: iorb,jorb
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    type(sector_map)            :: HI(2*Ns_Ud)
+    real(8)                     :: chij,spin
+    integer                     :: i,j,ll,isector
+    integer                     :: idim,ia
+    real(8)                     :: Ei,Ej,cc,peso,pesotot
+    real(8)                     :: expterm,de,w0,it
+    complex(8)                  :: iw 
+    !
+    !
+    !Dens susceptibility \X(tau).
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       jalfa = 1
+       iorb1 = iorb
+       jorb1 = jorb
+    else
+       ialfa = iorb
+       jalfa = jorb
+       iorb1 = 1
+       jorb1 = 1
+    endif
+    !
+    do isector=1,Nsectors !loop over <i| total particle number
+       call eta(isector,Nsectors,LOGfile)
+       idim = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       call build_sector(isector,HI)
+       !
+       do i=1,idim 
+          do j=1,idim
+             chij=0.d0
+             expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(isector)%e(j))
+             if(expterm<cutoff)cycle
+             do ll=1,idim
+                call state2indices(ll,[iDimUps,iDimDws],Indices)
+                iud(1)  = HI(ialfa)%map(Indices(ialfa))
+                iud(2)  = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:)= Bdecomp(iud(1),Ns_Orb)
+                nud(2,:)= Bdecomp(iud(2),Ns_Orb)
+                !
+                spin    = (nud(1,iorb1) - nud(2,iorb1))
+                chij    = chij + espace(isector)%M(ll,i)*0.5d0*spin*espace(isector)%M(ll,j)
+             enddo
+             Ei=espace(isector)%e(i)
+             Ej=espace(isector)%e(j)
+             de=Ei-Ej
+             peso=chij**2/zeta_function
+             !
+             !Matsubara (bosonic) frequency
+             !abs(X - (1-exp(-X)) is about 5*10^-7 for X<10^-3 this is a satisfactory bound
+             !note: there is a factor 2 we do not know its origin but it ensures continuity
+             if(beta*dE < 1d-3)then 
+                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*exp(-beta*Ej)*beta
+             else
+                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
+             endif
+             do m=1,Lmats
+                spinChi_iv(iorb,m)=spinChi_iv(iorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
+             enddo
+             !
+             !Imaginary time: V
+             do m=0,Ltau 
+                it=tau(m)
+                spinChi_tau(iorb,m)=spinChi_tau(iorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*chij**2
+             enddo
+             !
+             !Real-frequency: Retarded = Commutator = response function
+             do m=1,Lreal
+                iw=dcmplx(vr(m),eps)
+                spinChi_w(iorb,m)=spinChi_w(iorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
+             enddo
+             !
+          enddo
+       enddo
+    enddo
+  end subroutine full_ed_build_densChi_main
 
 
 END MODULE ED_GF_CHIDENS

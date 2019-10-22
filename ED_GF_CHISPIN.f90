@@ -320,7 +320,7 @@ contains
           spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
        endif
        do i=1,Lmats
-          spinChi_iv(iorb,i)=spinChi_iv(iorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(wm(i)**2+dE**2)
+          spinChi_iv(iorb,i)=spinChi_iv(iorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
        enddo
        do i=0,Ltau
           spinChi_tau(iorb,i)=spinChi_tau(iorb,i) + peso*(exp(-tau(i)*dE) + exp(-(beta-tau(i))*dE))
