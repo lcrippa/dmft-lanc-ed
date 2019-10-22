@@ -72,10 +72,10 @@ contains
     endif
     !
     !> Guess it is wrong!
-    densChi_tau = densChi_tau/zeta_function
-    densChi_w   = densChi_w/zeta_function
-    densChi_iv  = densChi_iv/zeta_function
-    !
+    ! densChi_tau = densChi_tau/zeta_function
+    ! densChi_w   = densChi_w/zeta_function
+    ! densChi_iv  = densChi_iv/zeta_function
+    ! !
   end subroutine build_chi_dens
 
 
@@ -172,10 +172,7 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       !particles
-       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,1,iorb,iorb)
-       !holes
-       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,-1,iorb,iorb)
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,iorb,iorb)
        !
        call delete_Hv_sector()
        !
@@ -275,10 +272,7 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       !particles
-       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,1,Norb+1,Norb+1)
-       !holes
-       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,-1,Norb+1,Norb+1)
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,Norb+1,Norb+1)
        !
        call delete_Hv_sector()
        !
@@ -385,10 +379,7 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       !particles
-       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,1,iorb,jorb)
-       !holes
-       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,-1,iorb,jorb)
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,iorb,jorb)
        !
        call delete_Hv_sector()
        !
@@ -408,8 +399,8 @@ contains
   !################################################################
 
 
-  subroutine add_to_lanczos_densChi(vnorm2,Ei,alanc,blanc,isign,iorb,jorb)
-    integer                                    :: iorb,jorb,isign
+  subroutine add_to_lanczos_densChi(vnorm2,Ei,alanc,blanc,iorb,jorb)
+    integer                                    :: iorb,jorb
     real(8)                                    :: pesoF,pesoAB,pesoBZ,peso,vnorm2  
     real(8)                                    :: Ei,Ej,Egs,de
     integer                                    :: nlanc
@@ -438,57 +429,28 @@ contains
     subdiag(2:Nlanc) = blanc(2:Nlanc)
     call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
     !    
-    select case(isign)
-    case (1)
-       do j=1,nlanc
-          Ej     = diag(j)
-          dE     = Ej-Ei
-          pesoAB = Z(1,j)*Z(1,j)
-          peso   = pesoF*pesoAB*pesoBZ
-          if(beta*dE < 1d-1)then     !abs(X - (1-exp(-X)) is about 5*10^-3 for X<10^-1 this is a satisfactory bound
-             densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) - peso*beta
-          else
-             densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*(exp(-beta*dE)-1d0)/dE 
-          endif
-          do i=1,Lmats
-             densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(exp(-beta*dE)-1d0)/(dcmplx(0d0,vm(i)) - dE)
-          enddo
-          do i=0,Ltau
-             densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + peso*exp(-tau(i)*de)
-          enddo
-          do i=1,Lreal
-             densChi_w(iorb,jorb,i)=densChi_w(iorb,jorb,i) + peso*(exp(-beta*dE)-1.d0)/(dcmplx(wr(i),eps) - dE)
-          enddo
+    do j=1,nlanc
+       Ej     = diag(j)
+       dE     = Ej-Ei
+       pesoAB = Z(1,j)*Z(1,j)
+       peso   = pesoF*pesoAB*pesoBZ
+       if(beta*dE < 1d-3)then     !abs(X - (1-exp(-X)) is about 5*10^-5 for X<10^-2 this is a satisfactory bound
+          densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*beta
+       else
+          densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
+       endif
+       do i=1,Lmats
+          densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(wm(i)**2+dE**2)
        enddo
-    case (-1)
-       do j=1,nlanc
-          Ej     = diag(j)
-          dE     = Ej-Ei
-          pesoAB = Z(1,j)*Z(1,j)
-          peso   = pesoF*pesoAB*pesoBZ
-          if(beta*dE < 1d-1)then     !abs(X - (1-exp(-X)) is about 5*10^-3 for X<10^-1 this is a satisfactory bound
-             densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*beta
-          else
-             densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*(1d0-exp(-beta*dE))/dE 
-          endif
-          do i=1,Lmats
-             densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))/(dcmplx(0d0,vm(i)) + dE)
-          enddo
-          do i=0,Ltau
-             densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + peso*exp(-(beta-tau(i))*dE)
-          enddo
-          do i=1,Lreal
-             densChi_w(iorb,jorb,i)=densChi_w(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))/(dcmplx(wr(i),eps) + dE)
-          enddo
+       do i=0,Ltau
+          densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + peso*(exp(-tau(i)*dE) + exp(-(beta-tau(i))*dE))
        enddo
-    case default
-       stop "add_to_lanczos_densChi: isign not in {-1,1}"
-    end select
+       do i=1,Lreal
+          densChi_w(iorb,jorb,i)=densChi_w(iorb,jorb,i) - peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
+       enddo
+    enddo
+    !
   end subroutine add_to_lanczos_densChi
-
-
-
-
 
 
 END MODULE ED_GF_CHIDENS

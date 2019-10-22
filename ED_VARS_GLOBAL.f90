@@ -181,7 +181,7 @@ MODULE ED_VARS_GLOBAL
 
   !Frequency and time arrays:
   !=========================================================
-  real(8),dimension(:),allocatable                   :: wm,tau,wr,vm
+  real(8),dimension(:),allocatable                   :: wm,tau,wr,vm,vr
 
 
   !Impurity operators

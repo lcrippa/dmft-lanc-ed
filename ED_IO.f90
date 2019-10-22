@@ -413,13 +413,13 @@ contains
     call allocate_grids()
     do iorb=1,Norb
        call splot("spinChi_l"//str(iorb)//"_tau"//reg(ed_file_suffix)//".ed",tau(0:),spinChi_tau(iorb,0:))
-       call splot("spinChi_l"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",wr,spinChi_w(iorb,:))
+       call splot("spinChi_l"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(iorb,:))
        call splot("spinChi_l"//str(iorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(iorb,:))
     enddo
     if(Norb>1)then
        iorb=Norb+1
        call splot("spinChi_tot"//str(iorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,spinChi_tau(iorb,0:))
-       call splot("spinChi_tot"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",wr,spinChi_w(iorb,:))
+       call splot("spinChi_tot"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(iorb,:))
        call splot("spinChi_tot"//str(iorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(iorb,:))
     endif
     call deallocate_grids()
@@ -432,13 +432,13 @@ contains
     do iorb=1,Norb
        do jorb=1,Norb
           call splot("densChi_l"//str(iorb)//str(jorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,densChi_tau(iorb,jorb,0:))
-          call splot("densChi_l"//str(iorb)//str(jorb)//"_realw"//reg(ed_file_suffix)//".ed",wr,densChi_w(iorb,jorb,:))
+          call splot("densChi_l"//str(iorb)//str(jorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,densChi_w(iorb,jorb,:))
           call splot("densChi_l"//str(iorb)//str(jorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,densChi_iv(iorb,jorb,:))
        enddo
     enddo
     if(Norb>1)then
        call splot("densChi_tot_tau"//reg(ed_file_suffix)//".ed",tau,densChi_tau(Norb+1,Norb+1,0:))
-       call splot("densChi_tot_realw"//reg(ed_file_suffix)//".ed",wr,densChi_w(Norb+1,Norb+1,:))
+       call splot("densChi_tot_realw"//reg(ed_file_suffix)//".ed",vr,densChi_w(Norb+1,Norb+1,:))
        call splot("densChi_tot_iw"//reg(ed_file_suffix)//".ed",vm,densChi_iv(Norb+1,Norb+1,:))
     endif
     call deallocate_grids()
@@ -451,7 +451,7 @@ contains
     call allocate_grids()
     do iorb=1,Norb
        call splot("pairChi_orb"//str(iorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,pairChi_tau(iorb,0:))
-       call splot("pairChi_orb"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",wr,pairChi_w(iorb,:))
+       call splot("pairChi_orb"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,pairChi_w(iorb,:))
        call splot("pairChi_orb"//str(iorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,pairChi_iv(iorb,:))
     enddo
     call deallocate_grids()

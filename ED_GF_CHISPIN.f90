@@ -29,7 +29,7 @@ contains
   !                            SPIN
   !PURPOSE  : Evaluate the Spin susceptibility \Chi_spin for a 
   ! single orbital: \chi = <S_a(\tau)S_a(0)>
-  ! note: as S_a is hermitian particle and holes contributions (isign=1,-1)
+  ! note: as S_a is hermitian particle and holes contributions
   ! are identical so work out only one lanczos tridiag. work out the 
   ! reduction for both values of isign in the same call.
   !+------------------------------------------------------------------+
@@ -57,9 +57,9 @@ contains
        end select
        if(MPIMASTER)call stop_timer(LOGfile)
     endif
-    spinChi_tau = SpinChi_tau/zeta_function
-    spinChi_w   = spinChi_w/zeta_function
-    spinChi_iv  = spinChi_iv/zeta_function
+    ! spinChi_tau = SpinChi_tau/zeta_function
+    ! spinChi_w   = spinChi_w/zeta_function
+    ! spinChi_iv  = spinChi_iv/zeta_function
   end subroutine build_chi_spin
 
 
@@ -157,11 +157,7 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       !particles
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,iorb)
-       !holes
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,-1,iorb)
-       !
+       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,iorb)
        call delete_Hv_sector()
        !
        deallocate(alfa_,beta_)
@@ -263,11 +259,7 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       !particles
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,1,Norb+1)
-       !holes
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,-1,Norb+1)
-       !
+       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,Norb+1)
        call delete_Hv_sector()
        !
        deallocate(alfa_,beta_)
@@ -288,12 +280,12 @@ contains
 
 
 
-  subroutine add_to_lanczos_spinChi(vnorm2,Ei,alanc,blanc,isign,iorb)
+  subroutine add_to_lanczos_spinChi(vnorm2,Ei,alanc,blanc,iorb)
     real(8)                                    :: vnorm2,Ei,Ej,Egs,pesoF,pesoAB,pesoBZ,de,peso
     integer                                    :: nlanc
     real(8),dimension(:)                       :: alanc
     real(8),dimension(size(alanc))             :: blanc 
-    integer                                    :: isign,iorb
+    integer                                    :: iorb
     real(8),dimension(size(alanc),size(alanc)) :: Z
     real(8),dimension(size(alanc))             :: diag,subdiag
     integer                                    :: i,j,ierr
@@ -317,52 +309,26 @@ contains
     subdiag(2:Nlanc) = blanc(2:Nlanc)
     call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
     !
-    select case(isign)
-    case (1)
-       do j=1,nlanc
-          Ej     = diag(j)
-          dE     = Ej-Ei
-          pesoAB = Z(1,j)*Z(1,j)
-          peso   = pesoF*pesoAB*pesoBZ
-          if(beta*dE < 1d-1)then     !abs(X - (1-exp(-X)) is about 5*10^-3 for X<10^-1 this is a satisfactory bound
-             spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*beta
-          else
-             spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*(1d0-exp(-beta*dE))/dE 
-          endif
-          do i=1,Lmats
-             spinChi_iv(iorb,i)=spinChi_iv(iorb,i) + peso*(exp(-beta*dE)-1d0)/(dcmplx(0d0,vm(i)) - dE)
-          enddo
-          do i=0,Ltau
-             spinChi_tau(iorb,i)=spinChi_tau(iorb,i) + peso*exp(-tau(i)*de)
-          enddo
-          do i=1,Lreal
-             spinChi_w(iorb,i)=spinChi_w(iorb,i) + peso*(exp(-beta*dE)-1.d0)/(dcmplx(wr(i),eps) - dE)
-          enddo
+    do j=1,nlanc
+       Ej     = diag(j)
+       dE     = Ej-Ei
+       pesoAB = Z(1,j)*Z(1,j)
+       peso   = pesoF*pesoAB*pesoBZ
+       if(beta*dE < 1d-2)then     !abs(X - (1-exp(-X)) is about 5*10^-5 for X<10^-2 this is a satisfactory bound
+          spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*beta
+       else
+          spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
+       endif
+       do i=1,Lmats
+          spinChi_iv(iorb,i)=spinChi_iv(iorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(wm(i)**2+dE**2)
        enddo
-    case (-1)
-       do j=1,nlanc
-          Ej     = diag(j)
-          dE     = Ej-Ei
-          pesoAB = Z(1,j)*Z(1,j)
-          peso   = pesoF*pesoAB*pesoBZ
-          if(beta*dE < 1d-1)then     !abs(X - (1-exp(-X)) is about 5*10^-3 for X<10^-1 this is a satisfactory bound
-             spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*beta
-          else
-             spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*(1d0-exp(-beta*dE))/dE 
-          endif
-          do i=1,Lmats
-             spinChi_iv(iorb,i)=spinChi_iv(iorb,i) + peso*(1d0-exp(-beta*dE))/(dcmplx(0d0,vm(i)) + dE)
-          enddo
-          do i=0,Ltau
-             spinChi_tau(iorb,i)=spinChi_tau(iorb,i) + peso*exp(-(beta-tau(i))*dE)
-          enddo
-          do i=1,Lreal
-             spinChi_w(iorb,i)=spinChi_w(iorb,i) + peso*(1d0-exp(-beta*dE))/(dcmplx(wr(i),eps) + dE)
-          enddo
+       do i=0,Ltau
+          spinChi_tau(iorb,i)=spinChi_tau(iorb,i) + peso*(exp(-tau(i)*dE) + exp(-(beta-tau(i))*dE))
        enddo
-    case default
-       stop "add_to_lanczos_spinChi: isign not in {-1,1}"
-    end select
+       do i=1,Lreal
+          spinChi_w(iorb,i)=spinChi_w(iorb,i) - peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
+       enddo
+    enddo
   end subroutine add_to_lanczos_spinChi
 
 
@@ -414,7 +380,7 @@ contains
        do i=1,idim 
           do j=1,idim
              chij=0.d0
-             expterm=exp(-beta*espace(isector)%e(j))
+             expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(isector)%e(j))
              if(expterm<cutoff)cycle
              do ll=1,idim
                 call state2indices(ll,[iDimUps,iDimDws],Indices)
@@ -423,41 +389,36 @@ contains
                 nud(1,:)= Bdecomp(iud(1),Ns_Orb)
                 nud(2,:)= Bdecomp(iud(2),Ns_Orb)
                 !
-                spin    = nud(1,iorb1) - nud(2,iorb1)
-                chij    = chij + espace(isector)%M(ll,i)*spin*espace(isector)%M(ll,j)
+                spin    = (nud(1,iorb1) - nud(2,iorb1))
+                chij    = chij + espace(isector)%M(ll,i)*0.5d0*spin*espace(isector)%M(ll,j)
              enddo
              Ei=espace(isector)%e(i)
              Ej=espace(isector)%e(j)
              de=Ei-Ej
-             peso=chij/zeta_function
+             peso=chij**2/zeta_function
              !
              !Matsubara (bosonic) frequency
-             !abs(X - (1-exp(-X)) is about 5*10^-3 for X<10^-1 this is a satisfactory bound
-             if(beta*dE < 1d-1)then 
-                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*beta
+             !abs(X - (1-exp(-X)) is about 5*10^-7 for X<10^-3 this is a satisfactory bound
+             !note: there is a factor 2 we do not know its origin but it ensures continuity
+             if(beta*dE < 1d-3)then 
+                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*exp(-beta*Ej)*beta
              else
-                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*(1d0-exp(-beta*dE))/dE 
+                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
              endif
              do m=1,Lmats
-                iw=xi*vm(m)
-                spinChi_iv(iorb,m)=spinChi_iv(iorb,m) + peso*(1d0-exp(-beta*dE))/(iw - de)
+                spinChi_iv(iorb,m)=spinChi_iv(iorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
              enddo
-             ! if(de>cutoff)spinChi_iv(iorb,0)=spinChi_iv(iorb,0)-peso*exp(-beta*Ej)*(exp(-beta*de)-1.d0)/de
-             ! do m=1,Lmats
-             !    iw=xi*vm(m)
-             !    spinChi_iv(iorb,m)=spinChi_iv(iorb,m)+peso*exp(-beta*Ej)*(exp(-beta*de)-1.d0)/(iw-de)
-             ! enddo
+             !
+             !Imaginary time: V
+             do m=0,Ltau 
+                it=tau(m)
+                spinChi_tau(iorb,m)=spinChi_tau(iorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*chij**2
+             enddo
              !
              !Real-frequency: Retarded = Commutator = response function
              do m=1,Lreal
-                w0=wr(m);iw=dcmplx(w0,eps)
-                spinChi_w(iorb,m)=spinChi_w(iorb,m)+peso*exp(-beta*Ej)*(exp(-beta*de)-1.d0)/(iw-de)
-             enddo
-             !
-             !Imaginary time:
-             do m=0,Ltau 
-                it=tau(m)
-                spinChi_tau(iorb,m)=spinChi_tau(iorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*peso
+                iw=dcmplx(vr(m),eps)
+                spinChi_w(iorb,m)=spinChi_w(iorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
              enddo
              !
           enddo
