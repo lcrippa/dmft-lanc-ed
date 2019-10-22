@@ -38,7 +38,12 @@ contains
     do iorb=1,Norb
        write(LOGfile,"(A)")"Get Chi_dens_l"//reg(txtfy(iorb))
        if(MPIMASTER)call start_timer()
-       call lanc_ed_build_densChi_main(iorb)
+       select case(ed_diag_type)
+       case default
+          call lanc_ed_build_densChi_main(iorb)
+       case ("full")
+          call full_ed_build_densChi_main(iorb,iorb)
+       end select
        if(MPIMASTER)call stop_timer(LOGfile)
     enddo
     !
@@ -47,7 +52,12 @@ contains
           do jorb=iorb+1,Norb
              write(LOGfile,"(A)")"Get Chi_dens_mix_l"//reg(txtfy(iorb))//reg(txtfy(jorb))
              if(MPIMASTER)call start_timer()
-             call lanc_ed_build_densChi_mix_main(iorb,jorb)
+             select case(ed_diag_type)
+             case default
+                call lanc_ed_build_densChi_mix_main(iorb,jorb)
+             case ("full")
+                call full_ed_build_densChi_main(iorb,jorb)
+             end select
              if(MPIMASTER)call stop_timer(LOGfile)
           end do
        end do
@@ -71,11 +81,6 @@ contains
        enddo
     endif
     !
-    !> Guess it is wrong!
-    ! densChi_tau = densChi_tau/zeta_function
-    ! densChi_w   = densChi_w/zeta_function
-    ! densChi_iv  = densChi_iv/zeta_function
-    ! !
   end subroutine build_chi_dens
 
 
@@ -428,7 +433,7 @@ contains
     diag(1:Nlanc)    = alanc(1:Nlanc)
     subdiag(2:Nlanc) = blanc(2:Nlanc)
     call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
-    !    
+    !
     do j=1,nlanc
        Ej     = diag(j)
        dE     = Ej-Ei
@@ -443,7 +448,7 @@ contains
           densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
        enddo
        do i=0,Ltau
-          densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + peso*(exp(-tau(i)*dE) + exp(-(beta-tau(i))*dE))
+          densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + exp(-tau(i)*dE)*peso
        enddo
        do i=1,Lreal
           densChi_w(iorb,jorb,i)=densChi_w(iorb,jorb,i) - peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
@@ -472,7 +477,7 @@ contains
     integer,dimension(2,Ns_Orb) :: Nud
     integer                     :: Iud(2)
     type(sector_map)            :: HI(2*Ns_Ud)
-    real(8)                     :: chij,spin
+    real(8)                     :: chij,Siorb,Sjorb
     integer                     :: i,j,ll,isector
     integer                     :: idim,ia
     real(8)                     :: Ei,Ej,cc,peso,pesotot
@@ -510,13 +515,19 @@ contains
              if(expterm<cutoff)cycle
              do ll=1,idim
                 call state2indices(ll,[iDimUps,iDimDws],Indices)
-                iud(1)  = HI(ialfa)%map(Indices(ialfa))
-                iud(2)  = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:)= Bdecomp(iud(1),Ns_Orb)
-                nud(2,:)= Bdecomp(iud(2),Ns_Orb)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                Siorb    = nud(1,iorb1) + nud(2,iorb1)
                 !
-                spin    = (nud(1,iorb1) - nud(2,iorb1))
-                chij    = chij + espace(isector)%M(ll,i)*0.5d0*spin*espace(isector)%M(ll,j)
+                iud(1)   = HI(jalfa)%map(Indices(jalfa))
+                iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                Sjorb    = nud(1,jorb1) + nud(2,jorb1)
+                !
+                chij     = chij + espace(isector)%M(ll,i)*(Siorb*Sjorb)*espace(isector)%M(ll,j)
              enddo
              Ei=espace(isector)%e(i)
              Ej=espace(isector)%e(j)
@@ -527,24 +538,24 @@ contains
              !abs(X - (1-exp(-X)) is about 5*10^-7 for X<10^-3 this is a satisfactory bound
              !note: there is a factor 2 we do not know its origin but it ensures continuity
              if(beta*dE < 1d-3)then 
-                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*exp(-beta*Ej)*beta
+                densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*beta
              else
-                spinChi_iv(iorb,0)=spinChi_iv(iorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
+                densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
              endif
              do m=1,Lmats
-                spinChi_iv(iorb,m)=spinChi_iv(iorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
+                densChi_iv(iorb,jorb,m)=densChi_iv(iorb,jorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
              enddo
              !
              !Imaginary time: V
              do m=0,Ltau 
                 it=tau(m)
-                spinChi_tau(iorb,m)=spinChi_tau(iorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*chij**2
+                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*chij**2
              enddo
              !
              !Real-frequency: Retarded = Commutator = response function
              do m=1,Lreal
                 iw=dcmplx(vr(m),eps)
-                spinChi_w(iorb,m)=spinChi_w(iorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
+                densChi_w(iorb,jorb,m)=densChi_w(iorb,jorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
              enddo
              !
           enddo

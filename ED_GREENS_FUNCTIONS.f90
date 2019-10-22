@@ -88,7 +88,6 @@ contains
     !PRINTING:
     if(MPIMASTER.AND.(any([chispin_flag,chidens_flag,chipair_flag])))call ed_print_impChi()
     !
-    !
     call deallocate_grids
     !
   end subroutine buildChi_impurity

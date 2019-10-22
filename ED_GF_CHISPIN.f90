@@ -57,9 +57,6 @@ contains
        end select
        if(MPIMASTER)call stop_timer(LOGfile)
     endif
-    ! spinChi_tau = SpinChi_tau/zeta_function
-    ! spinChi_w   = spinChi_w/zeta_function
-    ! spinChi_iv  = spinChi_iv/zeta_function
   end subroutine build_chi_spin
 
 
@@ -323,7 +320,7 @@ contains
           spinChi_iv(iorb,i)=spinChi_iv(iorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
        enddo
        do i=0,Ltau
-          spinChi_tau(iorb,i)=spinChi_tau(iorb,i) + peso*(exp(-tau(i)*dE) + exp(-(beta-tau(i))*dE))
+          spinChi_tau(iorb,i)=spinChi_tau(iorb,i) + exp(-tau(i)*dE)*peso
        enddo
        do i=1,Lreal
           spinChi_w(iorb,i)=spinChi_w(iorb,i) - peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
