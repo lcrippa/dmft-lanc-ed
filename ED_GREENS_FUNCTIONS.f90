@@ -72,9 +72,6 @@ contains
     densChi_tau=zero
     densChi_w=zero
     densChi_iv=zero
-    ! densChi_mix_tau=zero
-    ! densChi_mix_w=zero
-    ! densChi_mix_iv=zero
     if(chidens_flag)call build_chi_dens()
     !
     !

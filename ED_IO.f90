@@ -409,22 +409,22 @@ contains
 
   !                         SPIN-SPIN
   subroutine print_chi_spin
-    integer                               :: i,iorb
+    integer                               :: i,j,iorb,jorb
     call allocate_grids()
     do iorb=1,Norb
-       call splot("spinChi_l"//str(iorb)//"_tau"//reg(ed_file_suffix)//".ed",tau(0:),spinChi_tau(iorb,0:))
-       call splot("spinChi_l"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(iorb,:))
-       call splot("spinChi_l"//str(iorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(iorb,:))
+       do jorb=1,Norb
+          call splot("spinChi_l"//str(iorb)//str(jorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,spinChi_tau(iorb,jorb,0:))
+          call splot("spinChi_l"//str(iorb)//str(jorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(iorb,jorb,:))
+          call splot("spinChi_l"//str(iorb)//str(jorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(iorb,jorb,:))
+       enddo
     enddo
     if(Norb>1)then
-       iorb=Norb+1
-       call splot("spinChi_tot"//str(iorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,spinChi_tau(iorb,0:))
-       call splot("spinChi_tot"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(iorb,:))
-       call splot("spinChi_tot"//str(iorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(iorb,:))
+       call splot("spinChi_tot_tau"//reg(ed_file_suffix)//".ed",tau,spinChi_tau(Norb+1,Norb+1,0:))
+       call splot("spinChi_tot_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(Norb+1,Norb+1,:))
+       call splot("spinChi_tot_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(Norb+1,Norb+1,:))
     endif
     call deallocate_grids()
   end subroutine print_chi_spin
-
   !                     DENSITY-DENSITY
   subroutine print_chi_dens
     integer                               :: i,j,iorb,jorb

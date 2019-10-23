@@ -32,8 +32,6 @@ contains
   ! \chi_ab = <n_a(\tau)n_b(0)>
   !+------------------------------------------------------------------+
   subroutine build_chi_dens()
-    integer :: iorb
-    if(ed_diag_type=='full')return
     write(LOGfile,"(A)")"Get impurity dens Chi:"
     do iorb=1,Norb
        write(LOGfile,"(A)")"Get Chi_dens_l"//reg(txtfy(iorb))
@@ -439,11 +437,13 @@ contains
        dE     = Ej-Ei
        pesoAB = Z(1,j)*Z(1,j)
        peso   = pesoF*pesoAB*pesoBZ
-       if(beta*dE < 1d-3)then     !abs(X - (1-exp(-X)) is about 5*10^-5 for X<10^-2 this is a satisfactory bound
-          densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*beta
-       else
-          densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
-       endif
+       ! the correct behavior for beta*dE << 1 is recovered only by assuming that v_n is still finite
+       ! beta*dE << v_n for v_n--> 0 slower. First limit beta*dE--> 0 and only then v_n -->0.
+       ! This ensures that the correct null contribution is obtained.
+       ! So we impose that: if (beta*dE is larger than a small qty) we sum up the contribution, else
+       ! we do not include the contribution (because we are in the situation described above).
+       ! For the real-axis case this problem is circumvented by the usual i*0+ = xi*eps
+       if(beta*dE > 1d-3)densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
        do i=1,Lmats
           densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
        enddo
@@ -477,7 +477,7 @@ contains
     integer,dimension(2,Ns_Orb) :: Nud
     integer                     :: Iud(2)
     type(sector_map)            :: HI(2*Ns_Ud)
-    real(8)                     :: chij,Siorb,Sjorb
+    real(8)                     :: Chiorb,Chjorb,Niorb,Njorb
     integer                     :: i,j,ll,isector
     integer                     :: idim,ia
     real(8)                     :: Ei,Ej,cc,peso,pesotot
@@ -510,7 +510,8 @@ contains
        !
        do i=1,idim 
           do j=1,idim
-             chij=0.d0
+             Chiorb=0d0
+             Chjorb=0d0
              expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(isector)%e(j))
              if(expterm<cutoff)cycle
              do ll=1,idim
@@ -519,29 +520,23 @@ contains
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                Siorb    = nud(1,iorb1) + nud(2,iorb1)
+                Niorb    = nud(1,iorb1) + nud(2,iorb1)
+                Chiorb   = Chiorb + espace(isector)%M(ll,i)*Niorb*espace(isector)%M(ll,j)
                 !
                 iud(1)   = HI(jalfa)%map(Indices(jalfa))
                 iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                Sjorb    = nud(1,jorb1) + nud(2,jorb1)
-                !
-                chij     = chij + espace(isector)%M(ll,i)*(Siorb*Sjorb)*espace(isector)%M(ll,j)
+                Njorb    = nud(1,jorb1) + nud(2,jorb1)
+                Chjorb   = Chjorb + espace(isector)%M(ll,i)*Njorb*espace(isector)%M(ll,j)
              enddo
              Ei=espace(isector)%e(i)
              Ej=espace(isector)%e(j)
              de=Ei-Ej
-             peso=chij**2/zeta_function
+             peso = Chiorb*Chjorb/zeta_function
              !
              !Matsubara (bosonic) frequency
-             !abs(X - (1-exp(-X)) is about 5*10^-7 for X<10^-3 this is a satisfactory bound
-             !note: there is a factor 2 we do not know its origin but it ensures continuity
-             if(beta*dE < 1d-3)then 
-                densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*beta
-             else
-                densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
-             endif
+             if(beta*dE > 1d-3)densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
              do m=1,Lmats
                 densChi_iv(iorb,jorb,m)=densChi_iv(iorb,jorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
              enddo
@@ -549,7 +544,7 @@ contains
              !Imaginary time: V
              do m=0,Ltau 
                 it=tau(m)
-                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*chij**2
+                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*Chiorb*Chjorb
              enddo
              !
              !Real-frequency: Retarded = Commutator = response function
