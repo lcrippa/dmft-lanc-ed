@@ -62,15 +62,26 @@ contains
        !
        write(LOGfile,"(A)")"Get Chi_dens_tot"
        if(MPIMASTER)call start_timer()
-       call lanc_ed_build_densChi_tot_main()
+       select case(ed_diag_type)
+       case default
+          call lanc_ed_build_densChi_tot_main()
+       case ("full")
+       ! Chi_dens_tot not implemented yet in the FULL ED case
+       end select
        if(MPIMASTER)call stop_timer(LOGfile)
        !
        !
        do iorb=1,Norb
           do jorb=iorb+1,Norb
-             densChi_w(iorb,jorb,:)   = 0.5d0*(densChi_w(iorb,jorb,:) - densChi_w(iorb,iorb,:) - densChi_w(jorb,jorb,:))
-             densChi_tau(iorb,jorb,:) = 0.5d0*(densChi_tau(iorb,jorb,:) - densChi_tau(iorb,iorb,:) - densChi_tau(jorb,jorb,:))
-             densChi_iv(iorb,jorb,:)  = 0.5d0*(densChi_iv(iorb,jorb,:) - densChi_iv(iorb,iorb,:) - densChi_iv(jorb,jorb,:))
+             select case(ed_diag_type)
+             case default
+                densChi_w(iorb,jorb,:)   = 0.5d0*(densChi_w(iorb,jorb,:) - densChi_w(iorb,iorb,:) - densChi_w(jorb,jorb,:))
+                densChi_tau(iorb,jorb,:) = 0.5d0*(densChi_tau(iorb,jorb,:) - densChi_tau(iorb,iorb,:) - densChi_tau(jorb,jorb,:))
+                densChi_iv(iorb,jorb,:)  = 0.5d0*(densChi_iv(iorb,jorb,:) - densChi_iv(iorb,iorb,:) - densChi_iv(jorb,jorb,:))
+                !
+             case ("full")
+             ! The previous calculation is not needed in the FULL ED case
+             end select
              !
              densChi_w(jorb,iorb,:)   = densChi_w(iorb,jorb,:)
              densChi_tau(jorb,iorb,:) = densChi_tau(iorb,jorb,:)
