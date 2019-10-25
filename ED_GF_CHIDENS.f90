@@ -1,10 +1,10 @@
-MODULE ED_GF_CHISPIN
+MODULE ED_GF_CHIDENS
   USE ED_GF_SHARED
   implicit none
   private
 
 
-  public :: build_chi_spin
+  public :: build_chi_dens
 
   integer             :: istate,iorb,jorb,ispin,jspin
   integer             :: isector,jsector
@@ -27,23 +27,20 @@ contains
 
 
   !+------------------------------------------------------------------+
-  !                            SPIN
-  !PURPOSE  : Evaluate the Spin susceptibility \Chi_spin for a 
-  ! single orbital: \chi = <S_a(\tau)S_a(0)>
-  ! note: as S_a is hermitian particle and holes contributions
-  ! are identical so work out only one lanczos tridiag. work out the 
-  ! reduction for both values of isign in the same call.
+  !                            DENS
+  !PURPOSE  : Evaluate the Dens susceptibility \Chi_dens for a 
+  ! \chi_ab = <n_a(\tau)n_b(0)>
   !+------------------------------------------------------------------+
-  subroutine build_chi_spin()
-    write(LOGfile,"(A)")"Get impurity spin Chi:"
+  subroutine build_chi_dens()
+    write(LOGfile,"(A)")"Get impurity dens Chi:"
     do iorb=1,Norb
-       write(LOGfile,"(A)")"Get Chi_spin_l"//reg(txtfy(iorb))
+       write(LOGfile,"(A)")"Get Chi_dens_l"//reg(txtfy(iorb))
        if(MPIMASTER)call start_timer()
        select case(ed_diag_type)
        case default
-          call lanc_ed_build_spinChi_main(iorb)
+          call lanc_ed_build_densChi_main(iorb)
        case ("full")
-          call full_ed_build_spinChi_main(iorb,iorb)
+          call full_ed_build_densChi_main(iorb,iorb)
        end select
        if(MPIMASTER)call stop_timer(LOGfile)
     enddo
@@ -51,38 +48,38 @@ contains
     if(Norb>1)then
        do iorb=1,Norb
           do jorb=iorb+1,Norb
-             write(LOGfile,"(A)")"Get Chi_spin_mix_l"//reg(txtfy(iorb))//reg(txtfy(jorb))
+             write(LOGfile,"(A)")"Get Chi_dens_mix_l"//reg(txtfy(iorb))//reg(txtfy(jorb))
              if(MPIMASTER)call start_timer()
              select case(ed_diag_type)
              case default
-                call lanc_ed_build_spinChi_mix_main(iorb,jorb)
+                call lanc_ed_build_densChi_mix_main(iorb,jorb)
              case ("full")
-                call full_ed_build_spinChi_main(iorb,jorb)
+                call full_ed_build_densChi_main(iorb,jorb)
              end select
              if(MPIMASTER)call stop_timer(LOGfile)
           end do
        end do
        !
-       write(LOGfile,"(A)")"Get Chi_spin_tot"
+       write(LOGfile,"(A)")"Get Chi_dens_tot"
        if(MPIMASTER)call start_timer()
-       call lanc_ed_build_spinChi_tot_main()
+       call lanc_ed_build_densChi_tot_main()
        if(MPIMASTER)call stop_timer(LOGfile)
        !
        !
        do iorb=1,Norb
           do jorb=iorb+1,Norb
-             spinChi_w(iorb,jorb,:)   = 0.5d0*(spinChi_w(iorb,jorb,:) - spinChi_w(iorb,iorb,:) - spinChi_w(jorb,jorb,:))
-             spinChi_tau(iorb,jorb,:) = 0.5d0*(spinChi_tau(iorb,jorb,:) - spinChi_tau(iorb,iorb,:) - spinChi_tau(jorb,jorb,:))
-             spinChi_iv(iorb,jorb,:)  = 0.5d0*(spinChi_iv(iorb,jorb,:) - spinChi_iv(iorb,iorb,:) - spinChi_iv(jorb,jorb,:))
+             densChi_w(iorb,jorb,:)   = 0.5d0*(densChi_w(iorb,jorb,:) - densChi_w(iorb,iorb,:) - densChi_w(jorb,jorb,:))
+             densChi_tau(iorb,jorb,:) = 0.5d0*(densChi_tau(iorb,jorb,:) - densChi_tau(iorb,iorb,:) - densChi_tau(jorb,jorb,:))
+             densChi_iv(iorb,jorb,:)  = 0.5d0*(densChi_iv(iorb,jorb,:) - densChi_iv(iorb,iorb,:) - densChi_iv(jorb,jorb,:))
              !
-             spinChi_w(jorb,iorb,:)   = spinChi_w(iorb,jorb,:)
-             spinChi_tau(jorb,iorb,:) = spinChi_tau(iorb,jorb,:)
-             spinChi_iv(jorb,iorb,:)  = spinChi_iv(iorb,jorb,:)
+             densChi_w(jorb,iorb,:)   = densChi_w(iorb,jorb,:)
+             densChi_tau(jorb,iorb,:) = densChi_tau(iorb,jorb,:)
+             densChi_iv(jorb,iorb,:)  = densChi_iv(iorb,jorb,:)
           enddo
        enddo
     endif
     !
-  end subroutine build_chi_spin
+  end subroutine build_chi_dens
 
 
 
@@ -99,7 +96,7 @@ contains
 
 
 
-  subroutine lanc_ed_build_spinChi_main(iorb)
+  subroutine lanc_ed_build_densChi_main(iorb)
     integer                     :: iorb
     integer,dimension(2*Ns_Ud)  :: Indices
     integer,dimension(2*Ns_Ud)  :: Jndices
@@ -139,7 +136,7 @@ contains
        !
        if(MpiMaster)then
           !
-          if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply Sz:',isector
+          if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply N:',isector
           !
           allocate(vvinit(idim));vvinit=0.d0
           !
@@ -151,9 +148,9 @@ contains
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
              nud(2,:) = Bdecomp(iud(2),Ns_Orb)
              !
-             sgn = dble(nud(1,iorb1))-dble(nud(2,iorb1))
+             sgn = nud(1,iorb1)+nud(2,iorb1)
              !
-             vvinit(i) = 0.5d0*sgn*state_cvec(i)
+             vvinit(i) = sgn*state_cvec(i)
           enddo
           call delete_sector(isector,HI)
           !
@@ -162,7 +159,7 @@ contains
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
-       allocate(alfa_(nlanc),beta_(nlanc));alfa_=0d0;beta_=0d0
+       allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
 #ifdef _MPI
@@ -178,7 +175,8 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,iorb,iorb)
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,iorb,iorb)
+       !
        call delete_Hv_sector()
        !
        deallocate(alfa_,beta_)
@@ -187,7 +185,7 @@ contains
        nullify(state_cvec)
     enddo
     return
-  end subroutine lanc_ed_build_spinChi_main
+  end subroutine lanc_ed_build_densChi_main
 
 
 
@@ -197,7 +195,7 @@ contains
 
 
 
-  subroutine lanc_ed_build_spinChi_tot_main()
+  subroutine lanc_ed_build_densChi_tot_main()
     integer,dimension(2*Ns_Ud)  :: Indices
     integer,dimension(2*Ns_Ud)  :: Jndices
     integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
@@ -216,7 +214,7 @@ contains
     endif
     !
     do istate=1,state_list%size
-       isector     =  es_return_sector(state_list,istate)
+       isector    =  es_return_sector(state_list,istate)
        state_e    =  es_return_energy(state_list,istate)
 #ifdef _MPI
        if(MpiStatus)then
@@ -251,9 +249,7 @@ contains
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
              nud(2,:) = Bdecomp(iud(2),Ns_Orb)
              !
-             Sup = sum(nud(1,1:Norb))
-             Sdw = sum(nud(2,1:Norb))
-             sgn = Sup - Sdw
+             sgn = sum(nud(1,1:Norb)) + sum(nud(2,1:Norb))
              !
              vvinit(i) = sgn*state_cvec(i)
           enddo
@@ -279,7 +275,8 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,Norb+1,Norb+1)
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,Norb+1,Norb+1)
+       !
        call delete_Hv_sector()
        !
        deallocate(alfa_,beta_)
@@ -288,13 +285,14 @@ contains
        nullify(state_cvec)
     enddo
     return
-  end subroutine lanc_ed_build_spinChi_tot_main
+  end subroutine lanc_ed_build_densChi_tot_main
+
 
 
   !################################################################
 
 
-  subroutine lanc_ed_build_spinChi_mix_main(iorb,jorb)
+  subroutine lanc_ed_build_densChi_mix_main(iorb,jorb)
     integer                     :: iorb,jorb
     integer,dimension(2*Ns_Ud)  :: Indices
     integer,dimension(2*Ns_Ud)  :: Jndices
@@ -337,7 +335,7 @@ contains
        iDimUp = product(iDimUps)
        iDimDw = product(iDimDws)
        !
-       !EVALUATE (Sz_jorb + Sz_iorb)|gs> = Sz_jorb|gs> + Sz_iorb|gs>
+       !EVALUATE (N_jorb + N_iorb)|gs> = N_jorb|gs> + N_iorb|gs>
        if(MpiMaster)then
           if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Na*Nb:',isector
           !
@@ -351,15 +349,15 @@ contains
              iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
              nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-             Siorb    = nud(1,iorb1) - nud(2,iorb1)
+             Siorb    = nud(1,iorb1) + nud(2,iorb1)
              !
              iud(1)   = HI(jalfa)%map(Indices(jalfa))
              iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
              nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-             Sjorb    = nud(1,jorb1) - nud(2,jorb1)
+             Sjorb    = nud(1,jorb1) + nud(2,jorb1)
              !
-             sgn       = 0.5d0*Siorb + 0.5d0*Sjorb
+             sgn       = Siorb + Sjorb
              vvinit(i) = sgn*state_cvec(i)
           enddo
           call delete_sector(isector,HI)
@@ -384,7 +382,7 @@ contains
 #else
        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
 #endif
-       call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,iorb,jorb)
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,iorb,jorb)
        !
        call delete_Hv_sector()
        !
@@ -394,7 +392,9 @@ contains
        nullify(state_cvec)
     enddo
     return
-  end subroutine lanc_ed_build_spinChi_mix_main
+  end subroutine lanc_ed_build_densChi_mix_main
+
+
 
 
 
@@ -402,12 +402,13 @@ contains
   !################################################################
 
 
-  subroutine add_to_lanczos_spinChi(vnorm2,Ei,alanc,blanc,iorb,jorb)
-    real(8)                                    :: vnorm2,Ei,Ej,Egs,pesoF,pesoAB,pesoBZ,de,peso
+  subroutine add_to_lanczos_densChi(vnorm2,Ei,alanc,blanc,iorb,jorb)
+    integer                                    :: iorb,jorb
+    real(8)                                    :: pesoF,pesoAB,pesoBZ,peso,vnorm2  
+    real(8)                                    :: Ei,Ej,Egs,de
     integer                                    :: nlanc
     real(8),dimension(:)                       :: alanc
     real(8),dimension(size(alanc))             :: blanc 
-    integer                                    :: iorb,jorb
     real(8),dimension(size(alanc),size(alanc)) :: Z
     real(8),dimension(size(alanc))             :: diag,subdiag
     integer                                    :: i,j,ierr
@@ -442,18 +443,20 @@ contains
        ! So we impose that: if (beta*dE is larger than a small qty) we sum up the contribution, else
        ! we do not include the contribution (because we are in the situation described above).
        ! For the real-axis case this problem is circumvented by the usual i*0+ = xi*eps
-       if(beta*dE > 1d-3)spinChi_iv(iorb,jorb,0)=spinChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
+       if(beta*dE > 1d-3)densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
        do i=1,Lmats
-          spinChi_iv(iorb,jorb,i)=spinChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
+          densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
        enddo
        do i=0,Ltau
-          spinChi_tau(iorb,jorb,i)=spinChi_tau(iorb,jorb,i) + exp(-tau(i)*dE)*peso
+          densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + exp(-tau(i)*dE)*peso
        enddo
        do i=1,Lreal
-          spinChi_w(iorb,jorb,i)=spinChi_w(iorb,jorb,i) - peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
+          densChi_w(iorb,jorb,i)=densChi_w(iorb,jorb,i) - peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
        enddo
     enddo
-  end subroutine add_to_lanczos_spinChi
+    !
+  end subroutine add_to_lanczos_densChi
+
 
 
 
@@ -465,7 +468,7 @@ contains
 
 
 
-  subroutine full_ed_build_spinChi_main(iorb,jorb)
+  subroutine full_ed_build_densChi_main(iorb,jorb)
     integer                     :: iorb,jorb
     integer,dimension(2*Ns_Ud)  :: Indices
     integer,dimension(2*Ns_Ud)  :: Jndices
@@ -474,7 +477,7 @@ contains
     integer,dimension(2,Ns_Orb) :: Nud
     integer                     :: Iud(2)
     type(sector_map)            :: HI(2*Ns_Ud)
-    real(8)                     :: Chiorb,Chjorb,Siorb,Sjorb
+    real(8)                     :: Chiorb,Chjorb,Niorb,Njorb
     integer                     :: i,j,ll,isector
     integer                     :: idim,ia
     real(8)                     :: Ei,Ej,cc,peso,pesotot
@@ -482,7 +485,7 @@ contains
     complex(8)                  :: iw 
     !
     !
-    !Spin susceptibility \X(tau). |<i|S_z|j>|^2
+    !Dens susceptibility \X(tau).
     !
     if(ed_total_ud)then
        ialfa = 1
@@ -517,15 +520,15 @@ contains
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                Siorb    = nud(1,iorb1) - nud(2,iorb1)
-                Chiorb   = Chiorb + espace(isector)%M(ll,i)*0.5d0*Siorb*espace(isector)%M(ll,j)
+                Niorb    = nud(1,iorb1) + nud(2,iorb1)
+                Chiorb   = Chiorb + espace(isector)%M(ll,i)*Niorb*espace(isector)%M(ll,j)
                 !
                 iud(1)   = HI(jalfa)%map(Indices(jalfa))
                 iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
                 nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                Sjorb    = nud(1,jorb1) - nud(2,jorb1)
-                Chjorb   = Chjorb + espace(isector)%M(ll,i)*0.5d0*Sjorb*espace(isector)%M(ll,j)
+                Njorb    = nud(1,jorb1) + nud(2,jorb1)
+                Chjorb   = Chjorb + espace(isector)%M(ll,i)*Njorb*espace(isector)%M(ll,j)
              enddo
              Ei=espace(isector)%e(i)
              Ej=espace(isector)%e(j)
@@ -533,31 +536,30 @@ contains
              peso = Chiorb*Chjorb/zeta_function
              !
              !Matsubara (bosonic) frequency
-             if(beta*dE > 1d-3)spinChi_iv(iorb,jorb,0)=spinChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
+             if(beta*dE > 1d-3)densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
              do m=1,Lmats
-                spinChi_iv(iorb,jorb,m)=spinChi_iv(iorb,jorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
+                densChi_iv(iorb,jorb,m)=densChi_iv(iorb,jorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
              enddo
              !
              !Imaginary time: V
              do m=0,Ltau 
                 it=tau(m)
-                spinChi_tau(iorb,jorb,m)=spinChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)**Chiorb*Chjorb
+                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*Chiorb*Chjorb
              enddo
              !
              !Real-frequency: Retarded = Commutator = response function
              do m=1,Lreal
                 iw=dcmplx(vr(m),eps)
-                spinChi_w(iorb,jorb,m)=spinChi_w(iorb,jorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
+                densChi_w(iorb,jorb,m)=densChi_w(iorb,jorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
              enddo
              !
           enddo
        enddo
     enddo
-  end subroutine full_ed_build_spinChi_main
+  end subroutine full_ed_build_densChi_main
 
 
-
-END MODULE ED_GF_CHISPIN
+END MODULE ED_GF_CHIDENS
 
 
 

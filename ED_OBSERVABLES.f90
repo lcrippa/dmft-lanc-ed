@@ -539,7 +539,7 @@ contains
 
 
   subroutine full_observables()
-    integer                             :: i,j
+    integer                             :: iprob,i,j
     integer                             :: izero,istate
     integer                             :: isector,jsector
     integer                             :: idim,jdim
@@ -567,6 +567,7 @@ contains
     allocate(docc(Norb))
     allocate(magz(Norb),sz2(Norb,Norb),n2(Norb,Norb))
     allocate(simp(Norb,Nspin),zimp(Norb,Nspin))
+    allocate(Prob(3**Norb))
     !
     egs     = gs_energy
     dens    = 0.d0
@@ -577,6 +578,7 @@ contains
     sz2     = 0.d0
     n2      = 0.d0
     s2tot   = 0.d0
+    Prob    = 0.d0
     !
     do isector=1,Nsectors
        iDim  = getdim(isector)
@@ -614,6 +616,13 @@ contains
                 sz(iorb) = (nup(iorb) - ndw(iorb))/2.d0
                 nt(iorb) =  nup(iorb) + ndw(iorb)
              enddo
+             !
+             !Configuration probability
+             iprob=1
+             do iorb=1,Norb
+                iprob=iprob+nint(nt(iorb))*3**(iorb-1)
+             end do
+             Prob(iprob) = Prob(iprob) + weight
              !
              !Evaluate averages of observables:
              do iorb=1,Norb
@@ -653,7 +662,7 @@ contains
        ed_docc(iorb)   =docc(iorb)
     enddo
     !
-    deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2)
+    deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2,Prob)
     deallocate(simp,zimp)    
   end subroutine full_observables
 
@@ -967,8 +976,8 @@ contains
     !
     unit = free_unit()
     open(unit,file="Occupation_prob"//reg(ed_file_suffix)//".ed")
-    write(unit,"(90F15.9)")Uloc(1),Prob,sum(Prob)
-    close(unit)
+    write(unit,"(125F15.9)")Uloc(1),Prob,sum(Prob)
+    close(unit)         
   end subroutine write_observables
 
   subroutine write_energy()

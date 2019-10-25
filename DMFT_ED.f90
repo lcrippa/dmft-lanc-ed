@@ -1,7 +1,6 @@
 MODULE DMFT_ED
   USE ED_INPUT_VARS
 
-
   USE ED_AUX_FUNX, only:                        &
        set_Hloc                               , &
        lso2nnn_reshape                        , &

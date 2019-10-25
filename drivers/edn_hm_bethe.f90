@@ -29,6 +29,7 @@ program hm_Nbands_bethe
 
   real(8),dimension(:),allocatable :: Aw,wr
   complex(8),dimension(:),allocatable :: Gw_gtr,Gt_gtr
+  real(8) :: impHloc
 
 
   call init_MPI()
@@ -172,24 +173,27 @@ program hm_Nbands_bethe
 
 
 
-  if(.true.)then
-     print*,"Get FFT of impG_realw"
-     !1. Get the spectrum = ImGimp
-     call ed_get_gimp_real(Greal)
-     !
-     allocate(Aw(Lreal),wr(Lreal))
-     allocate(Gw_gtr(Lreal),Gt_gtr(0:Lreal))
-     Aw = -dimag(Greal(1,1,1,1,:))/pi
-     wr = linspace(wini,wfin,Lreal,mesh=dw)
-     !2. Obtain  G>(w)
-     Gw_gtr = pi2*xi*(fermi(wr,beta)-1d0)*Aw
-     call splot("Gw_gtr.out",wr,Gw_gtr)
-     !3. FFt G>(w) --> G>(t)
-     Gt_gtr  =  fft_rw2rt(Gw_gtr)*dw/pi2
-     dt      = pi/wfin
-     tmax    = dt*Lreal/2
-     call splot("Gt_gtr.out",linspace(-tmax,tmax,Lreal+1),Gt_gtr)
-  endif
+  ! call fftgf_iw2tau(spinChi_iv(1,:),spinChi_tau(1,0:),beta)
+  ! call splot("fft_spinChi_tau.ed", linspace(0d0,beta,Ltau+1),spinChi_tau(1,0:))
+
+  ! if(.true.)then
+  !    print*,"Get FFT of impG_realw"
+  !    !1. Get the spectrum = ImGimp
+  !    call ed_get_gimp_real(Greal)
+  !    !
+  !    allocate(Aw(Lreal),wr(Lreal))
+  !    allocate(Gw_gtr(Lreal),Gt_gtr(0:Lreal))
+  !    Aw = -dimag(Greal(1,1,1,1,:))/pi
+  !    wr = linspace(wini,wfin,Lreal,mesh=dw)
+  !    !2. Obtain  G>(w)
+  !    Gw_gtr = pi2*xi*(fermi(wr,beta)-1d0)*Aw
+  !    call splot("Gw_gtr.out",wr,Gw_gtr)
+  !    !3. FFt G>(w) --> G>(t)
+  !    Gt_gtr  =  fft_rw2rt(Gw_gtr)*dw/pi2
+  !    dt      = pi/wfin
+  !    tmax    = dt*Lreal/2
+  !    call splot("Gt_gtr.out",linspace(-tmax,tmax,Lreal+1),Gt_gtr)
+  ! endif
 
 
   call finalize_MPI()
@@ -199,30 +203,62 @@ contains
 
 
 
-  !+----------------------------------------------------------------+
-  !PURPOSE  : Modified real-axis FFT to deal with the special 0:L 
-  ! form of the time-axis Keldysh GF.
-  !+----------------------------------------------------------------+
-  function fft_rw2rt(func_in) result(func_out)
-    complex(8),dimension(:)               :: func_in
-    complex(8),dimension(0:size(func_in)) :: func_out
-    complex(8),dimension(size(func_in))   :: ftmp
-    ftmp = func_in
-    call fft(ftmp)
-    call fftex(ftmp)
-    func_out = fftshift(ftmp)*size(ftmp)
-  end function fft_rw2rt
-  !
-  function fft_rt2rw(func_in) result(func_out)
-    complex(8),dimension(:)               :: func_in
-    complex(8),dimension(size(func_in)-1) :: func_out
-    complex(8),dimension(size(func_in)-1)  :: ftmp
-    ftmp = func_in(:size(func_in)-1)
-    call ifft(ftmp)
-    call fftex(ftmp)
-    func_out = ifftshift(ftmp)
-  end function fft_rt2rw
+  ! !+----------------------------------------------------------------+
+  ! !PURPOSE  : Modified real-axis FFT to deal with the special 0:L 
+  ! ! form of the time-axis Keldysh GF.
+  ! !+----------------------------------------------------------------+
+  ! function fft_rw2rt(func_in) result(func_out)
+  !   complex(8),dimension(:)               :: func_in
+  !   complex(8),dimension(0:size(func_in)) :: func_out
+  !   complex(8),dimension(size(func_in))   :: ftmp
+  !   ftmp = func_in
+  !   call fft(ftmp)
+  !   call fftex(ftmp)
+  !   func_out = fftshift(ftmp)*size(ftmp)
+  ! end function fft_rw2rt
+  ! !
+  ! function fft_rt2rw(func_in) result(func_out)
+  !   complex(8),dimension(:)               :: func_in
+  !   complex(8),dimension(size(func_in)-1) :: func_out
+  !   complex(8),dimension(size(func_in)-1)  :: ftmp
+  !   ftmp = func_in(:size(func_in)-1)
+  !   call ifft(ftmp)
+  !   call fftex(ftmp)
+  !   func_out = ifftshift(ftmp)
+  ! end function fft_rt2rw
 
+
+
+
+  ! subroutine fftgf_iw2tau(giw,gtau,beta,C)
+  !   complex(8),dimension(:)             :: giw
+  !   real(8),dimension(:)                :: gtau
+  !   real(8)                             :: beta,wmax,fmom,mues
+  !   real(8),dimension(0:3),optional     :: C
+  !   integer                             :: Liw,L,i
+  !   complex(8),dimension(:),allocatable :: Tiw,Fiw
+  !   real(8),dimension(:),allocatable    :: Ttau,Ftau
+  !   real(8),dimension(:),allocatable    :: tau,wm
+  !   Liw = size(giw)
+  !   L   = size(gtau)
+  !   if(L-1 > Liw)stop "fft_gf_iw2tau: Liw must be > Ltau-1"
+  !   !
+  !   allocate(wm(L),tau(L))
+  !   do i=1,L
+  !      wm(i) = pi/beta*2*(i-1)
+  !   enddo
+  !   tau= linspace(0d0,beta,L)
+  !   !
+  !   allocate(Fiw(2*(L-1)),Ftau(2*(L-1)))
+  !   !
+  !   Fiw=zero
+  !   Fiw(1::2)=Giw(:L-1)!-Tiw(:L-1)
+  !   !
+  !   call fft(Fiw)
+  !   Ftau = dreal(Fiw)*2*size(Fiw)/beta
+  !   !
+  !   Gtau = Ftau(1:L) !+ Ttau
+  ! end subroutine fftgf_iw2tau
 end program hm_Nbands_bethe
 
 

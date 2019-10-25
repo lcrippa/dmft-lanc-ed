@@ -5,6 +5,7 @@ MODULE ED_AUX_FUNX
   USE SF_LINALG
   USE SF_MISC, only: assert_shape
   USE SF_IOTOOLS, only:free_unit,reg,txtfy
+  USE SF_ARRAYS,  only: arange,linspace
   implicit none
   private
 
@@ -53,8 +54,9 @@ MODULE ED_AUX_FUNX
   public :: ed_search_variable
   public :: search_chemical_potential
 
-
-
+  public :: allocate_grids
+  public :: deallocate_grids
+  
 contains
 
 
@@ -341,6 +343,35 @@ contains
 
 
 
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Allocate arrays and setup frequencies and times
+  !+------------------------------------------------------------------+
+  subroutine allocate_grids
+    integer :: i
+    if(.not.allocated(wm))allocate(wm(Lmats))
+    if(.not.allocated(vm))allocate(vm(0:Lmats))          !bosonic frequencies
+    if(.not.allocated(wr))allocate(wr(Lreal))
+    if(.not.allocated(vr))allocate(vr(Lreal))
+    if(.not.allocated(tau))allocate(tau(0:Ltau))
+    wm     = pi/beta*real(2*arange(1,Lmats)-1,8)
+    do i=0,Lmats
+       vm(i) = pi/beta*2*i
+    enddo
+    wr     = linspace(wini,wfin,Lreal)
+    vr     = linspace(0d0,wfin,Lreal)
+    tau(0:)= linspace(0d0,beta,Ltau+1)
+  end subroutine allocate_grids
+
+
+  subroutine deallocate_grids
+    if(allocated(wm))deallocate(wm)
+    if(allocated(vm))deallocate(vm)
+    if(allocated(tau))deallocate(tau)
+    if(allocated(wr))deallocate(wr)
+    if(allocated(vr))deallocate(vr)
+  end subroutine deallocate_grids
 
 
 

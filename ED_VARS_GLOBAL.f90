@@ -130,9 +130,9 @@ MODULE ED_VARS_GLOBAL
 
   !Spin Susceptibilities
   !=========================================================
-  real(8),allocatable,dimension(:,:)                 :: spinChi_tau
-  complex(8),allocatable,dimension(:,:)              :: spinChi_w
-  complex(8),allocatable,dimension(:,:)              :: spinChi_iv
+  real(8),allocatable,dimension(:,:,:)               :: spinChi_tau
+  complex(8),allocatable,dimension(:,:,:)            :: spinChi_w
+  complex(8),allocatable,dimension(:,:,:)            :: spinChi_iv
 
 
   !Diagonal/Off-diagonal charge-charge Susceptibilities
@@ -141,17 +141,11 @@ MODULE ED_VARS_GLOBAL
   complex(8),allocatable,dimension(:,:,:)            :: densChi_w
   complex(8),allocatable,dimension(:,:,:)            :: densChi_iv
 
-  !Mixed inter-orbital charge-charge Susceptibilities
-  !=========================================================
-  real(8),allocatable,dimension(:,:,:)               :: densChi_mix_tau
-  complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_w
-  complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_iv
-
-  !Total (orbital-sum) Density-density Susceptibilities
-  !=========================================================
-  real(8),allocatable,dimension(:)                   :: densChi_tot_tau
-  complex(8),allocatable,dimension(:)                :: densChi_tot_w
-  complex(8),allocatable,dimension(:)                :: densChi_tot_iv
+  ! !Mixed inter-orbital charge-charge Susceptibilities
+  ! !=========================================================
+  ! real(8),allocatable,dimension(:,:,:)               :: densChi_mix_tau
+  ! complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_w
+  ! complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_iv
 
   !Pair-Pair Susceptibilities
   !=========================================================
@@ -185,6 +179,10 @@ MODULE ED_VARS_GLOBAL
 
 
 
+  !Frequency and time arrays:
+  !=========================================================
+  real(8),dimension(:),allocatable                   :: wm,tau,wr,vm,vr
+
 
   !Impurity operators
   !PRIVATE (now public but accessible thru routine)
@@ -201,7 +199,7 @@ MODULE ED_VARS_GLOBAL
   integer                                            :: site_indx_padding=4
   logical                                            :: Jhflag              !spin-exchange and pair-hopping flag.
   logical                                            :: offdiag_gf_flag=.false.
-  character(len=200)                                 :: ed_input_file=""
+  ! character(len=200)                                 :: ed_input_file=""
 
 
   !This is the internal Mpi Communicator and variables.
