@@ -273,7 +273,7 @@ contains
        allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
-#ifdef _MP
+#ifdef _MPI
        if(MpiStatus)then
           call Bcast_MPI(MpiComm,norm2)
           vecDim = vecDim_Hv_sector(isector)
@@ -380,7 +380,7 @@ contains
        allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
-#ifdef _MP
+#ifdef _MPI
        if(MpiStatus)then
           call Bcast_MPI(MpiComm,norm2)
           vecDim = vecDim_Hv_sector(isector)
