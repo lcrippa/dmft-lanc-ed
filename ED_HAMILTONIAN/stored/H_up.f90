@@ -1,5 +1,5 @@
-  do iup=1,DimUp
-     mup  = Hs(1)%map(iup)
+  do jup=1,DimUp
+     mup  = Hs(1)%map(jup)
      Nup  = Bdecomp(mup,Ns)
      !
      !
@@ -13,7 +13,7 @@
            if (Jcondition) then
               call c(jorb,mup,k1,sg1)
               call cdg(iorb,k1,k2,sg2)
-              jup = binary_search(Hs(1)%map,k2)
+              iup = binary_search(Hs(1)%map,k2)
               htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
               !
               call sp_insert_element(spH0ups(1),htmp,iup,jup)
@@ -38,7 +38,7 @@
                  if (Jcondition)then
                     call c(ibeta,mup,k1,sg1)
                     call cdg(ialfa,k1,k2,sg2)
-                    jup = binary_search(Hs(1)%map,k2)
+                    iup = binary_search(Hs(1)%map,k2)
                     htmp = dmft_bath%h(1,1,iorb,jorb,kp)*sg1*sg2
                     !
                     call sp_insert_element(spH0ups(1),htmp,iup,jup)
@@ -60,7 +60,7 @@
                 .AND. (nup(iorb)==1) .AND. (nup(ialfa)==0) )then              
               call c(iorb,mup,k1,sg1)
               call cdg(ialfa,k1,k2,sg2)
-              jup = binary_search(Hs(1)%map,k2)
+              iup = binary_search(Hs(1)%map,k2)
               htmp = diag_hybr(1,iorb,kp)*sg1*sg2
               !
               call sp_insert_element(spH0ups(1),htmp,iup,jup)
@@ -71,7 +71,7 @@
                 .AND. (nup(iorb)==0) .AND. (nup(ialfa)==1) )then
               call c(ialfa,mup,k1,sg1)
               call cdg(iorb,k1,k2,sg2)
-              jup=binary_search(Hs(1)%map,k2)
+              iup=binary_search(Hs(1)%map,k2)
               htmp = diag_hybr(1,iorb,kp)*sg1*sg2
               !
               call sp_insert_element(spH0ups(1),htmp,iup,jup)

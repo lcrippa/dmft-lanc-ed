@@ -4,7 +4,7 @@ MODULE ED_HAMILTONIAN_DIRECT_HxV
   implicit none
   private
 
-  integer                              :: iiup,iidw
+  integer                              :: iiup,iidw,jjup,jjdw
   integer                              :: iud,jj
   integer                              :: i,iup,idw
   integer                              :: j,jup,jdw

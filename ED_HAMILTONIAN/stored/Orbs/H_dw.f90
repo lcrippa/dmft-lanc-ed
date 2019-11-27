@@ -1,7 +1,7 @@
   !>H_hyb: hopping terms for a given spin (imp <--> bath)
   do iorb=1,Ns_Ud               !==Norb
-     do idw=1,DimDws(iorb)
-        mdw          = Hs(iorb+Ns_Ud)%map(idw)
+     do jdw=1,DimDws(iorb)
+        mdw          = Hs(iorb+Ns_Ud)%map(jdw)
         Ndws(iorb,:) = bdecomp(mdw,Ns_Orb) ![Norb,1+Nbath]
         !
         do kp=1,Nbath
@@ -10,7 +10,7 @@
                 .AND. (Ndws(iorb,1)==1) .AND. (Ndws(iorb,ialfa)==0) )then
               call c(1,mdw,k1,sg1)
               call cdg(ialfa,k1,k2,sg2)
-              jdw  = binary_search(Hs(iorb+Ns_Ud)%map,k2)
+              idw  = binary_search(Hs(iorb+Ns_Ud)%map,k2)
               htmp = diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
               call sp_insert_element(spH0dws(iorb),htmp,idw,jdw)
@@ -21,7 +21,7 @@
                 .AND. (Ndws(iorb,1)==0) .AND. (Ndws(iorb,ialfa)==1) )then
               call c(ialfa,mdw,k1,sg1)
               call cdg(1,k1,k2,sg2)
-              jdw  = binary_search(Hs(iorb+Ns_Ud)%map,k2)
+              idw  = binary_search(Hs(iorb+Ns_Ud)%map,k2)
               htmp = diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
               call sp_insert_element(spH0dws(iorb),htmp,idw,jdw)
