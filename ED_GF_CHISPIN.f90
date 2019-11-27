@@ -65,15 +65,26 @@ contains
        !
        write(LOGfile,"(A)")"Get Chi_spin_tot"
        if(MPIMASTER)call start_timer()
-       call lanc_ed_build_spinChi_tot_main()
+       select case(ed_diag_type)
+       case default
+          call lanc_ed_build_spinChi_tot_main()
+       case ("full")
+       ! Chi_spin_tot not implemented yet in the FULL ED case
+       end select
        if(MPIMASTER)call stop_timer(LOGfile)
        !
        !
        do iorb=1,Norb
           do jorb=iorb+1,Norb
-             spinChi_w(iorb,jorb,:)   = 0.5d0*(spinChi_w(iorb,jorb,:) - spinChi_w(iorb,iorb,:) - spinChi_w(jorb,jorb,:))
-             spinChi_tau(iorb,jorb,:) = 0.5d0*(spinChi_tau(iorb,jorb,:) - spinChi_tau(iorb,iorb,:) - spinChi_tau(jorb,jorb,:))
-             spinChi_iv(iorb,jorb,:)  = 0.5d0*(spinChi_iv(iorb,jorb,:) - spinChi_iv(iorb,iorb,:) - spinChi_iv(jorb,jorb,:))
+             select case(ed_diag_type)
+             case default
+                spinChi_w(iorb,jorb,:)   = 0.5d0*(spinChi_w(iorb,jorb,:) - spinChi_w(iorb,iorb,:) - spinChi_w(jorb,jorb,:))
+                spinChi_tau(iorb,jorb,:) = 0.5d0*(spinChi_tau(iorb,jorb,:) - spinChi_tau(iorb,iorb,:) - spinChi_tau(jorb,jorb,:))
+                spinChi_iv(iorb,jorb,:)  = 0.5d0*(spinChi_iv(iorb,jorb,:) - spinChi_iv(iorb,iorb,:) - spinChi_iv(jorb,jorb,:))
+                !
+             case ("full")
+             ! The previous calculation is not needed in the FULL ED case
+             end select
              !
              spinChi_w(jorb,iorb,:)   = spinChi_w(iorb,jorb,:)
              spinChi_tau(jorb,iorb,:) = spinChi_tau(iorb,jorb,:)
@@ -253,7 +264,7 @@ contains
              !
              Sup = sum(nud(1,1:Norb))
              Sdw = sum(nud(2,1:Norb))
-             sgn = Sup - Sdw
+             sgn = 0.5d0*(Sup - Sdw)
              !
              vvinit(i) = sgn*state_cvec(i)
           enddo
@@ -266,7 +277,7 @@ contains
        allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
-#ifdef _MP
+#ifdef _MPI
        if(MpiStatus)then
           call Bcast_MPI(MpiComm,norm2)
           vecDim = vecDim_Hv_sector(isector)
@@ -371,7 +382,7 @@ contains
        allocate(alfa_(nlanc),beta_(nlanc))
        !
        call build_Hv_sector(isector)
-#ifdef _MP
+#ifdef _MPI
        if(MpiStatus)then
           call Bcast_MPI(MpiComm,norm2)
           vecDim = vecDim_Hv_sector(isector)
@@ -541,7 +552,7 @@ contains
              !Imaginary time: V
              do m=0,Ltau 
                 it=tau(m)
-                spinChi_tau(iorb,jorb,m)=spinChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)**Chiorb*Chjorb
+                spinChi_tau(iorb,jorb,m)=spinChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*Chiorb*Chjorb
              enddo
              !
              !Real-frequency: Retarded = Commutator = response function
