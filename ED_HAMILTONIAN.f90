@@ -96,7 +96,8 @@ contains
     !Dw split:    
     mpiQdw = DimDw/MpiSize
     mpiRdw = mod(DimDw,MpiSize)
-    if(MpiRank < mod(DimDw,MpiSize) ) then
+    if(MpiRank < mod(DimDw,MpiSize))then
+       !Total split: split DW \times UP 
        mpiRdw = 0
        MpiQdw = MpiQdw+1
     endif
