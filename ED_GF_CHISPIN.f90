@@ -552,7 +552,7 @@ contains
              !Imaginary time: V
              do m=0,Ltau 
                 it=tau(m)
-                spinChi_tau(iorb,jorb,m)=spinChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*Chiorb*Chjorb
+                spinChi_tau(iorb,jorb,m)=spinChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*peso
              enddo
              !
              !Real-frequency: Retarded = Commutator = response function

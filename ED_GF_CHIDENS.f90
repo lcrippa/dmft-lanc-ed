@@ -555,7 +555,7 @@ contains
              !Imaginary time: V
              do m=0,Ltau 
                 it=tau(m)
-                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*Chiorb*Chjorb
+                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*peso
              enddo
              !
              !Real-frequency: Retarded = Commutator = response function
