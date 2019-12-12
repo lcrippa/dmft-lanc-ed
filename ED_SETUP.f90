@@ -580,7 +580,7 @@ contains
        Offset(i) = Offset(i-1) + Counts(i-1)
     enddo
     !
-    Vloc=0
+    Vloc=0d0
     call MPI_Scatterv(V,Counts,Offset,MPI_DOUBLE_PRECISION,Vloc,Nloc,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
     !
     return

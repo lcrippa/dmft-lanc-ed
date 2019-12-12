@@ -138,7 +138,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
   SET(CMAKE_Fortran_MODDIR_FLAG   "-module ") #remember the ending white space here 
   SET(CMAKE_Fortran_FLAGS         "-fpp")
   SET(CMAKE_Fortran_FLAGS_TESTING "-O2 -ftz")
-  SET(CMAKE_Fortran_FLAGS_DEBUG   "-p -O0 -g -fpe1 -warn -debug extended -traceback -check all,noarg_temp_created")
+  SET(CMAKE_Fortran_FLAGS_DEBUG   "-p -O0 -g -fpe1 -warn -debug extended -traceback -nocheck")# all,noarg_temp_created") these options break the parallel vector transposition because some node has no columns of data to send but still need to participate into the communication. we support democratic inclusion of everyone. no one is left behind even if it is just a bunch of data!  
   SET(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftz")
 
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES G95)

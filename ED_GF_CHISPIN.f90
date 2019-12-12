@@ -170,6 +170,8 @@ contains
           !
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
+       else
+          allocate(vvinit(0))
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -271,6 +273,8 @@ contains
           call delete_sector(isector,HI)
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
+       else
+          allocate(vvinit(0))
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -376,6 +380,8 @@ contains
           call delete_sector(isector,HI)
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
+       else
+          allocate(vvinit(0))
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
