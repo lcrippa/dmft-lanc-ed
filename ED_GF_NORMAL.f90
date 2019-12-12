@@ -203,7 +203,10 @@ contains
              !
              norm2=dot_product(vvinit,vvinit)
              vvinit=vvinit/sqrt(norm2)
+          else
+             allocate(vvinit(0))
           endif
+
           !
           nlanc=min(jdim,lanc_nGFiter)
           allocate(alfa_(nlanc),beta_(nlanc))
@@ -231,8 +234,6 @@ contains
           if(allocated(vvinit))deallocate(vvinit)          
           if(allocated(vvloc))deallocate(vvloc)
        endif
-       !
-       call wait(200)
        !
        !REMOVE ONE PARTICLE:
        jsector = getCsector(ialfa,ispin,isector)
@@ -270,6 +271,8 @@ contains
              !
              norm2=dot_product(vvinit,vvinit)
              vvinit=vvinit/sqrt(norm2)
+          else
+             allocate(vvinit(0))
           endif
           !
           nlanc=min(jdim,lanc_nGFiter)
@@ -420,6 +423,8 @@ contains
              !
              norm2=dot_product(vvinit,vvinit)
              vvinit=vvinit/sqrt(norm2)
+          else
+             allocate(vvinit(0))
           endif
           !
           nlanc=min(jdim,lanc_nGFiter)
@@ -498,6 +503,8 @@ contains
              !
              norm2=dot_product(vvinit,vvinit)
              vvinit=vvinit/sqrt(norm2)
+          else
+             allocate(vvinit(0))
           endif
           !
           nlanc=min(jdim,lanc_nGFiter)
