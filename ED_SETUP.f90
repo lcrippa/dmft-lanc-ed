@@ -135,6 +135,9 @@ contains
     integer                          :: i,iud,iorb,jorb,ispin,jspin
     integer,dimension(:),allocatable :: DimUps,DimDws
     !
+    Jhflag=.FALSE.
+    if(Norb>1.AND.(Jx/=0d0.OR.Jp/=0d0))Jhflag=.TRUE.
+    !
     call ed_checks_global
     !
     call ed_setup_dimensions
@@ -208,9 +211,6 @@ contains
        write(LOGfile,"(A)")"Lanczos ZERO temperature calculation:"
        call sleep(1)
     endif
-    !
-    Jhflag=.FALSE.
-    if(Norb>1.AND.(Jx/=0d0.OR.Jp/=0d0))Jhflag=.TRUE.
     !
     !
     offdiag_gf_flag=ed_solve_offdiag_gf
