@@ -81,7 +81,7 @@ subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
      case default
         select case (cg_scheme)
         case ("weiss")
-           call fmin_cg(array_bath,chi2_weiss_normal_normal,&
+           call fmin_cg(array_bath,chi2_weiss_normal_normal,grad_chi2_weiss_normal_normal,&
                 iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
         case ("delta")
            call fmin_cg(array_bath,chi2_delta_normal_normal,grad_chi2_delta_normal_normal,&
@@ -238,7 +238,7 @@ subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
   case default
      select case (cg_scheme)
      case ("weiss")
-        call fmin_cg(array_bath,chi2_weiss_normal_normal,&
+        call fmin_cg(array_bath,chi2_weiss_normal_normal,grad_chi2_weiss_normal_normal,&
              iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
      case ("delta")
         call fmin_cg(array_bath,chi2_delta_normal_normal,grad_chi2_delta_normal_normal,&
@@ -374,7 +374,6 @@ end function grad_chi2_delta_normal_normal
 !PURPOSE: Evaluate the \chi^2 distance of G_0_Anderson function 
 ! The Gradient is not evaluated, so the minimization requires 
 ! a numerical estimate of the gradient. 
-!TOCCA QUI
 !+-------------------------------------------------------------+
 function chi2_weiss_normal_normal(a) result(chi2)
   real(8),dimension(:)         ::  a
@@ -387,6 +386,30 @@ function chi2_weiss_normal_normal(a) result(chi2)
   chi2=chi2/Ldelta
   !
 end function chi2_weiss_normal_normal
+
+!+-------------------------------------------------------------+
+!PURPOSE: Evaluate the gradient \Grad\chi^2 of 
+! \Delta_Anderson function.
+!+-------------------------------------------------------------+
+function grad_chi2_weiss_normal_normal(a) result(dchi2)
+  real(8),dimension(:)                 :: a
+  real(8),dimension(size(a))           :: dchi2
+  real(8),dimension(size(a))           :: df
+  complex(8),dimension(Ldelta)         :: g0and
+  complex(8),dimension(Ldelta,size(a)) :: dg0and
+  integer                              :: j
+  !
+  g0and  = g0and_normal_normal(a)
+  dg0and = grad_g0and_normal_normal(a)
+  !
+  do j=1,size(a)
+     df(j)=sum( dreal(Gdelta(1,:)-G0and(:))*dreal(dg0and(:,j))/Wdelta(:) ) + &
+          sum(  dimag(Gdelta(1,:)-G0and(:))*dimag(dg0and(:,j))/Wdelta(:) )
+  enddo
+  !
+  dchi2 = -cg_pow*df/Ldelta
+  !
+end function grad_chi2_weiss_normal_normal
 
 
 
@@ -425,7 +448,6 @@ function delta_normal_normal(a) result(Delta)
   !
 end function delta_normal_normal
 
-
 function grad_delta_normal_normal(a) result(dDelta)
   real(8),dimension(:)                 :: a
   complex(8),dimension(Ldelta,size(a)) :: dDelta
@@ -462,6 +484,7 @@ function grad_delta_normal_normal(a) result(dDelta)
   !
 end function grad_delta_normal_normal
 
+
 function g0and_normal_normal(a) result(G0and)
   real(8),dimension(:)         :: a
   complex(8),dimension(Ldelta) :: G0and,Delta
@@ -475,6 +498,25 @@ function g0and_normal_normal(a) result(G0and)
   G0and(:) = one/G0and(:)
   !
 end function g0and_normal_normal
+
+function grad_g0and_normal_normal(a) result(dG0and)
+  real(8),dimension(:)                 :: a
+  complex(8),dimension(Ldelta)         :: G0and,Delta
+  complex(8),dimension(Ldelta,size(a)) :: dG0and,dDelta
+  integer                              :: i,k,ik,io,stride,iorb,ispin
+  complex(8)                           :: iw
+  !
+  iorb   = Orb_indx
+  ispin  = Spin_indx
+  !
+  Delta  = delta_normal_normal(a)
+  dDelta = grad_delta_normal_normal(a)
+  G0and  = xi*Xdelta + xmu - impHloc(ispin,ispin,iorb,iorb) - Delta
+  do k=1,size(a)
+     dG0and(:,ik) = one/G0and/G0and*dDelta(:,ik)
+  enddo
+  !
+end function grad_g0and_normal_normal
 
 
 

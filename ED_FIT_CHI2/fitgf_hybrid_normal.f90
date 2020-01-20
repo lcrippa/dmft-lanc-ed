@@ -95,7 +95,7 @@ subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
   case default
      select case (cg_scheme)
      case ("weiss")
-        call fmin_cg(array_bath,chi2_weiss_hybrid_normal,&
+        call fmin_cg(array_bath,chi2_weiss_hybrid_normal,grad_chi2_weiss_hybrid_normal,&
              iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
      case ("delta")
         call fmin_cg(array_bath,chi2_delta_hybrid_normal,grad_chi2_delta_hybrid_normal,&
@@ -254,6 +254,9 @@ function grad_chi2_delta_hybrid_normal(a) result(dchi2)
   !
 end function grad_chi2_delta_hybrid_normal
 
+
+
+
 !+-------------------------------------------------------------+
 !PURPOSE: Evaluate the \chi^2 distance of G_0_Anderson function 
 ! The Gradient is not evaluated, so the minimization requires 
@@ -279,6 +282,35 @@ function chi2_weiss_hybrid_normal(a) result(chi2)
   !
 end function chi2_weiss_hybrid_normal
 
+!+-------------------------------------------------------------+
+!PURPOSE: Evaluate the gradient \Grad\chi^2 of 
+! \Delta_Anderson function.
+!+-------------------------------------------------------------+
+function grad_chi2_weiss_hybrid_normal(a) result(dchi2)
+  real(8),dimension(:)                           :: a
+  real(8),dimension(size(a))                     :: dchi2
+  real(8),dimension(totNorb,size(a))             :: df
+  complex(8),dimension(Norb,Norb,Ldelta)         :: g0and
+  complex(8),dimension(Norb,Norb,Ldelta,size(a)) :: dg0and
+  integer                                        :: i,j,l,iorb,jorb
+  !
+  g0and  = g0and_hybrid_normal(a)
+  dg0and = grad_g0and_hybrid_normal(a)
+  !
+  do l=1,totNorb
+     iorb=getIorb(l)
+     jorb=getJorb(l)
+     !
+     do j=1,size(a)
+        df(l,j)=&
+             sum( dreal(Gdelta(l,:)-g0and(iorb,jorb,:))*dreal(dg0and(iorb,jorb,:,j))/Wdelta(:) ) + &
+             sum( dimag(Gdelta(l,:)-g0and(iorb,jorb,:))*dimag(dg0and(iorb,jorb,:,j))/Wdelta(:) )
+     enddo
+  enddo
+  !
+  dchi2 = -cg_pow*sum(df,1)/Ldelta     !sum over all orbital indices
+  !
+end function grad_chi2_weiss_hybrid_normal
 
 
 
@@ -373,6 +405,9 @@ function grad_delta_hybrid_normal(a) result(dDelta)
   !
 end function grad_delta_hybrid_normal
 
+
+
+
 function g0and_hybrid_normal(a) result(G0and)
   real(8),dimension(:)                   :: a
   complex(8),dimension(Norb,Norb,Ldelta) :: G0and,Delta
@@ -392,3 +427,23 @@ function g0and_hybrid_normal(a) result(G0and)
   enddo
   !
 end function g0and_hybrid_normal
+
+function grad_g0and_hybrid_normal(a) result(dG0and)
+  real(8),dimension(:)                           :: a
+  complex(8),dimension(Norb,Norb,Ldelta,size(a)) :: dG0and
+  complex(8),dimension(Norb,Norb,Ldelta)         :: G0and
+  complex(8),dimension(Norb,Norb,Ldelta,size(a)) :: dDelta
+  integer                                        :: iorb,jorb
+  integer                                        :: ik
+  !
+  G0and  = g0and_hybrid_normal(a)
+  dDelta = grad_delta_hybrid_normal(a)
+  do iorb=1,Norb
+     do jorb=1,Norb
+        do ik=1,size(a)
+           dG0and(iorb,jorb,:,ik) = G0and(iorb,jorb,:)*G0and(iorb,jorb,:)*dDelta(iorb,jorb,:,ik)
+        enddo
+     enddo
+  enddo
+  !
+end function grad_g0and_hybrid_normal
