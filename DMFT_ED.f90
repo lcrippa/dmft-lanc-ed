@@ -1,8 +1,9 @@
 MODULE DMFT_ED
   USE ED_INPUT_VARS
 
+  USE ED_HLOC_DECOMPOSITION, only: set_Hloc
+  
   USE ED_AUX_FUNX, only:                        &
-       set_Hloc                               , &
        lso2nnn_reshape                        , &
        nnn2lso_reshape                        , &
        so2nn_reshape                          , &
@@ -17,11 +18,14 @@ MODULE DMFT_ED
        ed_print_impG0                         , &
        ed_print_impChi                        , &
        ed_get_sigma_matsubara                 , &
-       ed_get_sigma_real                      , &
+       ed_get_sigma_realaxis                  , &
        ed_get_gimp_matsubara                  , &
-       ed_get_gimp_real                       , &
+       ed_get_gimp_realaxis                   , &
        ed_get_g0imp_matsubara                 , &
-       ed_get_g0imp_real                      , &
+       ed_get_g0imp_realaxis                  , &
+       ed_get_delta_function                  , &
+       ed_get_g0and_function                  , &
+       ed_get_invg0_function                  , &
        ed_get_dens                            , &
        ed_get_mag                             , &
        ed_get_docc                            , &
@@ -51,14 +55,6 @@ MODULE DMFT_ED
        ph_symmetrize_bath                     , &
        ph_trans_bath                          , &
        break_symmetry_bath
-
-  USE ED_BATH_FUNCTIONS, only:                  &
-       ed_delta_matsubara                     , &
-       ed_g0and_matsubara                     , &
-       ed_invg0_matsubara                     , &
-       ed_delta_realaxis                      , &
-       ed_g0and_realaxis                      , &
-       ed_invg0_realaxis
 
 
   USE ED_MAIN, only:                            &

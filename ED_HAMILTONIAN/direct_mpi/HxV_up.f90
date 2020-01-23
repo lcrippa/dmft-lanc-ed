@@ -36,7 +36,7 @@
                     ialfa = getBathStride(iorb,kp)
                     ibeta = getBathStride(jorb,kp)
                     Jcondition = &
-                         (dmft_bath%h(1,1,iorb,jorb,kp)/=zero) .AND.&
+                         (hbath_tmp(1,1,iorb,jorb,kp)/=zero) .AND.&
                          (nup(ibeta)==1) .AND. (nup(ialfa)==0)
                     !
                     if (Jcondition)then
@@ -45,7 +45,7 @@
                        iup  = binary_search(Hs(1)%map,k2)
                        idw  = jdw
                        i    = iup + (idw-1)*dimUp
-                       htmp = dmft_bath%h(1,1,iorb,jorb,kp)*sg1*sg2
+                       htmp = hbath_tmp(1,1,iorb,jorb,kp)*sg1*sg2
                        !
                        hv(i) = hv(i) + htmp*vin(j)
                        !

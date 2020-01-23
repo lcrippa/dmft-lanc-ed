@@ -1,8 +1,31 @@
 !+-------------------------------------------------------------------+
+!PURPOSE  : Deallocate the ED bath
+!+-------------------------------------------------------------------+
+subroutine deallocate_dmft_bath(dmft_bath_)
+  type(effective_bath) :: dmft_bath_
+  integer              :: ibath,isym
+  if(.not.dmft_bath_%status)return
+  if(allocated(dmft_bath_%e))   deallocate(dmft_bath_%e)
+  if(allocated(dmft_bath_%v))   deallocate(dmft_bath_%v)
+  if(bath_type=="replica")then
+     do ibath=1,Nbath
+        dmft_bath_%item(ibath)%N_dec= 0
+        deallocate(dmft_bath_%item(ibath)%v)
+        deallocate(dmft_bath_%item(ibath)%lambda)
+     enddo
+     deallocate(dmft_bath_%item)
+  endif
+  dmft_bath_%status=.false.
+end subroutine deallocate_dmft_bath
+
+
+
+!+-------------------------------------------------------------------+
 !PURPOSE  : Allocate the ED bath
 !+-------------------------------------------------------------------+
 subroutine allocate_dmft_bath(dmft_bath_)
   type(effective_bath) :: dmft_bath_
+  integer              :: Nsym,ibath
   if(dmft_bath_%status)call deallocate_dmft_bath(dmft_bath_)
   !
   select case(bath_type)
@@ -18,29 +41,45 @@ subroutine allocate_dmft_bath(dmft_bath_)
      !
   case('replica')
      !
-     allocate(dmft_bath_%h(Nspin,Nspin,Norb,Norb,Nbath))     !replica hamilt of the bath
-     allocate(dmft_bath_%vr(Nbath))                          !hybridization 
-     allocate(dmft_bath_%mask(Nspin,Nspin,Norb,Norb))        !mask on components 
+     if(.not.allocated(lambda_impHloc))stop "lambda_impHloc not allocated in allocate_dmft_bath" !FIXME
+     call deallocate_dmft_bath(dmft_bath_)     !
+     allocate(dmft_bath_%item(Nbath))
+     !
+     Nsym=size(lambda_impHloc)
+     !
+     !ALLOCATE coefficients vectors
+     do ibath=1,Nbath
+        dmft_Bath_%item(ibath)%N_dec=Nsym
+        allocate(dmft_bath_%item(ibath)%v(Nspin))
+        allocate(dmft_bath_%item(ibath)%lambda(Nsym))
+     enddo
      !
   end select
+  !
   dmft_bath_%status=.true.
+  !
 end subroutine allocate_dmft_bath
 
 
 
 
 !+-------------------------------------------------------------------+
-!PURPOSE  : Deallocate the ED bath
+!PURPOSE  : Reconstruct bath matrix from lambda vector
 !+-------------------------------------------------------------------+
-subroutine deallocate_dmft_bath(dmft_bath_)
-  type(effective_bath) :: dmft_bath_
-  if(allocated(dmft_bath_%e))   deallocate(dmft_bath_%e)
-  if(allocated(dmft_bath_%v))   deallocate(dmft_bath_%v)
-  if(allocated(dmft_bath_%vr))  deallocate(dmft_bath_%vr)
-  if(allocated(dmft_bath_%h))   deallocate(dmft_bath_%h)
-  if(allocated(dmft_bath_%mask))deallocate(dmft_bath_%mask)
-  dmft_bath_%status=.false.
-end subroutine deallocate_dmft_bath
+function bath_from_sym(lambdavec) result (Hbath)
+  integer                                  :: Nsym,isym
+  real(8),dimension(:)                     :: lambdavec
+  real(8),dimension(Nspin,Nspin,Norb,Norb) :: Hbath
+  !
+  Nsym=size(lambdavec)
+  !
+  Hbath=zero
+  !
+  do isym=1,Nsym
+     Hbath=Hbath+lambdavec(isym)*H_Basis(isym)%O
+  enddo
+  !
+end function bath_from_sym
 
 
 
@@ -51,66 +90,67 @@ end subroutine deallocate_dmft_bath
 !+------------------------------------------------------------------+
 subroutine init_dmft_bath(dmft_bath_)
   type(effective_bath) :: dmft_bath_
-  real(8)              :: hrep_aux(Nspin*Norb,Nspin*Norb)
-  real(8)              :: hybr_aux_R,hybr_aux_I
-  real(8)              :: hrep_aux_R(Nspin*Norb,Nspin*Norb)
-  real(8)              :: hrep_aux_I(Nspin*Norb,Nspin*Norb)
-  real(8)              :: re,im
-  integer              :: i,unit,flen,Nh
-  integer              :: io,jo,iorb,ispin,jorb,jspin
+  integer,dimension(Nbath) :: Nlambdas
+  integer              :: i,unit,flen,Nh,isym,Nsym
+  integer              :: io,jo,iorb,ispin,jorb,jspin,ibath
   logical              :: IOfile
-  real(8)              :: de,noise_tot
-  real(8),allocatable  :: noise_b(:)
-  character(len=21)    :: space
+  real(8)              :: de
+  real(8)              :: rescale(Nbath),offset_b(Nbath)
+  !
   if(.not.dmft_bath_%status)stop "init_dmft_bath error: bath not allocated"
   !
-  allocate(noise_b(Nbath));noise_b=0.d0 
-  call random_number(noise_b)
-  noise_b=noise_b*ed_bath_noise_thr
+  if(Nbath>1)then
+     rescale=linspace(HWBAND/Nbath,HWBAND,Nbath)
+  else
+     rescale(1)=0.d0
+  endif
   !
   select case(bath_type)
   case default
      !Get energies:
-     dmft_bath_%e(:,:,1)    =-hwband + noise_b(1)
-     dmft_bath_%e(:,:,Nbath)= hwband + noise_b(Nbath)
+     dmft_bath_%e(:,:,1)    =-hwband
+     dmft_bath_%e(:,:,Nbath)= hwband
      Nh=Nbath/2
      if(mod(Nbath,2)==0.and.Nbath>=4)then
         de=hwband/max(Nh-1,1)
-        dmft_bath_%e(:,:,Nh)  = -1.d-1 + noise_b(Nh)
-        dmft_bath_%e(:,:,Nh+1)=  1.d-1 + noise_b(Nh+1)
+        dmft_bath_%e(:,:,Nh)  = -1.d-1
+        dmft_bath_%e(:,:,Nh+1)=  1.d-1
         do i=2,Nh-1
-           dmft_bath_%e(:,:,i)   =-hwband + (i-1)*de  + noise_b(i)
-           dmft_bath_%e(:,:,Nbath-i+1)= hwband - (i-1)*de + noise_b(Nbath-i+1)
+           dmft_bath_%e(:,:,i)   =-hwband + (i-1)*de
+           dmft_bath_%e(:,:,Nbath-i+1)= hwband - (i-1)*de
         enddo
      elseif(mod(Nbath,2)/=0.and.Nbath>=3)then
         de=hwband/Nh
-        dmft_bath_%e(:,:,Nh+1)= 0.0d0 + noise_b(Nh+1)
+        dmft_bath_%e(:,:,Nh+1)= 0d0
         do i=2,Nh
-           dmft_bath_%e(:,:,i)        =-hwband + (i-1)*de + noise_b(i)
-           dmft_bath_%e(:,:,Nbath-i+1)= hwband - (i-1)*de + noise_b(Nbath-i+1)
+           dmft_bath_%e(:,:,i)        =-hwband + (i-1)*de
+           dmft_bath_%e(:,:,Nbath-i+1)= hwband - (i-1)*de
         enddo
      endif
      !Get spin-keep yhbridizations
      do i=1,Nbath
-        dmft_bath_%v(:,:,i)=max(0.1d0,1.d0/sqrt(dble(Nbath)))+noise_b(i)
+        dmft_bath_%v(:,:,i)=max(0.1d0,1d0/sqrt(dble(Nbath)))
      enddo
      !
   case('replica')
-     !BATH INITIALIZATION
-     dmft_bath_%h=zero
-     do i=1,Nbath
-        !
-        dmft_bath_%h(:,:,:,:,i)=impHloc-(xmu+noise_b(i))*so2nn_reshape(eye(Nspin*Norb),Nspin,Norb)
-        !
-     enddo
-     !HYBR. INITIALIZATION
-     dmft_bath_%vr=zero
-     do i=1,Nbath
-        noise_tot=noise_b(i)
-        dmft_bath_%vr(i)=0.5d0+noise_b(i)!*(-1)**(i-1)
+     !BATH V INITIALIZATION
+     do ibath=1,Nbath
+        do ispin=1,Nspin
+           dmft_bath%item(ibath)%v(ispin)=max(0.1d0,1d0/sqrt(dble(Nbath)))
+        enddo
      enddo
      !
-     deallocate(noise_b)
+     !BATH LAMBDAS INITIALIZATION
+     do ibath=1,Nbath
+        Nsym = dmft_bath%item(ibath)%N_dec
+        do isym=1,Nsym
+           if(is_diagonal(H_basis(isym)%O))then
+              dmft_bath%item(ibath)%lambda(isym)=rescale(ibath)*lambda_impHloc(isym)
+           else
+              dmft_bath%item(ibath)%lambda(isym) =  lambda_impHloc(isym)
+           endif
+        enddo
+     enddo
      !
   end select
   !
@@ -151,18 +191,17 @@ subroutine init_dmft_bath(dmft_bath_)
         !
      case ('replica')
         !
-        do i=1,Nbath
-           hrep_aux_R=0.0d0;hrep_aux_I=0.0d0
-           hybr_aux_R=0.0d0;hybr_aux_I=0.0d0
-           hrep_aux=zero
-           do io=1,Nspin*Norb
-              if(io==1)read(unit,"(90(F21.12,1X))")hybr_aux_R,(hrep_aux_R(io,jo),jo=1,Nspin*Norb)
-              if(io/=1)read(unit,"(2a21,90(F21.12,1X))")space,space,(hrep_aux_R(io,jo),jo=1,Nspin*Norb)
+        !read number of lambdas
+        do ibath=1,Nbath
+           read(unit,"(I3)")Nlambdas(ibath)
+        enddo
+        do ibath=1,Nbath
+           !read V
+           do ispin=1,Nspin
+              read(unit,"(F21.12,1X)")dmft_bath%item(ibath)%v(ispin)
            enddo
-           read(unit,*)
-           hrep_aux=hrep_aux_R!cmplx(hrep_aux_R,hrep_aux_I)
-           dmft_bath_%h(:,:,:,:,i)=so2nn_reshape(hrep_aux,Nspin,Norb)
-           dmft_bath_%vr(i)=hybr_aux_R!cmplx(hybr_aux_R,hybr_aux_I)
+           !read lambdas
+           read(unit,*)(dmft_bath%item(ibath)%lambda(jo),jo=1,Nlambdas(ibath))
         enddo
         !
         !
@@ -171,40 +210,6 @@ subroutine init_dmft_bath(dmft_bath_)
   endif
 end subroutine init_dmft_bath
 
-!+-------------------------------------------------------------------+
-!PURPOSE  : set the mask based on impHloc in the replica bath topology
-!+-------------------------------------------------------------------+
-subroutine init_dmft_bath_mask(dmft_bath_)
-  type(effective_bath),intent(inout) :: dmft_bath_
-  integer                            :: iorb,ispin,jorb,jspin
-  integer                            :: io,jo
-  !
-  if(.not.(allocated(impHloc))) then
-     stop "impHloc not allocated on mask initialization"
-  endif
-  dmft_bath_%mask=.false.
-  !
-  ! MASK INITIALIZATION
-  !
-  do ispin=1,Nspin
-     do iorb=1,Norb
-        !diagonal elements always present
-        dmft_bath_%mask(ispin,ispin,iorb,iorb)=.true.
-        !off-diagonal elements
-        do jspin=1,Nspin
-           do jorb=1,Norb
-              io = iorb + (ispin-1)*Norb
-              jo = jorb + (jspin-1)*Norb
-              if(io/=jo)then
-                 if( abs(impHloc(ispin,jspin,iorb,jorb)).gt.1e-6)&
-                      dmft_bath_%mask(ispin,jspin,iorb,jorb)=.true.
-              endif
-           enddo
-        enddo
-     enddo
-  enddo
-  !
-end subroutine init_dmft_bath_mask
 
 
 !+-------------------------------------------------------------------+
@@ -217,9 +222,12 @@ subroutine write_dmft_bath(dmft_bath_,unit)
   integer,optional     :: unit
   integer              :: unit_
   integer              :: i
-  integer              :: io,jo,iorb,ispin
+  integer              :: io,jo,iorb,ispin,isym
   real(8)              :: hybr_aux
+  real(8)              :: hrep_aux_nn(Nspin,Nspin,Norb,Norb)
   real(8)              :: hrep_aux(Nspin*Norb,Nspin*Norb)
+  !
+  character(len=64)    :: string_fmt,string_fmt_first
   unit_=LOGfile;if(present(unit))unit_=unit
   if(.not.dmft_bath_%status)stop "write_dmft_bath error: bath not allocated"
   select case(bath_type)
@@ -252,21 +260,48 @@ subroutine write_dmft_bath(dmft_bath_,unit)
      !
   case ('replica')
      !
-     do i=1,Nbath
-        hrep_aux=0d0
-        hrep_aux=nn2so_reshape(dmft_bath_%h(:,:,:,:,i),Nspin,Norb)
-        hybr_aux=dmft_bath_%vr(i)
-        do io=1,Nspin*Norb
-           if(unit_==LOGfile)then
-              if(io==1) write(unit_,"(F9.4,a5,90(F9.4,1X))")hybr_aux,"|",( hrep_aux(io,jo),jo=1,Nspin*Norb)
-              if(io/=1) write(unit_,"(A9  ,a5,90(F9.4,1X))") "  "   ,"|",( hrep_aux(io,jo),jo=1,Nspin*Norb)
-           else
-              if(io==1)write(unit_,"(90(F21.12,1X))")hybr_aux,(hrep_aux(io,jo),jo=1,Nspin*Norb)
-              if(io/=1)write(unit_,"(a21,90(F21.12,1X))")"  ",(hrep_aux(io,jo),jo=1,Nspin*Norb)
-           endif
+     string_fmt      ="(A8,A5,"//str(Nspin*Norb)//"(F8.4,1X)"
+     !
+     if(unit_==LOGfile)then
+        if(Nspin*Norb.le.8)then
+           write(unit_,"(A1)")" "
+           write(unit_,"(A8,A3,a5,90(A15,1X))")"V","||"," ","Re(H) | Im(H)"
+           do ibath=1,Nbath
+              write(unit_,"(A1)")" "
+              hrep_aux   = 0d0
+              hrep_aux_nn= bath_from_sym(dmft_bath%item(ibath)%lambda)
+              Hrep_aux   = nn2so_reshape(hrep_aux_nn,Nspin,Norb)
+              do ispin=1,Nspin
+                 write(unit_,"(F8.4)")dmft_bath%item(ibath)%v(ispin)
+              enddo
+              do io=1,Nspin*Norb
+                 write(unit_,string_fmt) "  "  ,"||  ",(hrep_aux(io,jo),jo=1,Nspin*Norb)
+              enddo
+           enddo
+           write(unit_,"(A1)")" "
+        else
+           write(LOGfile,"(A)")"Bath matrix too large to print: printing the parameters (including eventual offset)."
+           write(unit_,"(A8,A5,90(A8,1X))")"V"," ","lambdas"        
+           do ibath=1,Nbath
+              do ispin=1,Nspin
+                 write(unit_,"(F8.4)")dmft_bath%item(ibath)%v(ispin)
+              enddo
+              write(unit_,"(A8,A5,90(F8.4,1X))")"","|   ",&
+                   (dmft_bath%item(ibath)%lambda(io),io=1,dmft_bath%item(ibath)%N_dec)
+           enddo
+        endif
+     else
+        do ibath=1,Nbath
+           !write number of lambdas
+           write(unit,"(I3)")dmft_bath%item(ibath)%N_dec
         enddo
-        write(unit_,*)
-     enddo
+        do ibath=1,Nbath
+           do ispin=1,Nspin
+              write(unit,*)dmft_bath%item(ibath)%v(ispin)
+           enddo
+           write(unit,*)(dmft_bath%item(ibath)%lambda(jo),jo=1,dmft_bath%item(ibath)%N_dec)
+        enddo
+     endif
      !
   end select
 end subroutine write_dmft_bath
@@ -312,10 +347,9 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
   real(8),dimension(:)   :: bath_
   type(effective_bath)   :: dmft_bath_
   integer                :: stride,io,jo,i
-  integer                :: iorb,ispin,jorb,jspin,ibath,maxspin
+  integer                :: iorb,ispin,jorb,jspin,ibath
   logical                :: check
-  real(8)                :: hrep_aux(Nspin*Norb,Nspin*Norb)
-  real(8)                :: element_R,eps_k,lambda_k
+  !
   if(.not.dmft_bath_%status)stop "set_dmft_bath error: bath not allocated"
   check = check_bath_dimension(bath_)
   if(.not.check)stop "set_dmft_bath error: wrong bath dimensions"
@@ -365,37 +399,28 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
      !
   case ('replica')
      !
-     dmft_bath_%h=0d0
-     dmft_bath_%vr=0d0
-     i = 0
-     !all non-vanishing terms in imploc - all spin
-     do ispin=1,Nspin
-        do iorb=1,Norb
-           do jorb=1,Norb
-              do ibath=1,Nbath
-                 io = iorb + (ispin-1)*Norb
-                 jo = jorb + (ispin-1)*Norb
-                 if(io.gt.jo)cycle!only diagonal and upper triangular are saved by symmetry
-                 element_R=0d0
-                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb)) then
-                    i=i+1
-                    element_R=bath_(i)
-                 endif
-                 dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)=element_R
-                 !symmetry
-                 if(iorb/=jorb)dmft_bath_%h(ispin,ispin,jorb,iorb,ibath)=dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)
-              enddo
-           enddo
-        enddo
-     enddo
-     !
-     !all Re[Hybr]
      do ibath=1,Nbath
-        i=i+1
-        dmft_bath_%vr(ibath)=bath_(i)
+        dmft_bath%item(ibath)%N_dec = 0
+        dmft_bath%item(ibath)%v     = 0d0
+        dmft_bath%item(ibath)%lambda= 0d0
      enddo
      !
-     !
+     stride = 0
+     !Get N_dec
+     do ibath=1,Nbath
+        stride = stride + 1
+        dmft_bath%item(ibath)%N_dec=NINT(bath_(stride))
+     enddo
+     !Get N_dec
+     !get Lambdas
+     do ibath=1,Nbath
+        do ispin=1,Nspin
+           stride = stride + 1
+           dmft_bath%item(ibath)%v(ispin) = bath_(stride)
+        enddo
+        dmft_bath%item(ibath)%lambda=bath_(stride+1 :stride+dmft_bath%item(ibath)%N_dec)
+        stride=stride+dmft_bath%item(ibath)%N_dec
+     enddo
   end select
 end subroutine set_dmft_bath
 
@@ -460,31 +485,19 @@ subroutine get_dmft_bath(dmft_bath_,bath_)
      !
   case ('replica')
      !
-     i = 0
-     !all non-vanishing terms in imploc - all spin
-     do ispin=1,Nspin
-        do iorb=1,Norb
-           do jorb=1,Norb
-              do ibath=1,Nbath
-                 io = iorb + (ispin-1)*Norb
-                 jo = jorb + (ispin-1)*Norb
-                 if(io.gt.jo)cycle !only diagonal and upper triangular are saved by symmetry
-                 if(dmft_bath_%mask(ispin,ispin,iorb,jorb)) then
-                    i=i+1
-                    bath_(i)=dmft_bath_%h(ispin,ispin,iorb,jorb,ibath)
-                 endif
-              enddo
-           enddo
-        enddo
-     enddo
-     !
-     !all Re[Hybr]
+     stride = 0
      do ibath=1,Nbath
-        i=i+1
-        bath_(i)=dmft_bath_%vr(ibath)
+        stride = stride + 1
+        bath_(stride)=dmft_bath%item(ibath)%N_dec
      enddo
-     !    
-     !
+     do ibath=1,Nbath
+        do ispin=1,Nspin
+           stride = stride + 1
+           bath_(stride)=dmft_bath%item(ibath)%v(ispin)
+        enddo
+        bath_(stride+1 : stride+dmft_bath%item(ibath)%N_dec)=dmft_bath%item(ibath)%lambda
+        stride=stride+dmft_bath%item(ibath)%N_dec
+     enddo
   end select
 end subroutine get_dmft_bath
 

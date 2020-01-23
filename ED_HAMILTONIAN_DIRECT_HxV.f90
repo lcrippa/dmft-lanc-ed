@@ -4,27 +4,6 @@ MODULE ED_HAMILTONIAN_DIRECT_HxV
   implicit none
   private
 
-  integer                              :: iiup,iidw,jjup,jjdw
-  integer                              :: iud,jj
-  integer                              :: i,iup,idw
-  integer                              :: j,jup,jdw
-  integer                              :: m,mup,mdw
-  integer                              :: ishift
-  integer                              :: isector,jsector
-  integer                              :: ms
-  integer                              :: impi
-  integer                              :: iorb,jorb,ispin,jspin,ibath
-  integer                              :: kp,k1,k2,k3,k4
-  integer                              :: ialfa,ibeta
-  real(8)                              :: sg1,sg2,sg3,sg4
-  real(8)                              :: htmp,htmpup,htmpdw
-  logical                              :: Jcondition
-  integer                              :: Nfoo
-  real(8),dimension(:,:,:),allocatable :: diag_hybr ![Nspin,Norb,Nbath]
-  real(8),dimension(:,:,:),allocatable :: bath_diag ![Nspin,Norb/1,Nbath]
-
-
-
 
   !>Sparse Mat-Vec direct on-the-fly product 
   public  :: directMatVec_main
@@ -40,13 +19,14 @@ contains
 
 
   subroutine directMatVec_main(Nloc,vin,Hv)
-    integer                             :: Nloc
-    real(8),dimension(Nloc)             :: vin
-    real(8),dimension(Nloc)             :: Hv
-    real(8),dimension(:),allocatable    :: vt,Hvt
-    integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
-    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)               :: Nup,Ndw
+    integer                                        :: Nloc
+    real(8),dimension(Nloc)                        :: vin
+    real(8),dimension(Nloc)                        :: Hv
+    real(8),dimension(:),allocatable               :: vt,Hvt
+    integer,dimension(2*Ns_Ud)                     :: Indices,Jndices ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)                          :: Nup,Ndw
+    real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -54,7 +34,36 @@ contains
     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
     !
     !Get diagonal hybridization, bath energy
-    include "ED_HAMILTONIAN/diag_hybr_bath.f90"
+    if(allocated(diag_hybr))deallocate(diag_hybr)
+    if(allocated(bath_diag))deallocate(bath_diag)
+    select case (bath_type)
+    case default
+       Nfoo = size(dmft_bath%e,2)
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0       
+       do ibath=1,Nbath
+          do ispin=1,Nspin             
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             enddo
+             do iorb=1,Nfoo
+                bath_diag(ispin,iorb,ibath)=dmft_bath%e(ispin,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    case ("replica")
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
+       do ibath=1,Nbath
+          Hbath_tmp(:,:,:,:,ibath) = bath_from_sym(dmft_bath%item(ibath)%lambda)
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+                bath_diag(ispin,iorb,ibath)=Hbath_tmp(ispin,ispin,iorb,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    end select
     !
     Hv=0d0
     !
@@ -82,14 +91,15 @@ contains
 
 
   subroutine directMatVec_orbs(Nloc,vin,Hv)
-    integer                             :: Nloc
-    real(8),dimension(Nloc)             :: vin
-    real(8),dimension(Nloc)             :: Hv
-    real(8),dimension(:),allocatable    :: vt,Hvt
-    integer                             :: isector
-    integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
-    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)               :: Nup,Ndw
+    integer                                        :: Nloc
+    real(8),dimension(Nloc)                        :: vin
+    real(8),dimension(Nloc)                        :: Hv
+    real(8),dimension(:),allocatable               :: vt,Hvt
+    integer                                        :: isector
+    integer,dimension(2*Ns_Ud)                     :: Indices,Jndices ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)                          :: Nup,Ndw
+    real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -97,7 +107,37 @@ contains
     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
     !
     !Get diagonal hybridization, bath energy
-    include "ED_HAMILTONIAN/diag_hybr_bath.f90"
+    if(allocated(diag_hybr))deallocate(diag_hybr)
+    if(allocated(bath_diag))deallocate(bath_diag)
+    select case (bath_type)
+    case default
+       Nfoo = size(dmft_bath%e,2)
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0       
+       do ibath=1,Nbath
+          do ispin=1,Nspin             
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             enddo
+             do iorb=1,Nfoo
+                bath_diag(ispin,iorb,ibath)=dmft_bath%e(ispin,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    case ("replica")
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
+       do ibath=1,Nbath
+          Hbath_tmp(:,:,:,:,ibath) = bath_from_sym(dmft_bath%item(ibath)%lambda)
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+                bath_diag(ispin,iorb,ibath)=Hbath_tmp(ispin,ispin,iorb,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    end select
+
     !
     Hv=0d0
     !
@@ -124,24 +164,54 @@ contains
 
 #ifdef _MPI
   subroutine directMatVec_MPI_main(Nloc,vin,Hv)
-    integer                             :: Nloc,N
-    real(8),dimension(Nloc)             :: Vin
-    real(8),dimension(Nloc)             :: Hv
-    real(8),dimension(:),allocatable    :: vt,Hvt
+    integer                                        :: Nloc,N
+    real(8),dimension(Nloc)                        :: Vin
+    real(8),dimension(Nloc)                        :: Hv
+    real(8),dimension(:),allocatable               :: vt,Hvt
     !
-    integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
-    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)               :: Nup,Ndw
+    integer,dimension(2*Ns_Ud)                     :: Indices,Jndices ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)                          :: Nup,Ndw
+    real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
-    integer                             :: MpiIerr
-    integer,allocatable,dimension(:)    :: Counts
-    integer,allocatable,dimension(:)    :: Offset
+    integer                                                    :: MpiIerr
+    integer,allocatable,dimension(:)                           :: Counts
+    integer,allocatable,dimension(:)                           :: Offset
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
     !
     !Get diagonal hybridization, bath energy
-    include "ED_HAMILTONIAN/diag_hybr_bath.f90"
+    if(allocated(diag_hybr))deallocate(diag_hybr)
+    if(allocated(bath_diag))deallocate(bath_diag)
+    select case (bath_type)
+    case default
+       Nfoo = size(dmft_bath%e,2)
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0       
+       do ibath=1,Nbath
+          do ispin=1,Nspin             
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             enddo
+             do iorb=1,Nfoo
+                bath_diag(ispin,iorb,ibath)=dmft_bath%e(ispin,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    case ("replica")
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
+       do ibath=1,Nbath
+          Hbath_tmp(:,:,:,:,ibath) = bath_from_sym(dmft_bath%item(ibath)%lambda)
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+                bath_diag(ispin,iorb,ibath)=Hbath_tmp(ispin,ispin,iorb,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    end select
     !
     if(MpiComm==MPI_UNDEFINED.OR.MpiComm==Mpi_Comm_Null)&
          stop "directMatVec_MPI_cc ERRROR: MpiComm = MPI_UNDEFINED"
@@ -189,21 +259,51 @@ contains
 
 
   subroutine directMatVec_MPI_Orbs(Nloc,vin,Hv)
-    integer                             :: Nloc
-    real(8),dimension(Nloc)             :: Vin
-    real(8),dimension(Nloc)             :: Hv
-    real(8),dimension(:),allocatable    :: vt,Hvt
+    integer                                        :: Nloc
+    real(8),dimension(Nloc)                        :: Vin
+    real(8),dimension(Nloc)                        :: Hv
+    real(8),dimension(:),allocatable               :: vt,Hvt
     !
-    integer,dimension(2*Ns_Ud)          :: Indices,Jndices ![2-2*Norb]
-    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)               :: Nup,Ndw
-    integer,allocatable,dimension(:)    :: Counts,Displs
+    integer,dimension(2*Ns_Ud)                     :: Indices,Jndices ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)                          :: Nup,Ndw
+    real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
+    integer,allocatable,dimension(:)               :: Counts,Displs
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
     !
     !Get diagonal hybridization, bath energy
-    include "ED_HAMILTONIAN/diag_hybr_bath.f90"
+    if(allocated(diag_hybr))deallocate(diag_hybr)
+    if(allocated(bath_diag))deallocate(bath_diag)
+    select case (bath_type)
+    case default
+       Nfoo = size(dmft_bath%e,2)
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0       
+       do ibath=1,Nbath
+          do ispin=1,Nspin             
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             enddo
+             do iorb=1,Nfoo
+                bath_diag(ispin,iorb,ibath)=dmft_bath%e(ispin,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    case ("replica")
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
+       do ibath=1,Nbath
+          Hbath_tmp(:,:,:,:,ibath) = bath_from_sym(dmft_bath%item(ibath)%lambda)
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+                bath_diag(ispin,iorb,ibath)=Hbath_tmp(ispin,ispin,iorb,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    end select
     !
     !    
     if(MpiComm==MPI_UNDEFINED.OR.MpiComm==Mpi_Comm_Null)&

@@ -18,7 +18,28 @@ MODULE ED_HAMILTONIAN_COMMON
   logical                                   :: Hstatus=.false.
   type(sector_map),dimension(:),allocatable :: Hs
 
-  integer,save,public :: iter=0
+
+  integer                                   :: iiup,iidw,jjup,jjdw
+  integer                                   :: iud,jj
+  integer                                   :: ishift
+  integer                                   :: isector,jsector
+  integer                                   :: i,iup,idw
+  integer                                   :: j,jup,jdw
+  integer                                   :: m,mup,mdw
+  integer                                   :: ms
+  integer                                   :: impi
+  integer                                   :: iorb,jorb,ispin,jspin,ibath
+  integer                                   :: kp,k1,k2,k3,k4
+  integer                                   :: ialfa,ibeta,indx
+  real(8)                                   :: sg1,sg2,sg3,sg4
+  real(8)                                   :: htmp,htmpup,htmpdw
+  logical                                   :: Jcondition
+  integer                                   :: Nfoo
+  real(8),dimension(:,:,:),allocatable      :: diag_hybr ![Nspin,Norb,Nbath]
+  real(8),dimension(:,:,:),allocatable      :: bath_diag ![Nspin,Norb/1,Nbath]
+
+
+  integer,save,public                       :: iter=0
 
 contains
 

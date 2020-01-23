@@ -2,6 +2,7 @@ MODULE ED_BATH
   USE SF_CONSTANTS, only: zero
   USE SF_IOTOOLS, only:free_unit,reg,file_length,txtfy
   USE SF_LINALG, only: eye,inv
+  USE SF_ARRAYS, only:linspace
   USE SF_MISC, only: assert_shape
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
@@ -37,53 +38,77 @@ MODULE ED_BATH
      module procedure copy_spin_orb_component_bath
   end interface copy_component_bath
 
-  public :: get_bath_dimension
-  public :: check_bath_dimension
-  public :: get_component_bath_dimension
-  public :: get_spin_component_bath_dimension
-  public :: get_orb_component_bath_dimension
-  public :: get_spin_orb_component_bath_dimension
-  public :: get_component_bath
-  public :: set_component_bath
-  public :: copy_component_bath
+  interface get_bath_dimension
+     module procedure ::  get_bath_dimension_direct
+     module procedure ::  get_bath_dimension_symmetries
+  end interface get_bath_dimension
+
 
   !explicit symmetries:
   interface break_symmetry_bath
      module procedure break_symmetry_bath_site
      module procedure break_symmetry_bath_lattice
   end interface break_symmetry_bath
-  public :: break_symmetry_bath              
-
 
   interface spin_symmetrize_bath
      module procedure spin_symmetrize_bath_site
      module procedure spin_symmetrize_bath_lattice
   end interface spin_symmetrize_bath
-  public :: spin_symmetrize_bath
 
   interface orb_symmetrize_bath
      module procedure orb_symmetrize_bath_site
      module procedure orb_symmetrize_bath_lattice
   end interface orb_symmetrize_bath
-  public :: orb_symmetrize_bath
+
 
   interface orb_equality_bath
      module procedure orb_equality_bath_site
      module procedure orb_equality_bath_lattice
   end interface orb_equality_bath
-  public :: orb_equality_bath
+
 
   interface ph_trans_bath
      module procedure ph_trans_bath_site
      module procedure ph_trans_bath_lattice
   end interface ph_trans_bath
-  public :: ph_trans_bath
+
 
   interface ph_symmetrize_bath
      module procedure ph_symmetrize_bath_site
      module procedure ph_symmetrize_bath_lattice
   end interface ph_symmetrize_bath
-  public :: ph_symmetrize_bath
+
+
+  interface is_identity
+     module procedure ::  is_identity_so
+     module procedure ::  is_identity_nn
+  end interface is_identity
+
+  interface is_diagonal
+     module procedure ::  is_diagonal_so
+     module procedure ::  is_diagonal_nn
+  end interface is_diagonal
+
+
+
+  public  :: get_bath_dimension
+  public  :: check_bath_dimension
+  !
+  public  :: get_component_bath_dimension
+  public  :: get_spin_component_bath_dimension
+  public  :: get_orb_component_bath_dimension
+  public  :: get_spin_orb_component_bath_dimension
+  !
+  public  :: get_component_bath
+  public  :: set_component_bath
+  public  :: copy_component_bath
+  !
+  public  :: break_symmetry_bath              
+  public  :: spin_symmetrize_bath
+  public  :: orb_symmetrize_bath
+  public  :: orb_equality_bath
+  public  :: ph_trans_bath
+  public  :: ph_symmetrize_bath
 
 
   !##################################################################
@@ -95,22 +120,152 @@ MODULE ED_BATH
   !INTERNAL = opaque to the user but available for internal use in the code.
   !
   !DMFT BATH procedures:
-  public :: allocate_dmft_bath               !INTERNAL (for effective_bath)
-  public :: deallocate_dmft_bath             !INTERNAL (for effective_bath)
-  public :: init_dmft_bath                   !INTERNAL (for effective_bath)
-  public :: init_dmft_bath_mask              !INTERNAL (for effective_bath)
-  public :: write_dmft_bath                  !INTERNAL (for effective_bath)
-  public :: save_dmft_bath                   !INTERNAL (for effective_bath)
-  public :: set_dmft_bath                    !INTERNAL (for effective_bath)
-  public :: get_dmft_bath                    !INTERNAL (for effective_bath)
-  !
+  public  :: allocate_dmft_bath               !INTERNAL (for effective_bath)
+  public  :: deallocate_dmft_bath             !INTERNAL (for effective_bath)
+  public  :: init_dmft_bath                   !INTERNAL (for effective_bath)
+  public  :: write_dmft_bath                  !INTERNAL (for effective_bath)
+  public  :: save_dmft_bath                   !INTERNAL (for effective_bath)
+  public  :: set_dmft_bath                    !INTERNAL (for effective_bath)
+  public  :: get_dmft_bath                    !INTERNAL (for effective_bath)
+  public  :: bath_from_sym                    !INTERNAL (for effective_bath)
+  public  :: mask_hloc
 
-
-
+  integer :: ibath,ilat,iorb
 
 
 
 contains
+
+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : Check if a matrix is the identity
+  !+-------------------------------------------------------------------+
+  function is_identity_nn(mnnn) result(flag)
+    real(8),dimension(nspin,nspin,norb,norb) :: mnnn
+    real(8),dimension(nspin*norb,nspin*norb) :: mtmp
+    integer                                  :: i,j
+    logical                                  :: flag
+    !
+    flag=.true.
+    !
+    mtmp=nn2so_reshape(mnnn,nspin,norb)
+    !
+    do i=1,Nspin*Norb-1
+       if((mtmp(i,i).ne.mtmp(i+1,i+1)).or.(mtmp(i,i).lt.1.d-6))flag=.false.
+    enddo
+    !
+    do i=1,Nspin*Norb
+       do j=1,Nspin*Norb
+          if((i.ne.j).and.(mtmp(i,j).gt.1.d-6))flag=.false.
+       enddo
+    enddo
+    !
+  end function is_identity_nn
+
+  function is_identity_so(mlso) result(flag)
+    real(8),dimension(nspin*norb,nspin*norb) :: mlso
+    real(8),dimension(nspin*norb,nspin*norb) :: mtmp
+    integer                                  :: i,j
+    logical                                  :: flag
+    !
+    flag=.true.
+    !
+    mtmp=mlso
+    !
+    do i=1,Nspin*Norb-1
+       if((mtmp(i,i).ne.mtmp(i+1,i+1)).or.(mtmp(i,i).lt.1.d-6))flag=.false.
+    enddo
+    !
+    do i=1,Nspin*Norb
+       do j=1,Nspin*Norb
+          if((i.ne.j).and.(mtmp(i,j).gt.1.d-6))flag=.false.
+       enddo
+    enddo
+    !
+  end function is_identity_so
+
+
+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : Check if a matrix is diagonal
+  !+-------------------------------------------------------------------+
+  function is_diagonal_nn(mnnn) result(flag)
+    real(8),dimension(nspin,nspin,norb,norb) :: mnnn
+    real(8),dimension(nspin*norb,nspin*norb) :: mtmp
+    integer                                  :: i,j
+    logical                                  :: flag
+    !
+    flag=.true.
+    !
+    mtmp=abs((nn2so_reshape(mnnn,nspin,norb)))
+    !
+    do i=1,Nspin*Norb
+       do j=1,Nspin*Norb
+          if((i.ne.j).and.(mtmp(i,j).gt.1.d-6))flag=.false.
+       enddo
+    enddo
+    !
+  end function is_diagonal_nn
+
+  function is_diagonal_so(mlso) result(flag)
+    real(8),dimension(Nspin*Norb,Nspin*Norb) :: mlso
+    real(8),dimension(Nspin*Norb,Nspin*Norb) :: mtmp
+    integer                                  :: i,j
+    logical                                  :: flag
+    !
+    flag=.true.
+    !
+    mtmp=abs((mlso))
+    !
+    do i=1,Nspin*Norb
+       do j=1,Nspin*Norb
+          if((i.ne.j).and.(mtmp(i,j).gt.1.d-6))flag=.false.
+       enddo
+    enddo
+    !
+  end function is_diagonal_so
+
+
+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : Create bath mask
+  !+-------------------------------------------------------------------+
+  function mask_hloc(hloc,wdiag,uplo) result(Hmask)
+    real(8),dimension(Nspin,Nspin,Norb,Norb) :: Hloc
+    logical,optional                         :: wdiag,uplo
+    logical                                  :: wdiag_,uplo_
+    logical,dimension(Nspin,Nspin,Norb,Norb) :: Hmask
+    integer                                  :: iorb,jorb,ispin,io,jo
+    !
+    wdiag_=.false.;if(present(wdiag))wdiag_=wdiag
+    uplo_ =.false.;if(present(uplo))  uplo_=uplo
+    !
+    Hmask=.false.
+    where(abs(Hloc)>1d-6)Hmask=.true.
+    !
+    !
+    if(wdiag_)then
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             Hmask(ispin,ispin,iorb,iorb)=.true.
+          enddo
+       enddo
+    endif
+    !
+    if(uplo_)then
+       do ispin=1,Nspin
+          do iorb=1,Norb
+             do jorb=1,Norb
+                io = index_stride_so(ispin,iorb)
+                jo = index_stride_so(ispin,jorb)
+                if(io>jo)Hmask(ispin,ispin,iorb,jorb)=.false.
+             enddo
+          enddo
+       enddo
+    endif
+    !
+  end function mask_hloc
+
 
 
   !##################################################################
@@ -120,7 +275,7 @@ contains
   !##################################################################
   include 'ED_BATH/user_aux.f90'
 
-
+  include 'ED_BATH/user_ctrl.f90'
 
   !##################################################################
   !
@@ -128,100 +283,6 @@ contains
   !
   !##################################################################
   include 'ED_BATH/dmft_aux.f90'
-
-
-
-  !##################################################################
-  !
-  !     USER BATH CHECKS:
-  !
-  !##################################################################
-  !+-------------------------------------------------------------------+
-  !PURPOSE  : Check if the dimension of the bath array are consistent
-  !+-------------------------------------------------------------------+
-  function check_bath_dimension(bath_,Hloc_nn) result(bool)
-    real(8),dimension(:)        :: bath_
-    integer                     :: Ntrue
-    logical                     :: bool
-    real(8),optional,intent(in) :: Hloc_nn(:,:,:,:)
-    if (present(Hloc_nn))then
-       Ntrue = get_bath_dimension(one*Hloc_nn)
-    else
-       Ntrue = get_bath_dimension()
-    endif
-    bool  = ( size(bath_) == Ntrue )
-  end function check_bath_dimension
-
-
-  !+-----------------------------------------------------------------------------+!
-  !PURPOSE:  check if the specified itype is consistent with the input parameters.
-  !+-----------------------------------------------------------------------------+!
-  subroutine check_type_bath(itype)
-    integer :: itype
-    if(itype<1.OR.itype>2)stop "check_type_bath error: itype!=1,2"
-    return
-  end subroutine check_type_bath
-
-  !+-----------------------------------------------------------------------------+!
-  !PURPOSE: check that the input array hsa the correct dimensions specified 
-  ! for the choice of itype and possiblty ispin and/or iorb.
-  !+-----------------------------------------------------------------------------+!
-  subroutine assert_component_size_bath(array,itype,string1,string2)
-    real(8),dimension(:,:,:) :: array
-    integer                  :: itype
-    character(len=*)         :: string1,string2
-    integer                  :: Ndim(3)
-    call check_type_bath(itype)
-    select case(bath_type)
-    case default
-       Ndim=[Nspin,Norb,Nbath]
-    case('hybrid')
-       if(itype==1)then
-          Ndim=[Nspin,1,Nbath]
-       else
-          Ndim=[Nspin,Norb,Nbath]
-       endif
-    end select
-    call assert_shape(Array,Ndim,reg(string1),reg(string2))
-  end subroutine assert_component_size_bath
-  !
-  subroutine assert_spin_component_size_bath(array,itype,string1,string2)
-    real(8),dimension(:,:) :: array
-    integer                  :: itype
-    character(len=*)         :: string1,string2
-    integer                  :: Ndim(2)
-    call check_type_bath(itype)
-    select case(bath_type)
-    case default
-       Ndim=[Norb,Nbath]
-    case('hybrid')
-       if(itype==1)then
-          Ndim=[1,Nbath]
-       else
-          Ndim=[Norb,Nbath]
-       endif
-    end select
-    call assert_shape(Array,Ndim,reg(string1),reg(string2))
-  end subroutine assert_spin_component_size_bath
-  !
-  subroutine assert_orb_component_size_bath(array,itype,string1,string2)
-    real(8),dimension(:,:) :: array
-    integer                  :: itype
-    character(len=*)         :: string1,string2
-    integer                  :: Ndim(2)
-    Ndim=[Nspin,Nbath]
-    call assert_shape(Array,Ndim,reg(string1),reg(string2))
-  end subroutine assert_orb_component_size_bath
-  !
-  subroutine assert_spin_orb_component_size_bath(array,itype,string1,string2)
-    real(8),dimension(:) :: array
-    integer              :: itype
-    character(len=*)     :: string1,string2
-    integer              :: Ndim
-    Ndim=Nbath
-    if(size(array)/=Nbath)stop "assert_spin_orb_component_size_bath error: size(array)!=Ndim"
-  end subroutine assert_spin_orb_component_size_bath
-
 
 
 

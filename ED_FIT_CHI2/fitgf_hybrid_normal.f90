@@ -16,17 +16,18 @@
 !PURPOSE  : Chi^2 interface for Hybrid bath normal phase
 !+-------------------------------------------------------------+
 subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
-  complex(8),dimension(:,:,:)          :: fg ![Norb][Norb][Lmats]
-  real(8),dimension(:),intent(inout)   :: bath_
-  integer                              :: ispin
-  real(8),dimension(:),allocatable     :: array_bath
-  integer                              :: iter,stride,i,io,j,corb,l,Asize
-  integer                              :: iorb,jorb
-  real(8)                              :: chi
-  logical                              :: check
-  type(effective_bath)                 :: dmft_bath
-  character(len=256)                   :: suffix
-  integer                              :: unit
+  complex(8),dimension(:,:,:)                 :: fg ![Norb][Norb][Lmats]
+  real(8),dimension(:),intent(inout)          :: bath_
+  integer                                     :: ispin
+  real(8),dimension(:),allocatable            :: array_bath
+  integer                                     :: iter,stride,i,io,j,corb,l,Asize
+  integer                                     :: iorb,jorb
+  real(8)                                     :: chi
+  logical                                     :: check
+  type(effective_bath)                        :: dmft_bath
+  character(len=256)                          :: suffix
+  integer                                     :: unit
+  complex(8),dimension(:,:,:,:,:),allocatable :: fgand ![Nspin][][Norb][][Ldelta]
   !
   if(size(fg,1)/=Norb)stop "chi2_fitgf_hybrid_normal error: size[fg,1]!=Norb"
   if(size(fg,2)/=Norb)stop "chi2_fitgf_hybrid_normal error: size[fg,2]!=Norb"
@@ -151,7 +152,14 @@ subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
   !
   call save_dmft_bath(dmft_bath)
   !
+  allocate(fgand(Nspin,Nspin,Norb,Norb,Ldelta))
+  if(cg_scheme=='weiss')then
+     fgand = g0and_bath_function(xi*Xdelta(:),dmft_bath)
+  else
+     fgand = delta_bath_function(xi*Xdelta(:),dmft_bath)
+  endif
   call write_fit_result(ispin)
+  deallocate(fgand)
   !
   call get_dmft_bath(dmft_bath,bath_)
   call deallocate_dmft_bath(dmft_bath)
@@ -161,15 +169,7 @@ subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
 contains
   !
   subroutine write_fit_result(ispin)
-    integer                                :: i,j,l,m,iorb,jorb,ispin,jspin
-    real(8)                                :: w
-    complex(8),dimension(Norb,Norb,Ldelta) :: fgand
-    !
-    if(cg_scheme=='weiss')then
-       fgand(:,:,:) = g0and_bath_mats(ispin,ispin,xi*Xdelta(:),dmft_bath)
-    else
-       fgand(:,:,:) = delta_bath_mats(ispin,ispin,xi*Xdelta(:),dmft_bath)
-    endif
+    integer :: i,j,l,m,iorb,jorb,ispin,jspin
     !
     do l=1,totNorb
        iorb=getIorb(l)
@@ -183,8 +183,8 @@ contains
        endif
        do i=1,Ldelta
           write(unit,"(5F24.15)")Xdelta(i),&
-               dimag(Gdelta(l,i)),dimag(fgand(iorb,jorb,i)),&
-               dreal(Gdelta(l,i)),dreal(fgand(iorb,jorb,i))
+               dimag(Gdelta(l,i)),dimag(fgand(ispin,ispin,iorb,jorb,i)),&
+               dreal(Gdelta(l,i)),dreal(fgand(ispin,ispin,iorb,jorb,i))
        enddo
        close(unit)
     enddo

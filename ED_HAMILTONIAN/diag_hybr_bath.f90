@@ -17,14 +17,14 @@
         enddo
      enddo
   case ("replica")
-     Nfoo = Norb
      allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
-     allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0
+     allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
      do ibath=1,Nbath
+        Hbath_reconstructed = bath_from_sym(dmft_bath%item(ibath)%lambda)
         do ispin=1,Nspin
            do iorb=1,Norb
-              diag_hybr(ispin,iorb,ibath)=dmft_bath%vr(ibath)
-              bath_diag(ispin,iorb,ibath)=dmft_bath%h(ispin,ispin,iorb,iorb,ibath)
+              diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+              bath_diag(ispin,iorb,ibath)=Hbath_reconstructed(ispin,ispin,iorb,iorb)
            enddo
         enddo
      enddo

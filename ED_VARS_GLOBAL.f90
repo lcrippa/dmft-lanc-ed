@@ -7,17 +7,46 @@ MODULE ED_VARS_GLOBAL
 #endif
   implicit none
 
+  !-------------------- H EXPANSION STRUCTURE ----------------------!
+  type H_operator
+     real(8),dimension(:,:,:,:),allocatable               :: O          !Replica hamilt
+  end type H_operator
+
+  type(H_operator),dimension(:),allocatable                  :: H_basis
+  real(8),dimension(:),allocatable                           :: lambda_impHloc
+
+
 
   !-------------------- EFFECTIVE BATH STRUCTURE ----------------------!
+  type effective_bath_component
+     integer                                                 :: N_dec
+     real(8),dimension(:),allocatable                        :: v ![Nspin]
+     real(8),dimension(:),allocatable                        :: lambda
+  end type effective_bath_component
+
   type effective_bath
-     real(8),dimension(:,:,:),allocatable        :: e     !local energies [Nspin][Norb][Nbath]/[Nspin][1][Nbath]
-     real(8),dimension(:,:,:),allocatable        :: v     !spin-keep hyb. [Nspin][Norb][Nbath]
-     real(8),dimension(:),allocatable            :: vr    !diagonal hyb.  [Nbath]
-     real(8),dimension(:,:,:,:,:),allocatable    :: h     !Replica hamilt [Nspin][Nspin][Norb][Norb][Nbath]
-     logical(8),dimension(:,:,:,:),allocatable   :: mask  !impHloc mask   [Nspin][Nspin][Norb][Norb]
-     logical                                     :: status=.false.
+     real(8),dimension(:,:,:),allocatable                    :: e     !local energies [Nspin][Norb][Nbath]/[Nspin][1][Nbath]_hybrid
+     real(8),dimension(:,:,:),allocatable                    :: v     !spin-keep hyb. [Nspin][Norb][Nbath]
+     type(effective_bath_component),dimension(:),allocatable :: item  ![Nbath] Replica bath components, V included
+     logical                                                 :: status=.false.
   end type effective_bath
 
+
+
+  !-------------------- CUSTOM OBSERVABLE STRUCTURE ----------------------!
+  type observable
+     complex(8),dimension(:,:,:),allocatable :: sij ![Nlso][Nlso][Nk]
+     character(len=32)                       :: o_name
+     real(8)                                 :: o_value
+  end type observable
+
+  type custom_observables
+     type(observable),dimension(:),allocatable               :: item     ![:]
+     complex(8),dimension(:,:,:),allocatable                 :: Hk       ![Nlso][Nlso][Nk]
+     integer                                                 :: N_asked
+     integer                                                 :: N_filled
+     logical                                                 :: init=.false.
+  end type custom_observables
 
 
 
@@ -50,6 +79,28 @@ MODULE ED_VARS_GLOBAL
        real(8),dimension(Nloc) :: Hv
      end subroutine dd_sparse_HxV
   end interface
+
+
+  !-------------- GMATRIX FOR FAST EVALUATION OF GF ------------------!
+  !note that we use a single Qmatrix here which must be intended as
+  !component corresponding to the poles. 
+  type GFspectrum
+     complex(8),dimension(:),allocatable :: weight
+     complex(8),dimension(:),allocatable :: poles
+  end type GFspectrum
+  type GFchannel
+     type(GFspectrum),dimension(:),allocatable :: channel !N_channel = 2 (c,cdag), 4 (c,cdag,c pm cdag)
+  end type GFchannel
+  type GFmatrix
+     type(GFchannel),dimension(:),allocatable :: state !state_list%size = # of state in the spectrum 
+  end type GFmatrix
+
+
+  interface GFmatrix_allocate
+     module procedure :: allocate_GFmatrix_Nstate
+     module procedure :: allocate_GFmatrix_Nchan
+     module procedure :: allocate_GFmatrix_Nexc
+  end interface GFmatrix_allocate
 
 
 
@@ -302,6 +353,32 @@ contains
 #endif
   end subroutine ed_del_MpiComm
 
+
+  !Allocate the channels in GFmatrix structure
+  subroutine allocate_gfmatrix_Nstate(self,Nstate)
+    type(GFmatrix) :: self
+    integer        :: Nstate
+    if(allocated(self%state))deallocate(self%state)
+    allocate(self%state(Nstate))
+  end subroutine allocate_gfmatrix_Nstate
+
+  subroutine allocate_gfmatrix_Nchan(self,istate,Nchan)
+    type(GFmatrix) :: self
+    integer        :: istate,Nchan
+    if(allocated(self%state(istate)%channel))deallocate(self%state(istate)%channel)
+    allocate(self%state(istate)%channel(Nchan))
+  end subroutine allocate_gfmatrix_Nchan
+
+  !Allocate the Excitations spectrum at a given channel
+  subroutine allocate_gfmatrix_Nexc(self,istate,ichan,Nexc)
+    type(GFmatrix) :: self
+    integer        :: istate,ichan
+    integer        :: Nexc
+    if(allocated(self%state(istate)%channel(ichan)%weight))deallocate(self%state(istate)%channel(ichan)%weight)
+    if(allocated(self%state(istate)%channel(ichan)%poles))deallocate(self%state(istate)%channel(ichan)%poles)
+    allocate(self%state(istate)%channel(ichan)%weight(Nexc))
+    allocate(self%state(istate)%channel(ichan)%poles(Nexc))
+  end subroutine allocate_gfmatrix_Nexc
 
 
 END MODULE ED_VARS_GLOBAL

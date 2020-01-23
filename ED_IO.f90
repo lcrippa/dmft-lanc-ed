@@ -2,61 +2,71 @@ MODULE ED_IO
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
   USE ED_AUX_FUNX
+  USE ED_BATH
+  USE ED_BATH_FUNCTIONS
   USE SF_LINALG
   USE SF_ARRAYS, only: linspace,arange
   USE SF_IOTOOLS, only: str,reg,free_unit,splot,sread
   implicit none
   private
 
-  !Retrieve self-energy through routines:
-  interface ed_get_sigma_matsubara
-     module procedure ed_get_sigma_matsubara_1
-     module procedure ed_get_sigma_matsubara_2
-     module procedure ed_get_sigma_matsubara_lattice_1
-     module procedure ed_get_sigma_matsubara_lattice_2
-  end interface ed_get_sigma_matsubara
-
-  interface ed_get_sigma_real
-     module procedure ed_get_sigma_real_1
-     module procedure ed_get_sigma_real_2
-     module procedure ed_get_sigma_real_lattice_1
-     module procedure ed_get_sigma_real_lattice_2
-  end interface ed_get_sigma_real
 
   !Retrieve imp GF through routines.
   interface ed_get_gimp_matsubara
-     module procedure ed_get_gimp_matsubara_1
-     module procedure ed_get_gimp_matsubara_2
-     module procedure ed_get_gimp_matsubara_lattice_1
-     module procedure ed_get_gimp_matsubara_lattice_2
+     module procedure ed_get_gimp_matsubara
+     module procedure ed_get_gimp_matsubara_lattice
+     module procedure ed_get_gimp_matsubara_site
   end interface ed_get_gimp_matsubara
 
 
-  interface ed_get_gimp_real
-     module procedure ed_get_gimp_real_1
-     module procedure ed_get_gimp_real_2
-     module procedure ed_get_gimp_real_lattice_1
-     module procedure ed_get_gimp_real_lattice_2
-  end interface ed_get_gimp_real
+  interface ed_get_gimp_realaxis
+     module procedure ed_get_gimp_realaxis
+     module procedure ed_get_gimp_realaxis_lattice
+     module procedure ed_get_gimp_realaxis_site
+  end interface ed_get_gimp_realaxis
 
 
+  !Retrieve self-energy through routines:
+  interface ed_get_sigma_matsubara
+     module procedure ed_get_sigma_matsubara
+     module procedure ed_get_sigma_matsubara_lattice
+     module procedure ed_get_sigma_matsubara_site
+  end interface ed_get_sigma_matsubara
+
+  interface ed_get_sigma_real
+     module procedure ed_get_sigma_realaxis
+     module procedure ed_get_sigma_realaxis_lattice
+     module procedure ed_get_sigma_realaxis_site
+  end interface ed_get_sigma_real
 
 
   !Retrieve imp GF_0 (G0_and) through routines.
   interface ed_get_g0imp_matsubara
-     module procedure ed_get_g0imp_matsubara_1
-     module procedure ed_get_g0imp_matsubara_2
-     module procedure ed_get_g0imp_matsubara_lattice_1
-     module procedure ed_get_g0imp_matsubara_lattice_2
+     module procedure ed_get_g0imp_matsubara
+     module procedure ed_get_g0imp_matsubara_lattice
+     module procedure ed_get_g0imp_matsubara_site
   end interface ed_get_g0imp_matsubara
 
+  interface ed_get_g0imp_realaxis
+     module procedure ed_get_g0imp_realaxis
+     module procedure ed_get_g0imp_realaxis_lattice
+     module procedure ed_get_g0imp_realaxis_site
+  end interface ed_get_g0imp_realaxis
 
-  interface ed_get_g0imp_real
-     module procedure ed_get_g0imp_real_1
-     module procedure ed_get_g0imp_real_2
-     module procedure ed_get_g0imp_real_lattice_1
-     module procedure ed_get_g0imp_real_lattice_2
-  end interface ed_get_g0imp_real
+
+  !Retrieve Anderson non-interacting GF from the user bath
+  interface ed_get_delta_function
+     module procedure delta_bath_user
+  end interface ed_get_delta_function
+
+  interface ed_get_g0and_function
+     module procedure g0and_bath_user
+  end interface ed_get_g0and_function
+
+  interface ed_get_invg0_function
+     module procedure invg0_bath_user
+  end interface ed_get_invg0_function
+
 
 
   !Retrieve static common observables  
@@ -137,13 +147,17 @@ MODULE ED_IO
   end interface ed_get_density_matrix
 
   public :: ed_get_sigma_matsubara
-  public :: ed_get_sigma_real
+  public :: ed_get_sigma_realaxis
 
   public :: ed_get_gimp_matsubara
-  public :: ed_get_gimp_real
+  public :: ed_get_gimp_realaxis
 
   public :: ed_get_g0imp_matsubara
-  public :: ed_get_g0imp_real
+  public :: ed_get_g0imp_realaxis
+
+  public :: ed_get_delta_function
+  public :: ed_get_g0and_function
+  public :: ed_get_invg0_function
 
   public :: ed_get_dens
   public :: ed_get_mag
@@ -196,21 +210,23 @@ contains
   !+--------------------------------------------------------------------------+!
   ! PURPOSE: Retrieve measured values of the impurity self-energy 
   !+--------------------------------------------------------------------------+!
-  include "ED_IO/get_sigma_matsubara.f90"
-  include "ED_IO/get_sigma_realaxis.f90"
+  include "ED_IO/get_sigma.f90"
 
 
   !+--------------------------------------------------------------------------+!
   ! PURPOSE: Retrieve measured values of the impurity green's functions 
   !+--------------------------------------------------------------------------+!
-  include "ED_IO/get_gimp_matsubara.f90"
-  include "ED_IO/get_gimp_realaxis.f90"
+  include "ED_IO/get_gimp.f90"
 
   !+--------------------------------------------------------------------------+!
   ! PURPOSE: Retrieve measured values of the impurity green's functions 
   !+--------------------------------------------------------------------------+!
-  include "ED_IO/get_g0imp_matsubara.f90"
-  include "ED_IO/get_g0imp_realaxis.f90"
+  include "ED_IO/get_g0imp.f90"
+
+  !+--------------------------------------------------------------------------+!
+  ! PURPOSE: Retrieve Anderson non-interacting green's functions 
+  !+--------------------------------------------------------------------------+!
+  include "ED_IO/get_gand_bath.f90"
 
 
   !+--------------------------------------------------------------------------+!

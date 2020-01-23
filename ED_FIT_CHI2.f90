@@ -6,8 +6,9 @@ MODULE ED_FIT_CHI2
   USE SF_ARRAYS,   only:arange
   USE SF_MISC,     only:assert_shape 
   USE ED_INPUT_VARS
-  USE ED_VARS_GLOBAL
+  USE ED_VARS_GLOBAL  
   USE ED_AUX_FUNX
+  USE ED_HLOC_DECOMPOSITION
   USE ED_BATH
   USE ED_BATH_FUNCTIONS
 #ifdef _MPI
@@ -46,7 +47,11 @@ MODULE ED_FIT_CHI2
   logical                               :: MPI_MASTER=.true.
   integer                               :: MPI_IERR
 
-
+  integer,dimension(:),allocatable      :: Nlambdas
+  !
+  type nsymm_vector
+     real(8),dimension(:),allocatable   :: element          
+  end type nsymm_vector
 
 contains
 

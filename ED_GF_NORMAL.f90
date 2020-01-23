@@ -33,8 +33,9 @@ contains
   !                        NORMAL
   !+------------------------------------------------------------------+
   subroutine build_gf_normal()
-    integer :: iorb,jorb,ispin,i
-    logical :: MaskBool
+    integer                                     :: iorb,jorb,ispin,i
+    logical                                     :: MaskBool
+    logical(8),dimension(Nspin,Nspin,Norb,Norb) :: Hmask
     !
 
     do ispin=1,Nspin
@@ -52,11 +53,12 @@ contains
     enddo
     !
     if(offdiag_gf_flag)then
+       Hmask=mask_hloc(impHloc,wdiag=.true.,uplo=.true.)
        do ispin=1,Nspin
           do iorb=1,Norb
              do jorb=iorb+1,Norb
                 MaskBool=.true.   
-                if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
+                if(bath_type=="replica")MaskBool=Hmask(ispin,ispin,iorb,jorb)
                 if(.not.MaskBool)cycle
                 !
                 write(LOGfile,"(A)")"Get G_l"//str(iorb)//"_m"//str(jorb)//"_s"//str(ispin)
@@ -81,7 +83,7 @@ contains
                 do jorb=iorb+1,Norb
                    !if(hybrid)always T; if(replica)T iff following condition is T
                    MaskBool=.true.   
-                   if(bath_type=="replica")MaskBool=(dmft_bath%mask(ispin,ispin,iorb,jorb))
+                   if(bath_type=="replica")MaskBool=Hmask(ispin,ispin,iorb,jorb)
                    !
                    if(.not.MaskBool)cycle
                    impGmats(ispin,ispin,iorb,jorb,:) = 0.5d0*(impGmats(ispin,ispin,iorb,jorb,:) &
@@ -882,8 +884,8 @@ contains
     invGreal  = zero
     !
     !Get G0^-1
-    invG0mats(:,:,:,:,:) = invg0_bath_mats(dcmplx(0d0,wm(:)),dmft_bath)
-    invG0real(:,:,:,:,:) = invg0_bath_real(dcmplx(wr(:),eps),dmft_bath)
+    invG0mats(:,:,:,:,:) = invg0_bath_function(dcmplx(0d0,wm(:)),dmft_bath)
+    invG0real(:,:,:,:,:) = invg0_bath_function(dcmplx(wr(:),eps),dmft_bath)
     !
     select case(bath_type)
     case default                !Diagonal in both spin and orbital
@@ -933,8 +935,8 @@ contains
     end select
     !
     !Get G0and:
-    impG0mats(:,:,:,:,:) = g0and_bath_mats(dcmplx(0d0,wm(:)),dmft_bath)
-    impG0real(:,:,:,:,:) = g0and_bath_real(dcmplx(wr(:),eps),dmft_bath)
+    impG0mats(:,:,:,:,:) = g0and_bath_function(dcmplx(0d0,wm(:)),dmft_bath)
+    impG0real(:,:,:,:,:) = g0and_bath_function(dcmplx(wr(:),eps),dmft_bath)
     !!
     !
   end subroutine build_sigma_normal

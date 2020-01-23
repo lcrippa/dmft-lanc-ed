@@ -18,33 +18,18 @@ MODULE ED_HAMILTONIAN_SPARSE_HxV
   public  :: spMatVec_MPI_orbs
 #endif
 
-
-  integer                              :: i,iup,idw
-  integer                              :: j,jup,jdw
-  integer                              :: m,mup,mdw
-  integer                              :: ms,iud
-  integer                              :: impi
-  integer                              :: iorb,jorb,ispin,jspin,ibath
-  integer                              :: kp,k1,k2,k3,k4
-  integer                              :: ialfa,ibeta,indx
-  real(8)                              :: sg1,sg2,sg3,sg4
-  real(8)                              :: htmp,htmpup,htmpdw
-  logical                              :: Jcondition
-  integer                              :: Nfoo
-  real(8),dimension(:,:,:),allocatable :: diag_hybr ![Nspin,Norb,Nbath]
-  real(8),dimension(:,:,:),allocatable :: bath_diag ![Nspin,Norb/1,Nbath]
-
-
+  
 contains
 
 
   subroutine ed_buildh_main(isector,Hmat)
-    integer                              :: isector   
-    real(8),dimension(:,:),optional      :: Hmat
-    real(8),dimension(:,:),allocatable   :: Htmp_up,Htmp_dw,Hrdx
-    integer,dimension(2*Ns_Ud)           :: Indices    ![2-2*Norb]
-    integer,dimension(Ns_Ud,Ns_Orb)      :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)                :: Nup,Ndw    ![Ns]
+    integer                                        :: isector   
+    real(8),dimension(:,:),optional                :: Hmat
+    real(8),dimension(:,:),allocatable             :: Htmp_up,Htmp_dw,Hrdx
+    integer,dimension(2*Ns_Ud)                     :: Indices    ![2-2*Norb]
+    integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)                          :: Nup,Ndw    ![Ns]
+    real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
 #ifdef _MPI
     if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
@@ -57,7 +42,36 @@ contains
          call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_main","Hmat")
     !
     !Get diagonal hybridization, bath energy
-    include "ED_HAMILTONIAN/diag_hybr_bath.f90"
+    if(allocated(diag_hybr))deallocate(diag_hybr)
+    if(allocated(bath_diag))deallocate(bath_diag)
+    select case (bath_type)
+    case default
+       Nfoo = size(dmft_bath%e,2)
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0       
+       do ibath=1,Nbath
+          do ispin=1,Nspin             
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             enddo
+             do iorb=1,Nfoo
+                bath_diag(ispin,iorb,ibath)=dmft_bath%e(ispin,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    case ("replica")
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
+       do ibath=1,Nbath
+          Hbath_tmp(:,:,:,:,ibath) = bath_from_sym(dmft_bath%item(ibath)%lambda)
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+                bath_diag(ispin,iorb,ibath)=Hbath_tmp(ispin,ispin,iorb,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    end select
     !
     !
 #ifdef _MPI
@@ -143,14 +157,15 @@ contains
 
 
   subroutine ed_buildh_orbs(isector,Hmat)
-    integer                            :: isector
-    integer                            :: mDimUp,mDimDw
-    real(8),dimension(:,:),optional    :: Hmat
-    integer,dimension(2*Ns_Ud)         :: Indices,Jndices
-    integer,dimension(Ns_Ud,Ns_Orb)    :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)              :: Nup,Ndw    ![Ns]
-    integer                            :: i,j,jj,iud
-    integer                            :: iup,idw,jup,jdw
+    integer                                        :: isector
+    integer                                        :: mDimUp,mDimDw
+    real(8),dimension(:,:),optional                :: Hmat
+    integer,dimension(2*Ns_Ud)                     :: Indices,Jndices
+    integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)                          :: Nup,Ndw    ![Ns]
+    integer                                        :: i,j,jj,iud
+    integer                                        :: iup,idw,jup,jdw
+    real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
 #ifdef _MPI
     if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
@@ -163,7 +178,36 @@ contains
          call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_main","Hmat")
     !
     !Get diagonal hybridization, bath energy
-    include "ED_HAMILTONIAN/diag_hybr_bath.f90"
+    if(allocated(diag_hybr))deallocate(diag_hybr)
+    if(allocated(bath_diag))deallocate(bath_diag)
+    select case (bath_type)
+    case default
+       Nfoo = size(dmft_bath%e,2)
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Nfoo,Nbath));bath_diag=0d0       
+       do ibath=1,Nbath
+          do ispin=1,Nspin             
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%v(ispin,iorb,ibath)
+             enddo
+             do iorb=1,Nfoo
+                bath_diag(ispin,iorb,ibath)=dmft_bath%e(ispin,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    case ("replica")
+       allocate(diag_hybr(Nspin,Norb,Nbath));diag_hybr=0d0
+       allocate(bath_diag(Nspin,Norb,Nbath));bath_diag=0d0
+       do ibath=1,Nbath
+          Hbath_tmp(:,:,:,:,ibath) = bath_from_sym(dmft_bath%item(ibath)%lambda)
+          do ispin=1,Nspin
+             do iorb=1,Norb
+                diag_hybr(ispin,iorb,ibath)=dmft_bath%item(ibath)%v(ispin)
+                bath_diag(ispin,iorb,ibath)=Hbath_tmp(ispin,ispin,iorb,iorb,ibath)
+             enddo
+          enddo
+       enddo
+    end select
     !
     !
 #ifdef _MPI

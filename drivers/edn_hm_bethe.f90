@@ -109,7 +109,7 @@ program hm_Nbands_bethe
      !Solve the EFFECTIVE IMPURITY PROBLEM (first w/ a guess for the bath)
      call ed_solve(comm,bath)
      call ed_get_sigma_matsubara(Smats)
-     call ed_get_sigma_real(Sreal)
+     call ed_get_sigma_realaxis(Sreal)
      !
      ! compute the local gf:
      call dmft_gloc_matsubara(comm,Ebands,Dbands,H0,Gmats,Smats)

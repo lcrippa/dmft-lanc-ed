@@ -30,3 +30,4 @@ ed_hamiltonian_direct_hxv.mod
 ed_hamiltonian_sparse_hxv.mod
 tmp.f90
 build
+build_laptop

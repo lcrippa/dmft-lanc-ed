@@ -10,15 +10,15 @@ MODULE ED_AUX_FUNX
   private
 
 
-  interface set_Hloc
-     module procedure set_Hloc_so
-     module procedure set_Hloc_nn
-  end interface set_Hloc
+  ! interface set_Hloc
+  !    module procedure set_Hloc_so
+  !    module procedure set_Hloc_nn
+  ! end interface set_Hloc
 
-  interface print_Hloc
-     module procedure print_Hloc_so
-     module procedure print_Hloc_nn
-  end interface print_Hloc
+  ! interface print_Hloc
+  !    module procedure print_Hloc_so
+  !    module procedure print_Hloc_nn
+  ! end interface print_Hloc
 
 
   interface lso2nnn_reshape
@@ -43,8 +43,10 @@ MODULE ED_AUX_FUNX
 
 
 
-  public :: set_Hloc
-  public :: print_Hloc
+  public :: index_stride_so
+  !
+  ! public :: set_Hloc
+  ! public :: print_Hloc
   !
   public :: lso2nnn_reshape
   public :: so2nn_reshape
@@ -56,89 +58,93 @@ MODULE ED_AUX_FUNX
 
   public :: allocate_grids
   public :: deallocate_grids
-  
+
 contains
 
 
 
+  !MOVED TO ED_HLOC_DECOMPOSITION  
+  ! !##################################################################
+  ! !                   HLOC ROUTINES
+  ! !##################################################################
+  ! !+------------------------------------------------------------------+
+  ! !PURPOSE  : Print Hloc
+  ! !+------------------------------------------------------------------+
+  ! subroutine print_Hloc_nn(hloc,file)![Nspin][Nspin][Norb][Norb]
+  !   real(8),dimension(Nspin,Nspin,Norb,Norb) :: hloc
+  !   character(len=*),optional     :: file
+  !   integer                       :: iorb,jorb,ispin,jspin
+  !   integer                       :: unit
+  !   unit=LOGfile
+  !   if(present(file))then
+  !      open(free_unit(unit),file=reg(file))
+  !      write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
+  !   endif
+  !   do ispin=1,Nspin
+  !      do iorb=1,Norb
+  !         write(unit,"(20(F7.3,2x))")&
+  !              ((Hloc(ispin,jspin,iorb,jorb),jorb =1,Norb),jspin=1,Nspin)
+  !      enddo
+  !   enddo
+  !   write(unit,*)""
+  !   if(present(file))close(unit)
+  ! end subroutine print_Hloc_nn
 
-  !##################################################################
-  !                   HLOC ROUTINES
-  !##################################################################
-  !+------------------------------------------------------------------+
-  !PURPOSE  : Print Hloc
-  !+------------------------------------------------------------------+
-  subroutine print_Hloc_nn(hloc,file)![Nspin][Nspin][Norb][Norb]
-    real(8),dimension(Nspin,Nspin,Norb,Norb) :: hloc
-    character(len=*),optional     :: file
-    integer                       :: iorb,jorb,ispin,jspin
-    integer                       :: unit
-    unit=LOGfile
-    if(present(file))then
-       open(free_unit(unit),file=reg(file))
-       write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
-    endif
-    do ispin=1,Nspin
-       do iorb=1,Norb
-          write(unit,"(20(F7.3,2x))")&
-               ((Hloc(ispin,jspin,iorb,jorb),jorb =1,Norb),jspin=1,Nspin)
-       enddo
-    enddo
-    write(unit,*)""
-    if(present(file))close(unit)
-  end subroutine print_Hloc_nn
-
-  subroutine print_Hloc_so(hloc,file) ![Nlso][Nlso]
-    real(8),dimension(Nspin*Norb,Nspin*Norb) :: hloc
-    character(len=*),optional                :: file
-    integer                                  :: iorb,jorb,unit,Nso
-    unit=LOGfile
-    if(present(file))then
-       open(free_unit(unit),file=reg(file))
-       write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
-    endif
-    !
-    Nso = Nspin*Norb
-    do iorb=1,Nso
-       write(unit,"(20(F7.3,2x))")(Hloc(iorb,jorb),jorb =1,Nso)
-    enddo
-    write(unit,*)""
-    if(present(file))close(unit)
-  end subroutine print_Hloc_so
-
-
+  ! subroutine print_Hloc_so(hloc,file) ![Nlso][Nlso]
+  !   real(8),dimension(Nspin*Norb,Nspin*Norb) :: hloc
+  !   character(len=*),optional                :: file
+  !   integer                                  :: iorb,jorb,unit,Nso
+  !   unit=LOGfile
+  !   if(present(file))then
+  !      open(free_unit(unit),file=reg(file))
+  !      write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
+  !   endif
+  !   !
+  !   Nso = Nspin*Norb
+  !   do iorb=1,Nso
+  !      write(unit,"(20(F7.3,2x))")(Hloc(iorb,jorb),jorb =1,Nso)
+  !   enddo
+  !   write(unit,*)""
+  !   if(present(file))close(unit)
+  ! end subroutine print_Hloc_so
 
 
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : Set Hloc to impHloc
-  !+------------------------------------------------------------------+
-  subroutine set_Hloc_nn(hloc)
-    complex(8),dimension(:,:,:,:) :: Hloc
-    call assert_shape(Hloc,[Nspin,Nspin,Norb,Norb],"set_Hloc_nn","Hloc")
-    !
-    impHloc = dreal(Hloc)
-    !
-    write(LOGfile,"(A)")"Updated impHloc:"
-    if(ed_verbose>2)call print_Hloc(impHloc)
-  end subroutine set_Hloc_nn
-  !
-  subroutine set_Hloc_so(Hloc)
-    complex(8),dimension(:,:) :: hloc
-    call assert_shape(Hloc,[Nspin*Norb,Nspin*Norb],"set_Hloc_so","Hloc")
-    !
-    impHloc = so2nn_reshape(dreal(Hloc),Nspin,Norb)
-    !
-    write(LOGfile,"(A)")"Updated impHloc:"
-    if(ed_verbose>2)call print_Hloc(impHloc)
-  end subroutine set_Hloc_so
+  ! !+------------------------------------------------------------------+
+  ! !PURPOSE  : Set Hloc to impHloc
+  ! !+------------------------------------------------------------------+
+  ! subroutine set_Hloc_nn(hloc)
+  !   complex(8),dimension(:,:,:,:) :: Hloc
+  !   call assert_shape(Hloc,[Nspin,Nspin,Norb,Norb],"set_Hloc_nn","Hloc")
+  !   !
+  !   impHloc = dreal(Hloc)
+  !   !
+  !   write(LOGfile,"(A)")"Updated impHloc:"
+  !   if(ed_verbose>2)call print_Hloc(impHloc)
+  ! end subroutine set_Hloc_nn
+  ! !
+  ! subroutine set_Hloc_so(Hloc)
+  !   complex(8),dimension(:,:) :: hloc
+  !   call assert_shape(Hloc,[Nspin*Norb,Nspin*Norb],"set_Hloc_so","Hloc")
+  !   !
+  !   impHloc = so2nn_reshape(dreal(Hloc),Nspin,Norb)
+  !   !
+  !   write(LOGfile,"(A)")"Updated impHloc:"
+  !   if(ed_verbose>2)call print_Hloc(impHloc)
+  ! end subroutine set_Hloc_so
 
 
 
 
 
 
+
+  !> Get stride position in the one-particle many-body space 
+  function index_stride_so(ispin,iorb) result(indx)
+    integer :: iorb
+    integer :: ispin
+    integer :: indx
+    indx = iorb  + (ispin-1)*Norb
+  end function index_stride_so
 
 
 

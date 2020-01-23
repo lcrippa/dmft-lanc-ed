@@ -16,16 +16,17 @@
 !PURPOSE  : Chi^2 interface for Irreducible bath normal phase
 !+-------------------------------------------------------------+
 subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
-  complex(8),dimension(:,:,:)        :: fg ![Norb][Norb][Lmats]
-  real(8),dimension(:),intent(inout) :: bath_
-  integer                            :: ispin
-  real(8),dimension(:),allocatable   :: array_bath
-  integer                            :: iter,stride,iorb,i,io,j,Asize
-  real(8)                            :: chi
-  logical                            :: check
-  type(effective_bath)               :: dmft_bath
-  character(len=256)                 :: suffix
-  integer                            :: unit
+  complex(8),dimension(:,:,:)                 :: fg ![Norb][Norb][Lmats]
+  real(8),dimension(:),intent(inout)          :: bath_
+  integer                                     :: ispin
+  real(8),dimension(:),allocatable            :: array_bath
+  integer                                     :: iter,stride,iorb,i,io,j,Asize
+  real(8)                                     :: chi
+  logical                                     :: check
+  type(effective_bath)                        :: dmft_bath
+  character(len=256)                          :: suffix
+  integer                                     :: unit
+  complex(8),dimension(:,:,:,:,:),allocatable :: fgand ![Nspin][][Norb][][Ldelta]
   !
   if(size(fg,1)/=Norb)stop "chi2_fitgf_normal_normal error: size[fg,1]!=Norb"
   if(size(fg,2)/=Norb)stop "chi2_fitgf_normal_normal error: size[fg,2]!=Norb"
@@ -139,7 +140,15 @@ subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
   !
   call save_dmft_bath(dmft_bath)
   !
+  allocate(fgand(Nspin,Nspin,Norb,Norb,Ldelta))
+  if(cg_scheme=='weiss')then
+     fgand = g0and_bath_function(xi*Xdelta(:),dmft_bath)
+  else
+     fgand = delta_bath_function(xi*Xdelta(:),dmft_bath)
+  endif
   call write_fit_result(ispin)
+  deallocate(fgand)
+  !
   call get_dmft_bath(dmft_bath,bath_)
   call deallocate_dmft_bath(dmft_bath)
   deallocate(Gdelta,Xdelta,Wdelta)
@@ -147,22 +156,19 @@ subroutine chi2_fitgf_normal_normal_AllOrb(fg,bath_,ispin)
 contains
   !
   subroutine write_fit_result(ispin)
-    complex(8)        :: fgand(Ldelta)
-    integer           :: i,j,iorb,ispin
-    real(8)           :: w
+    integer           :: i,iorb,ispin
     do iorb=1,Norb
        suffix="_orb"//reg(txtfy(iorb))//"_s"//reg(txtfy(ispin))//reg(ed_file_suffix)
-       Gdelta(1,1:Ldelta) = fg(iorb,iorb,1:Ldelta)
        unit=free_unit()
        if(cg_scheme=='weiss')then
           open(unit,file="fit_weiss"//reg(suffix)//".ed")
-          fgand = g0and_bath_mats(ispin,ispin,iorb,iorb,xi*Xdelta(:),dmft_bath)
        else
           open(unit,file="fit_delta"//reg(suffix)//".ed")
-          fgand = delta_bath_mats(ispin,ispin,iorb,iorb,xi*Xdelta(:),dmft_bath)
        endif
        do i=1,Ldelta
-          write(unit,"(5F24.15)")Xdelta(i),dimag(Gdelta(1,i)),dimag(fgand(i)),dreal(Gdelta(1,i)),dreal(fgand(i))
+          write(unit,"(5F24.15)")Xdelta(i),&
+               dimag(fg(iorb,iorb,i)),dimag(fgand(ispin,ispin,iorb,iorb,i)),&
+               dreal(fg(iorb,iorb,i)),dreal(fgand(ispin,ispin,iorb,iorb,i))
        enddo
        close(unit)
     enddo
@@ -174,16 +180,17 @@ end subroutine chi2_fitgf_normal_normal_AllOrb
 
 
 subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
-  complex(8),dimension(:,:,:)        :: fg ![Norb][Norb][Lmats]
-  real(8),dimension(:),intent(inout) :: bath_
-  integer                            :: ispin,iorb
-  real(8),dimension(:),allocatable   :: array_bath
-  integer                            :: iter,stride,i,io,j,Asize
-  real(8)                            :: chi
-  logical                            :: check
-  type(effective_bath)               :: dmft_bath
-  character(len=256)                 :: suffix
-  integer                            :: unit
+  complex(8),dimension(:,:,:)                 :: fg ![Norb][Norb][Lmats]
+  real(8),dimension(:),intent(inout)          :: bath_
+  integer                                     :: ispin,iorb
+  real(8),dimension(:),allocatable            :: array_bath
+  integer                                     :: iter,stride,i,io,j,Asize
+  real(8)                                     :: chi
+  logical                                     :: check
+  type(effective_bath)                        :: dmft_bath
+  character(len=256)                          :: suffix
+  integer                                     :: unit
+  complex(8),dimension(:,:,:,:,:),allocatable :: fgand ![Nspin][][Norb][][Ldelta]
   !
   if(size(fg,1)/=Norb)stop "chi2_fitgf_normal_normal error: size[fg,1]!=Norb"
   if(size(fg,2)/=Norb)stop "chi2_fitgf_normal_normal error: size[fg,2]!=Norb"
@@ -294,7 +301,15 @@ subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
   !
   call save_dmft_bath(dmft_bath)
   !
+  allocate(fgand(Nspin,Nspin,Norb,Norb,Ldelta))
+  if(cg_scheme=='weiss')then
+     fgand = g0and_bath_function(xi*Xdelta(:),dmft_bath)
+  else
+     fgand = delta_bath_function(xi*Xdelta(:),dmft_bath)
+  endif
   call write_fit_result(ispin,iorb)
+  deallocate(fgand)
+  !
   call get_dmft_bath(dmft_bath,bath_)
   call deallocate_dmft_bath(dmft_bath)
   deallocate(Gdelta,Xdelta,Wdelta)
@@ -302,21 +317,18 @@ subroutine chi2_fitgf_normal_normal_OneOrb(fg,bath_,ispin,iorb)
 contains
   !
   subroutine write_fit_result(ispin,iorb)
-    complex(8)        :: fgand(Ldelta)
     integer           :: i,j,iorb,ispin
-    real(8)           :: w
     suffix="_orb"//reg(txtfy(iorb))//"_s"//reg(txtfy(ispin))//reg(ed_file_suffix)
-    Gdelta(1,1:Ldelta) = fg(iorb,iorb,1:Ldelta)
     unit=free_unit()
     if(cg_scheme=='weiss')then
        open(unit,file="fit_weiss"//reg(suffix)//".ed")
-       fgand = g0and_bath_mats(ispin,ispin,iorb,iorb,xi*Xdelta(:),dmft_bath)
     else
        open(unit,file="fit_delta"//reg(suffix)//".ed")
-       fgand = delta_bath_mats(ispin,ispin,iorb,iorb,xi*Xdelta(:),dmft_bath)
     endif
     do i=1,Ldelta
-       write(unit,"(5F24.15)")Xdelta(i),dimag(Gdelta(1,i)),dimag(fgand(i)),dreal(Gdelta(1,i)),dreal(fgand(i))
+       write(unit,"(5F24.15)")Xdelta(i),&
+            dimag(fg(iorb,iorb,i)),dimag(fgand(ispin,ispin,iorb,iorb,i)),&
+            dreal(fg(iorb,iorb,i)),dreal(fgand(ispin,ispin,iorb,iorb,i))
     enddo
     close(unit)
   end subroutine write_fit_result

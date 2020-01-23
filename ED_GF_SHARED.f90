@@ -8,6 +8,7 @@ MODULE ED_GF_SHARED
   USE ED_VARS_GLOBAL
   USE ED_IO                     !< this contains the routine to print GF,Sigma and G0
   USE ED_EIGENSPACE
+  USE ED_BATH
   USE ED_BATH_FUNCTIONS
   USE ED_SETUP
   USE ED_HAMILTONIAN

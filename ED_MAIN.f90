@@ -3,6 +3,7 @@ module ED_MAIN
   USE ED_VARS_GLOBAL
   USE ED_EIGENSPACE, only: state_list,es_delete_espace,delete_eigenspace
   USE ED_AUX_FUNX
+  USE ED_HLOC_DECOMPOSITION
   USE ED_SETUP
   USE ED_BATH
   USE ED_HAMILTONIAN
@@ -80,7 +81,6 @@ contains
     bath = 0d0
     !
     call allocate_dmft_bath(dmft_bath)
-    if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call init_dmft_bath(dmft_bath)
     call get_dmft_bath(dmft_bath,bath)
     !
@@ -119,7 +119,6 @@ contains
     bath = 0d0
     !
     call allocate_dmft_bath(dmft_bath)
-    if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call init_dmft_bath(dmft_bath)
     !call write_dmft_bath(dmft_bath,LOGfile)
     call get_dmft_bath(dmft_bath,bath)
@@ -248,7 +247,6 @@ contains
     if(.not.check)stop "ED_SOLVE_SINGLE Error: wrong bath dimensions"
     !
     call allocate_dmft_bath(dmft_bath)
-    if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call set_dmft_bath(bath,dmft_bath)
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MpiMaster)call save_dmft_bath(dmft_bath,used=.true.)
@@ -295,7 +293,6 @@ contains
     if(.not.check)stop "ED_SOLVE_SINGLE Error: wrong bath dimensions"
     !
     call allocate_dmft_bath(dmft_bath)
-    if(bath_type=="replica")call init_dmft_bath_mask(dmft_bath)
     call set_dmft_bath(bath,dmft_bath)
     call write_dmft_bath(dmft_bath,LOGfile)
     if(MpiMaster)call save_dmft_bath(dmft_bath,used=.true.)

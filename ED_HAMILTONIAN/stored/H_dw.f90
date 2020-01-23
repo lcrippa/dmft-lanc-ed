@@ -32,14 +32,14 @@
                  ialfa = getBathStride(iorb,kp)
                  ibeta = getBathStride(jorb,kp)
                  Jcondition = &
-                      (dmft_bath%h(Nspin,Nspin,iorb,jorb,kp)/=zero) &
+                      (hbath_tmp(Nspin,Nspin,iorb,jorb,kp)/=zero) &
                       .AND. (Ndw(ibeta)==1) .AND. (Ndw(ialfa)==0)
                  !
                  if (Jcondition)then
                     call c(ibeta,mdw,k1,sg1)
                     call cdg(ialfa,k1,k2,sg2)
                     idw = binary_search(Hs(2)%map,k2)
-                    htmp = dmft_bath%h(Nspin,Nspin,iorb,jorb,kp)*sg1*sg2
+                    htmp = hbath_tmp(Nspin,Nspin,iorb,jorb,kp)*sg1*sg2
                     !
                     call sp_insert_element(spH0dws(1),htmp,idw,jdw)
                     !
