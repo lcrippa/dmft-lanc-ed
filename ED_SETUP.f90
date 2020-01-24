@@ -166,8 +166,8 @@ contains
     endif
     call sleep(1)
     !
-    allocate(impHloc(Nspin,Nspin,Norb,Norb))
-    impHloc=zero
+    ! allocate(impHloc(Nspin,Nspin,Norb,Norb))
+    ! impHloc=zero
     !
     allocate(spH0ups(Ns_Ud))
     allocate(spH0dws(Ns_Ud))

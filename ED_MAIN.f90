@@ -60,7 +60,7 @@ contains
   !+-----------------------------------------------------------------------------+!
   subroutine ed_init_solver_single(bath,Hloc)
     real(8),dimension(:),intent(inout) :: bath
-    complex(8),intent(in)              :: Hloc(Nspin,Nspin,Norb,Norb)
+    complex(8),intent(in),optional     :: Hloc(Nspin,Nspin,Norb,Norb)
     logical                            :: check 
     logical,save                       :: isetup=.true.
     integer                            :: i
@@ -73,9 +73,20 @@ contains
     if(isetup)call init_ed_structure()
     !
     !Init bath:
-    call set_Hloc(Hloc)
+    if(present(Hloc))then
+       if(bath_type/="replica")call set_Hloc(Hloc)
+    else
+       if(.not.allocated(impHloc))then
+          print*,"ed_init ERROR: impHloc not allocated. requires calling set_Hloc befor ed_init"
+          stop
+       endif
+    endif
     !
-    check = check_bath_dimension(bath,dreal(Hloc))
+    if(present(Hloc))then
+       check = check_bath_dimension(bath,dreal(Hloc))
+    else
+       check = check_bath_dimension(bath)
+    endif
     if(.not.check)stop "init_ed_solver_single error: wrong bath dimensions"
     !
     bath = 0d0
@@ -96,7 +107,7 @@ contains
   subroutine ed_init_solver_single_mpi(MpiComm,bath,Hloc)
     integer                            :: MpiComm
     real(8),dimension(:),intent(inout) :: bath
-    complex(8),intent(in)              :: Hloc(Nspin,Nspin,Norb,Norb)
+    complex(8),intent(in),optional     :: Hloc(Nspin,Nspin,Norb,Norb)
     logical                            :: check 
     logical,save                       :: isetup=.true.
     integer                            :: i
@@ -111,9 +122,20 @@ contains
     if(isetup)call init_ed_structure()
     !
     !Init bath:
-    call set_hloc(Hloc)
+    if(present(Hloc))then
+       if(bath_type/="replica")call set_Hloc(Hloc)
+    else
+       if(.not.allocated(impHloc))then
+          print*,"ed_init ERROR: impHloc not allocated. requires calling set_Hloc befor ed_init"
+          stop
+       endif
+    endif
     !
-    check = check_bath_dimension(bath,dreal(Hloc))
+    if(present(Hloc))then
+       check = check_bath_dimension(bath,dreal(Hloc))
+    else
+       check = check_bath_dimension(bath)
+    endif
     if(.not.check)stop "init_ed_solver_single error: wrong bath dimensions"
     !
     bath = 0d0
@@ -241,9 +263,13 @@ contains
     !
     if(MpiMaster)call save_input_file(str(ed_input_file))
     !
-    if(present(Hloc))call set_Hloc(Hloc)
+    if(present(Hloc).AND.(bath_type/="replica"))call set_Hloc(Hloc)
     !
-    check = check_bath_dimension(bath)
+    if(present(Hloc))then
+       check = check_bath_dimension(bath,dreal(Hloc))
+    else
+       check = check_bath_dimension(bath)
+    endif
     if(.not.check)stop "ED_SOLVE_SINGLE Error: wrong bath dimensions"
     !
     call allocate_dmft_bath(dmft_bath)
@@ -287,9 +313,13 @@ contains
     !
     if(MpiMaster)call save_input_file(str(ed_input_file))
     !
-    if(present(Hloc))call set_Hloc(Hloc)
+    if(present(Hloc).AND.(bath_type/="replica"))call set_Hloc(Hloc)
     !
-    check = check_bath_dimension(bath)
+    if(present(Hloc))then
+       check = check_bath_dimension(bath,dreal(Hloc))
+    else
+       check = check_bath_dimension(bath)
+    endif
     if(.not.check)stop "ED_SOLVE_SINGLE Error: wrong bath dimensions"
     !
     call allocate_dmft_bath(dmft_bath)

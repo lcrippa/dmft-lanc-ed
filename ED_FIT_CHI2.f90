@@ -47,8 +47,13 @@ MODULE ED_FIT_CHI2
   logical                               :: MPI_MASTER=.true.
   integer                               :: MPI_IERR
 
+  !This contains the number of the lambda expansion
+  !for each replica of the impurity
   integer,dimension(:),allocatable      :: Nlambdas
   !
+  !This is a dummy object which is used here to point
+  !to the replica bath lambdas, i.e. the coefficients
+  !of the bath item-th Hamiltonian expansion 
   type nsymm_vector
      real(8),dimension(:),allocatable   :: element          
   end type nsymm_vector

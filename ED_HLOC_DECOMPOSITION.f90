@@ -7,7 +7,6 @@ MODULE ED_HLOC_DECOMPOSITION
   private
 
 
-
   interface print_Hloc
      module procedure print_Hloc_so
      module procedure print_Hloc_nn

@@ -91,6 +91,27 @@ MODULE ED_BATH
 
 
 
+  !##################################################################
+  !
+  !     DMFT BATH ROUTINES:
+  !
+  !##################################################################
+  public  :: allocate_dmft_bath               !INTERNAL (for effective_bath)
+  public  :: deallocate_dmft_bath             !INTERNAL (for effective_bath)
+  public  :: init_dmft_bath                   !INTERNAL (for effective_bath)
+  public  :: write_dmft_bath                  !INTERNAL (for effective_bath)
+  public  :: save_dmft_bath                   !INTERNAL (for effective_bath)
+  public  :: set_dmft_bath                    !INTERNAL (for effective_bath)
+  public  :: get_dmft_bath                    !INTERNAL (for effective_bath)
+  public  :: bath_from_sym                    !INTERNAL (for effective_bath)
+  public  :: mask_hloc
+
+
+  !##################################################################
+  !
+  !     USER BATH ROUTINES:
+  !
+  !##################################################################
   public  :: get_bath_dimension
   public  :: check_bath_dimension
   !
@@ -110,31 +131,147 @@ MODULE ED_BATH
   public  :: ph_trans_bath
   public  :: ph_symmetrize_bath
 
-
-  !##################################################################
-  !
-  !     DMFT BATH ROUTINES:
-  !
-  !##################################################################
-  !PUBLIC   = transparent to the final user
-  !INTERNAL = opaque to the user but available for internal use in the code.
-  !
-  !DMFT BATH procedures:
-  public  :: allocate_dmft_bath               !INTERNAL (for effective_bath)
-  public  :: deallocate_dmft_bath             !INTERNAL (for effective_bath)
-  public  :: init_dmft_bath                   !INTERNAL (for effective_bath)
-  public  :: write_dmft_bath                  !INTERNAL (for effective_bath)
-  public  :: save_dmft_bath                   !INTERNAL (for effective_bath)
-  public  :: set_dmft_bath                    !INTERNAL (for effective_bath)
-  public  :: get_dmft_bath                    !INTERNAL (for effective_bath)
-  public  :: bath_from_sym                    !INTERNAL (for effective_bath)
-  public  :: mask_hloc
-
   integer :: ibath,ilat,iorb
 
 
 
 contains
+
+
+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : Inquire the correct bath size to allocate the 
+  ! the bath array in the calling program.
+  !
+  ! Get size of each dimension of the component array. 
+  ! The Result is an rank 1 integer array Ndim with dimension:
+  ! 3 for get_component_size_bath
+  ! 2 for get_spin_component_size_bath & get_orb_component_size_bath
+  ! 1 for get_spin_orb_component_size_bath
+  !+-------------------------------------------------------------------+
+  function get_bath_dimension_direct(Hloc_nn,ispin_) result(bath_size)
+    complex(8),optional,intent(in) :: Hloc_nn(:,:,:,:)
+    integer,optional               :: ispin_
+    integer                        :: bath_size,ndx,ispin,iorb,jspin,jorb,io,jo,counter
+    real(8),allocatable            :: Hloc(:,:,:,:)
+    select case(bath_type)
+    case default
+       !( e [Nspin][Norb][Nbath] + v [Nspin][Norb][Nbath] )
+       bath_size = Norb*Nbath + Norb*Nbath
+       if(.not.present(ispin_))bath_size=Nspin*bath_size
+       !
+       !
+    case('hybrid')
+       !(e [Nspin][1][Nbath] + v [Nspin][Norb][Nbath] )
+       bath_size = Nbath + Norb*Nbath
+       if(.not.present(ispin_))bath_size=Nspin*bath_size
+       !
+       !
+    case('replica')
+       !
+       if(present(Hloc_nn))then
+          allocate(Hloc(Nspin,Nspin,Norb,Norb));Hloc=dreal(Hloc_nn)
+       elseif(allocated(impHloc))then
+          allocate(Hloc(Nspin,Nspin,Norb,Norb));Hloc=impHloc
+       else
+          stop "ERROR: get_bath_dimension: bath_type=replica neither Hloc_nn present nor impHloc allocated"
+       endif
+       counter=0
+       !
+       !Real part of nonzero elements
+       do ispin=1,Nspin
+          do jspin=1,Nspin
+             do iorb=1,Norb
+                do jorb=1,Norb
+                   io=index_stride_so(ispin,iorb)
+                   jo=index_stride_so(jspin,jorb)
+                   if((Hloc(ispin,jspin,iorb,jorb).ne.0d0).and.(io.le.jo))then
+                      if(Hloc(ispin,jspin,iorb,jorb).ne.0.d0)counter=counter+1
+                   endif
+                enddo
+             enddo
+          enddo
+       enddo
+       ndx   = counter         !all elements
+       ndx   = ndx + 1         !we also print n_Dec
+       !
+       !number of non vanishing elements for each replica
+       ndx = ndx * Nbath
+       !diagonal hybridizations: Vs
+       ndx = ndx + Nbath
+       !
+       bath_size = ndx
+    end select
+  end function get_bath_dimension_direct
+
+  function get_bath_dimension_symmetries(Hloc_nn) result(bath_size)
+    real(8),dimension(:,:,:,:,:),intent(in) :: Hloc_nn
+    integer                                 :: bath_size,ndx,isym,Nsym
+    !
+    !number of symmetries
+    Nsym=size(Hloc_nn,5)
+    !
+    !add identity
+    ndx=Nsym
+    !
+    !for each replica we also print N_dec
+    ndx=ndx+1
+    !
+    !number of replicas
+    ndx = ndx * Nbath
+    !diagonal hybridizations: Vs
+    ndx = ndx + Nbath
+    !
+    bath_size = ndx
+    !
+  end function get_bath_dimension_symmetries
+
+
+  !+-------------------------------------------------------------------+
+  !PURPOSE  : Check if the dimension of the bath array are consistent
+  !+-------------------------------------------------------------------+
+  function check_bath_dimension(bath_,Hloc_nn) result(bool)
+    real(8),dimension(:)        :: bath_
+    integer                     :: Ntrue,i
+    logical                     :: bool
+    real(8),optional,intent(in) :: Hloc_nn(:,:,:,:)
+    real(8),allocatable         :: Hbasis_rebuild(:,:,:,:,:)![Nspin][:][Norb][:][Nsym]
+    select case (bath_type)
+    case default
+       if (present(Hloc_nn))then
+          Ntrue = get_bath_dimension(one*Hloc_nn)
+       else
+          Ntrue = get_bath_dimension()
+       endif
+    case ('replica')
+       if(.not.allocated(H_basis))STOP "check_bath_dimension: Hbasis not allocated"
+       if(.not.allocated(Hbasis_rebuild))allocate(Hbasis_rebuild(Nspin,Nspin,Norb,Norb,size(H_basis)))
+       do i=1,size(H_basis)
+          Hbasis_rebuild(:,:,:,:,i)=H_basis(i)%O
+       enddo
+       Ntrue   = get_bath_dimension(Hbasis_rebuild)
+    end select
+    bool  = ( size(bath_) == Ntrue )
+  end function check_bath_dimension
+
+
+
+
+
+
+  ! USER BATH ROUTINES:
+  include 'ED_BATH/user_aux.f90'
+
+
+
+  
+  ! DMFT BATH ROUTINES:
+  include 'ED_BATH/dmft_aux.f90'
+
+
+
+
+
 
 
   !+-------------------------------------------------------------------+
@@ -265,24 +402,6 @@ contains
     endif
     !
   end function mask_hloc
-
-
-
-  !##################################################################
-  !
-  !     USER BATH ROUTINES:
-  !
-  !##################################################################
-  include 'ED_BATH/user_aux.f90'
-
-  include 'ED_BATH/user_ctrl.f90'
-
-  !##################################################################
-  !
-  !     DMFT BATH ROUTINES:
-  !
-  !##################################################################
-  include 'ED_BATH/dmft_aux.f90'
 
 
 

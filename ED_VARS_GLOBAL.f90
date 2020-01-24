@@ -7,11 +7,11 @@ MODULE ED_VARS_GLOBAL
 #endif
   implicit none
 
+  
   !-------------------- H EXPANSION STRUCTURE ----------------------!
   type H_operator
-     real(8),dimension(:,:,:,:),allocatable               :: O          !Replica hamilt
+     real(8),dimension(:,:,:,:),allocatable                  :: O          !Replica hamilt
   end type H_operator
-
   type(H_operator),dimension(:),allocatable                  :: H_basis
   real(8),dimension(:),allocatable                           :: lambda_impHloc
 
@@ -20,7 +20,7 @@ MODULE ED_VARS_GLOBAL
   !-------------------- EFFECTIVE BATH STRUCTURE ----------------------!
   type effective_bath_component
      integer                                                 :: N_dec
-     real(8),dimension(:),allocatable                        :: v ![Nspin]
+     real(8),dimension(:),allocatable                        :: v     ![Nspin]
      real(8),dimension(:),allocatable                        :: lambda
   end type effective_bath_component
 

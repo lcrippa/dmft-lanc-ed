@@ -224,7 +224,6 @@ subroutine write_dmft_bath(dmft_bath_,unit)
   integer              :: i
   integer              :: io,jo,iorb,ispin,isym
   real(8)              :: hybr_aux
-  real(8)              :: hrep_aux_nn(Nspin,Nspin,Norb,Norb)
   real(8)              :: hrep_aux(Nspin*Norb,Nspin*Norb)
   !
   character(len=64)    :: string_fmt,string_fmt_first
@@ -260,7 +259,7 @@ subroutine write_dmft_bath(dmft_bath_,unit)
      !
   case ('replica')
      !
-     string_fmt      ="(A8,A5,"//str(Nspin*Norb)//"(F8.4,1X)"
+     string_fmt      ="(A8,A5,"//str(Nspin*Norb)//"(F8.4,1X))"
      !
      if(unit_==LOGfile)then
         if(Nspin*Norb.le.8)then
@@ -268,11 +267,9 @@ subroutine write_dmft_bath(dmft_bath_,unit)
            write(unit_,"(A8,A3,a5,90(A15,1X))")"V","||"," ","Re(H) | Im(H)"
            do ibath=1,Nbath
               write(unit_,"(A1)")" "
-              hrep_aux   = 0d0
-              hrep_aux_nn= bath_from_sym(dmft_bath%item(ibath)%lambda)
-              Hrep_aux   = nn2so_reshape(hrep_aux_nn,Nspin,Norb)
+              Hrep_aux   = nn2so_reshape( bath_from_sym(dmft_bath_%item(ibath)%lambda) ,Nspin,Norb)
               do ispin=1,Nspin
-                 write(unit_,"(F8.4)")dmft_bath%item(ibath)%v(ispin)
+                 write(unit_,"(F8.4)")dmft_bath_%item(ibath)%v(ispin)
               enddo
               do io=1,Nspin*Norb
                  write(unit_,string_fmt) "  "  ,"||  ",(hrep_aux(io,jo),jo=1,Nspin*Norb)
@@ -284,22 +281,22 @@ subroutine write_dmft_bath(dmft_bath_,unit)
            write(unit_,"(A8,A5,90(A8,1X))")"V"," ","lambdas"        
            do ibath=1,Nbath
               do ispin=1,Nspin
-                 write(unit_,"(F8.4)")dmft_bath%item(ibath)%v(ispin)
+                 write(unit_,"(F8.4)")dmft_bath_%item(ibath)%v(ispin)
               enddo
               write(unit_,"(A8,A5,90(F8.4,1X))")"","|   ",&
-                   (dmft_bath%item(ibath)%lambda(io),io=1,dmft_bath%item(ibath)%N_dec)
+                   (dmft_bath_%item(ibath)%lambda(io),io=1,dmft_bath_%item(ibath)%N_dec)
            enddo
         endif
      else
         do ibath=1,Nbath
            !write number of lambdas
-           write(unit,"(I3)")dmft_bath%item(ibath)%N_dec
+           write(unit,"(I3)")dmft_bath_%item(ibath)%N_dec
         enddo
         do ibath=1,Nbath
            do ispin=1,Nspin
-              write(unit,*)dmft_bath%item(ibath)%v(ispin)
+              write(unit,*)dmft_bath_%item(ibath)%v(ispin)
            enddo
-           write(unit,*)(dmft_bath%item(ibath)%lambda(jo),jo=1,dmft_bath%item(ibath)%N_dec)
+           write(unit,*)(dmft_bath_%item(ibath)%lambda(jo),jo=1,dmft_bath_%item(ibath)%N_dec)
         enddo
      endif
      !
@@ -323,7 +320,6 @@ subroutine save_dmft_bath(dmft_bath_,file,used)
   logical                   :: used_
   character(len=16)         :: extension
   integer                   :: unit_
-  ! if(ED_MPI_ID==0)then
   if(.not.dmft_bath_%status)stop "save_dmft_bath error: bath is not allocated"
   used_=.false.;if(present(used))used_=used
   extension=".restart";if(used_)extension=".used"
@@ -333,7 +329,6 @@ subroutine save_dmft_bath(dmft_bath_,file,used)
   open(unit_,file=str(file_))
   call write_dmft_bath(dmft_bath_,unit_)
   close(unit_)
-  ! endif
 end subroutine save_dmft_bath
 
 
@@ -399,27 +394,27 @@ subroutine set_dmft_bath(bath_,dmft_bath_)
      !
   case ('replica')
      !
-     do ibath=1,Nbath
-        dmft_bath%item(ibath)%N_dec = 0
-        dmft_bath%item(ibath)%v     = 0d0
-        dmft_bath%item(ibath)%lambda= 0d0
-     enddo
-     !
+     ! do ibath=1,Nbath
+     !    dmft_bath_%item(ibath)%N_dec = 0
+     !    dmft_bath_%item(ibath)%v     = 0d0
+     !    dmft_bath_%item(ibath)%lambda= 0d0
+     ! enddo
+     ! !
      stride = 0
      !Get N_dec
      do ibath=1,Nbath
         stride = stride + 1
-        dmft_bath%item(ibath)%N_dec=NINT(bath_(stride))
+        dmft_bath_%item(ibath)%N_dec=NINT(bath_(stride))
      enddo
      !Get N_dec
      !get Lambdas
      do ibath=1,Nbath
         do ispin=1,Nspin
            stride = stride + 1
-           dmft_bath%item(ibath)%v(ispin) = bath_(stride)
+           dmft_bath_%item(ibath)%v(ispin) = bath_(stride)
         enddo
-        dmft_bath%item(ibath)%lambda=bath_(stride+1 :stride+dmft_bath%item(ibath)%N_dec)
-        stride=stride+dmft_bath%item(ibath)%N_dec
+        dmft_bath_%item(ibath)%lambda=bath_(stride+1 :stride+dmft_bath_%item(ibath)%N_dec)
+        stride=stride+dmft_bath_%item(ibath)%N_dec
      enddo
   end select
 end subroutine set_dmft_bath
@@ -488,15 +483,15 @@ subroutine get_dmft_bath(dmft_bath_,bath_)
      stride = 0
      do ibath=1,Nbath
         stride = stride + 1
-        bath_(stride)=dmft_bath%item(ibath)%N_dec
+        bath_(stride)=dmft_bath_%item(ibath)%N_dec
      enddo
      do ibath=1,Nbath
         do ispin=1,Nspin
            stride = stride + 1
-           bath_(stride)=dmft_bath%item(ibath)%v(ispin)
+           bath_(stride)=dmft_bath_%item(ibath)%v(ispin)
         enddo
-        bath_(stride+1 : stride+dmft_bath%item(ibath)%N_dec)=dmft_bath%item(ibath)%lambda
-        stride=stride+dmft_bath%item(ibath)%N_dec
+        bath_(stride+1 : stride+dmft_bath_%item(ibath)%N_dec)=dmft_bath_%item(ibath)%lambda
+        stride=stride+dmft_bath_%item(ibath)%N_dec
      enddo
   end select
 end subroutine get_dmft_bath
