@@ -94,46 +94,40 @@ subroutine chi2_fitgf_replica(fg,bath_)
   !
   select case(cg_method)     !0=NR-CG[default]; 1=CG-MINIMIZE; 2=CG+
   case default
-     select case (cg_scheme)
-     case ("weiss")
-        call fmin_cg(array_bath,chi2_weiss_replica,&!grad_chi2_weiss_replica,&
-             iter,&
-             chi,&
-             itmax=cg_niter,&
-             ftol=cg_Ftol,&
-             istop=cg_stop,&
-             eps=cg_eps,iverbose=(ed_verbose>3))
-     case ("delta")
-        call fmin_cg(array_bath,chi2_delta_replica,&!grad_chi2_delta_replica,&
-             iter,&
-             chi,&
-             itmax=cg_niter,&
-             ftol=cg_Ftol,&
-             istop=cg_stop,&
-             eps=cg_eps,iverbose=(ed_verbose>3))
-     case default
-        stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
-     end select
+     if(cg_grad==0)then
+        select case (cg_scheme)
+        case ("weiss")
+           call fmin_cg(array_bath,chi2_weiss_replica,grad_chi2_weiss_replica,&
+                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+        case ("delta")
+           call fmin_cg(array_bath,chi2_delta_replica,grad_chi2_delta_replica,&
+                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+        case default
+           stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
+        end select
+     else
+        select case (cg_scheme)
+        case ("weiss")
+           call fmin_cg(array_bath,chi2_weiss_replica,&
+                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+        case ("delta")
+           call fmin_cg(array_bath,chi2_delta_replica,&
+                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+        case default
+           stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
+        end select
+     endif
+     !
      !
   case (1)
      select case (cg_scheme)
      case ("weiss")
         call fmin_cgminimize(array_bath,chi2_weiss_replica,&
-             iter,&
-             chi,&
-             itmax=cg_niter,&
-             ftol=cg_Ftol,&
-             new_version=cg_minimize_ver,&
-             hh_par=cg_minimize_hh,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,hh_par=cg_minimize_hh,&
              iverbose=(ed_verbose>3))
      case ("delta")
         call fmin_cgminimize(array_bath,chi2_delta_replica,&
-             iter,&
-             chi,&
-             itmax=cg_niter,&
-             ftol=cg_Ftol,&
-             new_version=cg_minimize_ver,&
-             hh_par=cg_minimize_hh,&
+             iter,chi,itmax=cg_niter,ftol=cg_Ftol,new_version=cg_minimize_ver,hh_par=cg_minimize_hh,&
              iverbose=(ed_verbose>3))
      case default
         stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
