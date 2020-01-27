@@ -185,30 +185,35 @@ contains
     allocate(sectors_mask(Nsectors))
     allocate(neigen_sector(Nsectors))
     !
-    !check finiteT
-    finiteT=.true.                    !assume doing finite T per default
-    if(lanc_nstates_total==1)then     !is you only want to keep 1 state
-       finiteT=.false.                !set to do zero temperature calculations
-       write(LOGfile,"(A)")"Required Lanc_nstates_total=1 => set T=0 calculation"
-    endif
-    !
-    !check whether lanc_nstates_sector and lanc_states are even (we do want to keep doublet among states)
-    if(finiteT)then
-       if(mod(lanc_nstates_sector,2)/=0)then
-          lanc_nstates_sector=lanc_nstates_sector+1
-          write(LOGfile,"(A,I10)")"Increased Lanc_nstates_sector:",lanc_nstates_sector
+    if(ed_diag_type=="lanc")then
+       !check finiteT
+       finiteT=.true.                    !assume doing finite T per default
+       if(lanc_nstates_total==1)then     !is you only want to keep 1 state
+          finiteT=.false.                !set to do zero temperature calculations
+          write(LOGfile,"(A)")"Required Lanc_nstates_total=1 => set T=0 calculation"
        endif
-       if(mod(lanc_nstates_total,2)/=0)then
-          lanc_nstates_total=lanc_nstates_total+1
-          write(LOGfile,"(A,I10)")"Increased Lanc_nstates_total:",lanc_nstates_total
-       endif
-       write(LOGfile,"(A)")"Lanczos FINITE temperature calculation:"
        !
-       write(LOGfile,"(A,I3)")"Nstates x Sector = ", lanc_nstates_sector
-       write(LOGfile,"(A,I3)")"Nstates   Total  = ", lanc_nstates_total
-       call sleep(1)
+       !check whether lanc_nstates_sector and lanc_states are even (we do want to keep doublet among states)
+       if(finiteT)then
+          if(mod(lanc_nstates_sector,2)/=0)then
+             lanc_nstates_sector=lanc_nstates_sector+1
+             write(LOGfile,"(A,I10)")"Increased Lanc_nstates_sector:",lanc_nstates_sector
+          endif
+          if(mod(lanc_nstates_total,2)/=0)then
+             lanc_nstates_total=lanc_nstates_total+1
+             write(LOGfile,"(A,I10)")"Increased Lanc_nstates_total:",lanc_nstates_total
+          endif
+          write(LOGfile,"(A)")"Lanczos FINITE temperature calculation:"
+          !
+          write(LOGfile,"(A,I3)")"Nstates x Sector = ", lanc_nstates_sector
+          write(LOGfile,"(A,I3)")"Nstates   Total  = ", lanc_nstates_total
+          call sleep(1)
+       else
+          write(LOGfile,"(A)")"Lanczos ZERO temperature calculation:"
+          call sleep(1)
+       endif
     else
-       write(LOGfile,"(A)")"Lanczos ZERO temperature calculation:"
+       write(LOGfile,"(A)")"Full ED finite T calculation"
        call sleep(1)
     endif
     !

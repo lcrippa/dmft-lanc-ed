@@ -430,20 +430,22 @@ contains
     !
     ndiff=ntmp-nread
     !
-    !Get 'charge compressibility"
-    if(count>1)chich = (ntmp-nold)/(var-var_old)
-    !
-    !Add here controls on chich: not to be too small....
-    if(chich<0.1d0)chich=0.1d0*chich/abs(chich)
-    !
-    !update chemical potential
-    var_new = var - ndiff/chich
-    !
-    !
-    !re-define variables:
-    nold    = ntmp
-    var_old = var
-    var     = var_new
+    if(ndiff<nerr)then
+       !Get 'charge compressibility"
+       if(count>1)chich = (ntmp-nold)/(var-var_old)
+       !
+       !Add here controls on chich: not to be too small....
+       if(chich<0.1d0)chich=0.1d0*chich/abs(chich)
+       !
+       !update chemical potential
+       var_new = var - ndiff/chich
+       !
+       !
+       !re-define variables:
+       nold    = ntmp
+       var_old = var
+       var     = var_new
+    endif
     !
     !Print information
     write(LOGfile,"(A9,F16.9,A,F15.9)")  "n    = ",ntmp,"| instead of",nread

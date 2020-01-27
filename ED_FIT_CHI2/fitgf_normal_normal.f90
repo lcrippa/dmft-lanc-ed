@@ -529,8 +529,7 @@ function grad_g0and_normal_normal(a) result(dG0and)
   real(8),dimension(:)                 :: a
   complex(8),dimension(Ldelta)         :: G0and,Delta
   complex(8),dimension(Ldelta,size(a)) :: dG0and,dDelta
-  integer                              :: i,k,ik,io,stride,iorb,ispin
-  complex(8)                           :: iw
+  integer                              :: k,iorb,ispin
   !
   iorb   = Orb_indx
   ispin  = Spin_indx
@@ -539,7 +538,7 @@ function grad_g0and_normal_normal(a) result(dG0and)
   dDelta = grad_delta_normal_normal(a)
   G0and  = xi*Xdelta + xmu - impHloc(ispin,ispin,iorb,iorb) - Delta
   do k=1,size(a)
-     dG0and(:,ik) = one/G0and/G0and*dDelta(:,ik)
+     dG0and(:,k) = one/G0and/G0and*dDelta(:,k)
   enddo
   !
 end function grad_g0and_normal_normal

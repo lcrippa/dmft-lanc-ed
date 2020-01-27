@@ -233,7 +233,7 @@ end function chi2_delta_replica
 function grad_chi2_delta_replica(a) result(dchi2)
   real(8),dimension(:)                                       :: a
   real(8),dimension(size(a))                                 :: dchi2
-  real(8),dimension(totNorb,size(a))                         :: df
+  real(8),dimension(totNso,size(a))                          :: df
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta)         :: Delta
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dDelta
   integer                                                    :: i,j,l,iorb,jorb,ispin,jspin
@@ -294,7 +294,7 @@ end function chi2_weiss_replica
 function grad_chi2_weiss_replica(a) result(dchi2)
   real(8),dimension(:)                                       :: a
   real(8),dimension(size(a))                                 :: dchi2
-  real(8),dimension(totNorb,size(a))                         :: df
+  real(8),dimension(totNso,size(a))                         :: df
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta)         :: g0and
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dg0and
   integer                                                    :: i,j,l,iorb,jorb,ispin,jspin
@@ -302,7 +302,7 @@ function grad_chi2_weiss_replica(a) result(dchi2)
   g0and  = g0and_replica(a)
   dg0and = grad_g0and_replica(a)
   !
-  do l=1,totNorb
+  do l=1,totNso
      iorb = getIorb(l)
      jorb = getJorb(l)
      ispin = getIspin(l)
