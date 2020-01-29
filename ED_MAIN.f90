@@ -256,10 +256,13 @@ contains
   !+-----------------------------------------------------------------------------+!
   !                              SINGLE SITE                                      !
   !+-----------------------------------------------------------------------------+!
-  subroutine ed_solve_single(bath,Hloc)
+  subroutine ed_solve_single(bath,Hloc,sflag)
     real(8),dimension(:),intent(in) :: bath
     complex(8),optional,intent(in)  :: Hloc(Nspin,Nspin,Norb,Norb)
-    logical                         :: check
+    logical,optional                :: sflag
+    logical                         :: check,iflag
+    !
+    iflag=.true. ;if(present(sflag))iflag=sflag
     !
     if(MpiMaster)call save_input_file(str(ed_input_file))
     !
@@ -280,8 +283,10 @@ contains
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
-    call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
-    call buildchi_impurity()            !build the local susceptibilities (spin [todo charge])
+    if(iflag)then
+       call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
+       call buildchi_impurity()            !build the local susceptibilities (spin [todo charge])
+    endif
     call observables_impurity()         !obtain impurity observables as thermal averages.          
     call local_energy_impurity()        !obtain the local energy of the effective impurity problem
     !
@@ -302,11 +307,14 @@ contains
   !+-----------------------------------------------------------------------------+!
   !                              SINGLE SITE                                      !
   !+-----------------------------------------------------------------------------+!
-  subroutine ed_solve_single_mpi(MpiComm,bath,Hloc)
+  subroutine ed_solve_single_mpi(MpiComm,bath,Hloc,sflag)
     integer                         :: MpiComm
     real(8),dimension(:),intent(in) :: bath
     complex(8),optional,intent(in)  :: Hloc(Nspin,Nspin,Norb,Norb)
-    logical                         :: check
+    logical,optional                :: sflag
+    logical                         :: check,iflag
+    !
+    iflag=.true. ;if(present(sflag))iflag=sflag
     !
     !SET THE LOCAL MPI COMMUNICATOR :
     call ed_set_MpiComm(MpiComm)
@@ -330,8 +338,10 @@ contains
     !
     !SOLVE THE QUANTUM IMPURITY PROBLEM:
     call diagonalize_impurity()         !find target states by digonalization of Hamiltonian
-    call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
-    call buildchi_impurity() !build the local susceptibilities (spin [todo charge])    
+    if(iflag)then
+       call buildgf_impurity()             !build the one-particle impurity Green's functions  & Self-energy
+       call buildchi_impurity() !build the local susceptibilities (spin [todo charge])
+    endif
     call observables_impurity()         !obtain impurity observables as thermal averages.
     call local_energy_impurity()        !obtain the local energy of the effective impurity problem
     !

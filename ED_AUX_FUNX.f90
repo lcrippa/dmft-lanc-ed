@@ -45,9 +45,6 @@ MODULE ED_AUX_FUNX
 
   public :: index_stride_so
   !
-  ! public :: set_Hloc
-  ! public :: print_Hloc
-  !
   public :: lso2nnn_reshape
   public :: so2nn_reshape
   public :: nnn2lso_reshape
@@ -60,79 +57,6 @@ MODULE ED_AUX_FUNX
   public :: deallocate_grids
 
 contains
-
-
-
-  !MOVED TO ED_HLOC_DECOMPOSITION  
-  ! !##################################################################
-  ! !                   HLOC ROUTINES
-  ! !##################################################################
-  ! !+------------------------------------------------------------------+
-  ! !PURPOSE  : Print Hloc
-  ! !+------------------------------------------------------------------+
-  ! subroutine print_Hloc_nn(hloc,file)![Nspin][Nspin][Norb][Norb]
-  !   real(8),dimension(Nspin,Nspin,Norb,Norb) :: hloc
-  !   character(len=*),optional     :: file
-  !   integer                       :: iorb,jorb,ispin,jspin
-  !   integer                       :: unit
-  !   unit=LOGfile
-  !   if(present(file))then
-  !      open(free_unit(unit),file=reg(file))
-  !      write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
-  !   endif
-  !   do ispin=1,Nspin
-  !      do iorb=1,Norb
-  !         write(unit,"(20(F7.3,2x))")&
-  !              ((Hloc(ispin,jspin,iorb,jorb),jorb =1,Norb),jspin=1,Nspin)
-  !      enddo
-  !   enddo
-  !   write(unit,*)""
-  !   if(present(file))close(unit)
-  ! end subroutine print_Hloc_nn
-
-  ! subroutine print_Hloc_so(hloc,file) ![Nlso][Nlso]
-  !   real(8),dimension(Nspin*Norb,Nspin*Norb) :: hloc
-  !   character(len=*),optional                :: file
-  !   integer                                  :: iorb,jorb,unit,Nso
-  !   unit=LOGfile
-  !   if(present(file))then
-  !      open(free_unit(unit),file=reg(file))
-  !      write(LOGfile,"(A)")"print_Hloc on file :"//reg(file)
-  !   endif
-  !   !
-  !   Nso = Nspin*Norb
-  !   do iorb=1,Nso
-  !      write(unit,"(20(F7.3,2x))")(Hloc(iorb,jorb),jorb =1,Nso)
-  !   enddo
-  !   write(unit,*)""
-  !   if(present(file))close(unit)
-  ! end subroutine print_Hloc_so
-
-
-  ! !+------------------------------------------------------------------+
-  ! !PURPOSE  : Set Hloc to impHloc
-  ! !+------------------------------------------------------------------+
-  ! subroutine set_Hloc_nn(hloc)
-  !   complex(8),dimension(:,:,:,:) :: Hloc
-  !   call assert_shape(Hloc,[Nspin,Nspin,Norb,Norb],"set_Hloc_nn","Hloc")
-  !   !
-  !   impHloc = dreal(Hloc)
-  !   !
-  !   write(LOGfile,"(A)")"Updated impHloc:"
-  !   if(ed_verbose>2)call print_Hloc(impHloc)
-  ! end subroutine set_Hloc_nn
-  ! !
-  ! subroutine set_Hloc_so(Hloc)
-  !   complex(8),dimension(:,:) :: hloc
-  !   call assert_shape(Hloc,[Nspin*Norb,Nspin*Norb],"set_Hloc_so","Hloc")
-  !   !
-  !   impHloc = so2nn_reshape(dreal(Hloc),Nspin,Norb)
-  !   !
-  !   write(LOGfile,"(A)")"Updated impHloc:"
-  !   if(ed_verbose>2)call print_Hloc(impHloc)
-  ! end subroutine set_Hloc_so
-
-
 
 
 
@@ -408,6 +332,7 @@ contains
     real(8),save          :: var_new
     real(8),save          :: var_old
     real(8)               :: var_sign
+    real(8)               :: delta_n,delta_v,chi_shift
     !
     real(8)               :: ndiff
     integer,save          :: count=0,totcount=0,i
@@ -421,6 +346,7 @@ contains
        chich = ndelta        !~0.2
        inquire(file="var_compressibility.restart",EXIST=bool)
        if(bool)then
+          write(LOGfile,"(A)")"Reading compressibility from file"
           open(free_unit(unit),file="var_compressibility.restart")
           read(unit,*)chich
           close(unit)
@@ -430,38 +356,53 @@ contains
     !
     ndiff=ntmp-nread
     !
-    if(ndiff<nerr)then
-       !Get 'charge compressibility"
-       if(count>1)chich = (ntmp-nold)/(var-var_old)
-       !
-       !Add here controls on chich: not to be too small....
-       if(chich<0.1d0)chich=0.1d0*chich/abs(chich)
-       !
-       !update chemical potential
-       var_new = var - ndiff/chich
-       !
-       !
-       !re-define variables:
-       nold    = ntmp
-       var_old = var
-       var     = var_new
-    endif
+    open(free_unit(unit),file="var_compressibility.used")
+    write(unit,*)chich
+    close(unit)
+    !
+    ! if(abs(ndiff)>nerr)then
+    !Get 'charge compressibility"
+    delta_n = ntmp-nold
+    delta_v = var-var_old
+    if(count>1)chich = delta_v/(delta_n+1d-10) !1d-4*nerr)  !((ntmp-nold)/(var-var_old))**-1
+    !
+    !Add here controls on chich: not to be too small....
+    if(chich>10d0)chich=2d0*chich/abs(chich) !do nothing?
+    !
+    chi_shift = ndiff*chich
+    !
+    !update chemical potential
+    var_new = var - chi_shift
+    !
+    !
+    !re-define variables:
+    nold    = ntmp
+    var_old = var
+    var     = var_new
     !
     !Print information
-    write(LOGfile,"(A9,F16.9,A,F15.9)")  "n    = ",ntmp,"| instead of",nread
-    write(LOGfile,"(A9,ES16.9,A,ES16.9)")"dn   = ",ndiff,"/",nerr
+    write(LOGfile,"(A11,F16.9,A,F15.9)")  "n      = ",ntmp,"| instead of",nread
+    write(LOGfile,"(A11,ES16.9,A,ES16.9)")"n_diff = ",ndiff,"/",nerr
+    write(LOGfile,"(A11,ES16.9,A,ES16.9)")"dv     = ",delta_v
+    write(LOGfile,"(A11,ES16.9,A,ES16.9)")"dn     = ",delta_n
+    write(LOGfile,"(A11,F16.9,A,F15.9)")  "dv/dn  = ",chich
     var_sign = (var-var_old)/abs(var-var_old)
     if(var_sign>0d0)then
-       write(LOGfile,"(A9,ES16.9,A4)")"shift = ",ndiff/chich," ==>"
+       write(LOGfile,"(A11,ES16.9,A4)")"shift    = ",chi_shift," ==>"
     else
-       write(LOGfile,"(A9,ES16.9,A4)")"shift = ",ndiff/chich," <=="
+       write(LOGfile,"(A11,ES16.9,A4)")"shift    = ",chi_shift," <=="
     end if
-    write(LOGfile,"(A9,F16.9)")"var  = ",var
+    write(LOGfile,"(A11,F16.9)")"var     = ",var
     !
+    ! else
+    !    count=0
+    ! endif
+
+
     !Save info about search variable iteration:
     open(free_unit(unit),file="search_variable_iteration_info"//reg(ed_file_suffix)//".ed",position="append")
-    if(count==1)write(unit,*)"#var,ntmp,ndiff"
-    write(unit,*)var,ntmp,ndiff
+    ! if(count==1)write(unit,*)"#var,ntmp,ndiff"
+    write(unit,*)totcount,var,ntmp,ndiff
     close(unit)
     !
     !If density is not converged set convergence to .false.
@@ -471,7 +412,7 @@ contains
     write(LOGfile,"(A19,L2)")"Converged       = ",converged
     print*,""
     !
-    open(free_unit(unit),file="var_compressibility.used")
+    open(free_unit(unit),file="var_compressibility.restart")
     write(unit,*)chich
     close(unit)
     !

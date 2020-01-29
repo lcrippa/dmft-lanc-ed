@@ -97,22 +97,34 @@ subroutine chi2_fitgf_hybrid_normal(fg,bath_,ispin)
      if(cg_grad==0)then
         select case (cg_scheme)
         case ("weiss")
-           call fmin_cg(array_bath,chi2_weiss_hybrid_normal,grad_chi2_weiss_hybrid_normal,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_weiss_hybrid_normal,grad_chi2_weiss_hybrid_normal,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol,  &
+                istop=cg_stop, &
+                iverbose=(ed_verbose>3))
         case ("delta")
-           call fmin_cg(array_bath,chi2_delta_hybrid_normal,grad_chi2_delta_hybrid_normal,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_delta_hybrid_normal,grad_chi2_delta_hybrid_normal,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol,  &
+                istop=cg_stop, &
+                iverbose=(ed_verbose>3))
         case default
            stop "chi2_fitgf_hybrid_normal error: cg_scheme != [weiss,delta]"
         end select
      else
         select case (cg_scheme)
         case ("weiss")
-           call fmin_cg(array_bath,chi2_weiss_hybrid_normal,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_weiss_hybrid_normal,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol, &
+                istop=cg_stop,&
+                iverbose=(ed_verbose>3))
         case ("delta")
-           call fmin_cg(array_bath,chi2_delta_hybrid_normal,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_delta_hybrid_normal,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol, &
+                istop=cg_stop,&
+                iverbose=(ed_verbose>3))
         case default
            stop "chi2_fitgf_hybrid_normal error: cg_scheme != [weiss,delta]"
         end select
@@ -223,6 +235,7 @@ function chi2_delta_hybrid_normal(a) result(chi2)
   real(8)                                :: chi2
   real(8),dimension(totNorb)             :: chi2_orb
   complex(8),dimension(Norb,Norb,Ldelta) :: Delta
+  real(8),dimension(Ldelta)              :: Ctmp
   integer                                :: i,l,iorb,jorb
   !
   Delta = delta_hybrid_normal(a)
@@ -230,7 +243,8 @@ function chi2_delta_hybrid_normal(a) result(chi2)
   do l=1,totNorb
      iorb=getIorb(l)
      jorb=getJorb(l)
-     chi2_orb(l) = sum((abs(Gdelta(l,:)-Delta(iorb,jorb,:))**cg_pow)/Wdelta(:))
+     Ctmp=abs(Gdelta(l,:)-Delta(iorb,jorb,:))
+     chi2_orb(l) = sum( Ctmp**cg_pow/Wdelta )
   enddo
   !
   chi2=sum(chi2_orb)
@@ -248,6 +262,8 @@ function grad_chi2_delta_hybrid_normal(a) result(dchi2)
   real(8),dimension(totNorb,size(a))             :: df
   complex(8),dimension(Norb,Norb,Ldelta)         :: Delta
   complex(8),dimension(Norb,Norb,Ldelta,size(a)) :: dDelta
+  complex(8),dimension(Ldelta)                   :: Ftmp
+  real(8),dimension(Ldelta)                      :: Ctmp
   integer                                        :: i,j,l,iorb,jorb
   !
   Delta  = delta_hybrid_normal(a)
@@ -257,10 +273,12 @@ function grad_chi2_delta_hybrid_normal(a) result(dchi2)
      iorb=getIorb(l)
      jorb=getJorb(l)
      !
+     Ftmp = Gdelta(l,:)-Delta(iorb,jorb,:)
+     Ctmp = abs(Ftmp)**(cg_pow-2)
      do j=1,size(a)
         df(l,j)=&
-             sum( dreal(Gdelta(l,:)-Delta(iorb,jorb,:))*dreal(dDelta(iorb,jorb,:,j))/Wdelta(:) ) + &
-             sum( dimag(Gdelta(l,:)-Delta(iorb,jorb,:))*dimag(dDelta(iorb,jorb,:,j))/Wdelta(:) )
+             sum( dreal(Ftmp)*dreal(dDelta(iorb,jorb,:,j))*Ctmp/Wdelta ) + &
+             sum( dimag(Ftmp)*dimag(dDelta(iorb,jorb,:,j))*Ctmp/Wdelta )
      enddo
   enddo
   !
@@ -280,15 +298,18 @@ function chi2_weiss_hybrid_normal(a) result(chi2)
   real(8),dimension(:)                   :: a
   real(8),dimension(totNorb)             :: chi2_orb
   complex(8),dimension(Norb,Norb,Ldelta) :: g0and
+  real(8),dimension(Ldelta)              :: Ctmp
   real(8)                                :: chi2
   integer                                :: i,l,iorb,jorb
   !
   g0and(:,:,:) = g0and_hybrid_normal(a)
   !
+
   do l=1,totNorb
-     iorb=getIorb(l)
-     jorb=getJorb(l)
-     chi2_orb(l) = sum((abs(Gdelta(l,:)-g0and(iorb,jorb,:))**cg_pow)/Wdelta(:))
+     iorb = getIorb(l)
+     jorb = getJorb(l)
+     Ctmp = abs(Gdelta(l,:)-g0and(iorb,jorb,:))
+     chi2_orb(l) = sum( Ctmp**cg_pow/Wdelta )
   enddo
   !
   chi2=sum(chi2_orb)/Norb
@@ -306,6 +327,8 @@ function grad_chi2_weiss_hybrid_normal(a) result(dchi2)
   real(8),dimension(totNorb,size(a))             :: df
   complex(8),dimension(Norb,Norb,Ldelta)         :: g0and
   complex(8),dimension(Norb,Norb,Ldelta,size(a)) :: dg0and
+  complex(8),dimension(Ldelta)                   :: Ftmp
+  real(8),dimension(Ldelta)                      :: Ctmp
   integer                                        :: i,j,l,iorb,jorb
   !
   g0and  = g0and_hybrid_normal(a)
@@ -315,10 +338,12 @@ function grad_chi2_weiss_hybrid_normal(a) result(dchi2)
      iorb=getIorb(l)
      jorb=getJorb(l)
      !
+     Ftmp = Gdelta(l,:)-g0and(iorb,jorb,:)
+     Ctmp = abs(Ftmp)**(cg_pow-2)
      do j=1,size(a)
         df(l,j)=&
-             sum( dreal(Gdelta(l,:)-g0and(iorb,jorb,:))*dreal(dg0and(iorb,jorb,:,j))/Wdelta(:) ) + &
-             sum( dimag(Gdelta(l,:)-g0and(iorb,jorb,:))*dimag(dg0and(iorb,jorb,:,j))/Wdelta(:) )
+             sum( dreal(Ftmp)*dreal(dg0and(iorb,jorb,:,j))*Ctmp/Wdelta ) + &
+             sum( dimag(Ftmp)*dimag(dg0and(iorb,jorb,:,j))*Ctmp/Wdelta )
      enddo
   enddo
   !

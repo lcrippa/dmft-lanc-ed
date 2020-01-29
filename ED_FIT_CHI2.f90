@@ -88,9 +88,9 @@ contains
     select case(bath_type)
     case default
        if(present(iorb))then
-          call chi2_fitgf_normal_normal_OneOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_,iorb)
+          call chi2_fitgf_normal_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_,iorb)
        else
-          call chi2_fitgf_normal_normal_AllOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_)
+          call chi2_fitgf_normal_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
        endif
     case ("hybrid")
        call chi2_fitgf_hybrid_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
@@ -173,9 +173,9 @@ contains
        select case(bath_type)
        case default
           if(present(iorb))then
-             call chi2_fitgf_normal_normal_OneOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_,iorb)
+             call chi2_fitgf_normal_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_,iorb)
           else
-             call chi2_fitgf_normal_normal_AllOrb(fg(ispin_,ispin_,:,:,:),bath,ispin_)
+             call chi2_fitgf_normal_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)
           endif
        case ("hybrid")
           call chi2_fitgf_hybrid_normal(fg(ispin_,ispin_,:,:,:),bath,ispin_)

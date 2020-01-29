@@ -97,22 +97,34 @@ subroutine chi2_fitgf_replica(fg,bath_)
      if(cg_grad==0)then
         select case (cg_scheme)
         case ("weiss")
-           call fmin_cg(array_bath,chi2_weiss_replica,grad_chi2_weiss_replica,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_weiss_replica,grad_chi2_weiss_replica,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol,  &
+                istop=cg_stop, &
+                iverbose=(ed_verbose>3))
         case ("delta")
-           call fmin_cg(array_bath,chi2_delta_replica,grad_chi2_delta_replica,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_delta_replica,grad_chi2_delta_replica,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol,  &
+                istop=cg_stop, &
+                iverbose=(ed_verbose>3))
         case default
            stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
         end select
      else
         select case (cg_scheme)
         case ("weiss")
-           call fmin_cg(array_bath,chi2_weiss_replica,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_weiss_replica,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol,  &
+                istop=cg_stop, &
+                iverbose=(ed_verbose>3))
         case ("delta")
-           call fmin_cg(array_bath,chi2_delta_replica,&
-                iter,chi,itmax=cg_niter,ftol=cg_Ftol,istop=cg_stop,eps=cg_eps,iverbose=(ed_verbose>3))
+           call fmin_cg(array_bath,chi2_delta_replica,iter,chi,&
+                itmax=cg_niter,&
+                ftol=cg_Ftol,  &
+                istop=cg_stop, &
+                iverbose=(ed_verbose>3))
         case default
            stop "chi2_fitgf_replica error: cg_scheme != [weiss,delta]"
         end select
@@ -208,6 +220,7 @@ function chi2_delta_replica(a) result(chi2)
   real(8)                                            :: chi2
   real(8),dimension(totNso)                          :: chi2_so
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta) :: Delta
+  real(8),dimension(Ldelta)                          :: Ctmp
   integer                                            :: i,l,iorb,jorb,ispin,jspin
   !
   Delta = delta_replica(a)
@@ -217,7 +230,9 @@ function chi2_delta_replica(a) result(chi2)
      jorb = getJorb(l)
      ispin = getIspin(l)
      jspin = getJspin(l)
-     chi2_so(l) = sum( (abs(Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:))**cg_pow)/Wdelta(:) )
+     !
+     Ctmp =  abs(Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:))
+     chi2_so(l) = sum( Ctmp**cg_pow/Wdelta )
   enddo
   !
   chi2=sum(chi2_so)
@@ -236,6 +251,8 @@ function grad_chi2_delta_replica(a) result(dchi2)
   real(8),dimension(totNso,size(a))                          :: df
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta)         :: Delta
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dDelta
+  complex(8),dimension(Ldelta)                               :: Ftmp
+  real(8),dimension(Ldelta)                                  :: Ctmp
   integer                                                    :: i,j,l,iorb,jorb,ispin,jspin
   !
   Delta  = delta_replica(a)
@@ -247,10 +264,12 @@ function grad_chi2_delta_replica(a) result(dchi2)
      ispin = getIspin(l)
      jspin = getJspin(l)
      !
+     Ftmp = Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:)
+     Ctmp = abs(Ftmp)**(cg_pow-2)
      do j=1,size(a)
         df(l,j)=&
-             sum( dreal(Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:))*dreal(dDelta(ispin,jspin,iorb,jorb,:,j))/Wdelta(:) ) + &
-             sum( dimag(Gdelta(l,:)-Delta(ispin,jspin,iorb,jorb,:))*dimag(dDelta(ispin,jspin,iorb,jorb,:,j))/Wdelta(:) )
+             sum( dreal(Ftmp)*dreal(dDelta(ispin,jspin,iorb,jorb,:,j))*Ctmp/Wdelta ) + &
+             sum( dimag(Ftmp)*dimag(dDelta(ispin,jspin,iorb,jorb,:,j))*Ctmp/Wdelta )
      enddo
   enddo
   !
@@ -270,6 +289,7 @@ function chi2_weiss_replica(a) result(chi2)
   real(8)                                            :: chi2
   real(8),dimension(totNso)                          :: chi2_so
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta) :: g0and
+  real(8),dimension(Ldelta)                          :: Ctmp
   integer                                            :: i,l,iorb,jorb,ispin,jspin
   !
   g0and = g0and_replica(a)
@@ -279,7 +299,9 @@ function chi2_weiss_replica(a) result(chi2)
      jorb = getJorb(l)
      ispin = getIspin(l)
      jspin = getJspin(l)
-     chi2_so(l) = sum( (abs(Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:))**cg_pow)/Wdelta(:) )
+     !
+     Ctmp = abs(Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:))
+     chi2_so(l) = sum( Ctmp**cg_pow/Wdelta )
   enddo
   !
   chi2=sum(chi2_so)
@@ -294,9 +316,11 @@ end function chi2_weiss_replica
 function grad_chi2_weiss_replica(a) result(dchi2)
   real(8),dimension(:)                                       :: a
   real(8),dimension(size(a))                                 :: dchi2
-  real(8),dimension(totNso,size(a))                         :: df
+  real(8),dimension(totNso,size(a))                          :: df
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta)         :: g0and
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dg0and
+  complex(8),dimension(Ldelta)                               :: Ftmp
+  real(8),dimension(Ldelta)                                  :: Ctmp
   integer                                                    :: i,j,l,iorb,jorb,ispin,jspin
   !
   g0and  = g0and_replica(a)
@@ -308,16 +332,20 @@ function grad_chi2_weiss_replica(a) result(dchi2)
      ispin = getIspin(l)
      jspin = getJspin(l)
      !
+     Ftmp = Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:)
+     Ctmp = abs(Ftmp)**(cg_pow-2)
      do j=1,size(a)
         df(l,j)=&
-             sum( dreal(Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:))*dreal(dg0and(ispin,jspin,iorb,jorb,:,j))/Wdelta(:) ) + &
-             sum( dimag(Gdelta(l,:)-g0and(ispin,jspin,iorb,jorb,:))*dimag(dg0and(ispin,jspin,iorb,jorb,:,j))/Wdelta(:) )
+             sum( dreal(Ftmp)*dreal(dg0and(ispin,jspin,iorb,jorb,:,j))*Ctmp/Wdelta ) + &
+             sum( dimag(Ftmp)*dimag(dg0and(ispin,jspin,iorb,jorb,:,j))*Ctmp/Wdelta )
      enddo
   enddo
   !
   dchi2 = -cg_pow*sum(df,1)/Ldelta     !sum over all orbital indices
   !
 end function grad_chi2_weiss_replica
+
+
 
 
 
