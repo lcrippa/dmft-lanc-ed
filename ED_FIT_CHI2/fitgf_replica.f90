@@ -420,53 +420,56 @@ function grad_delta_replica(a) result(dDelta)
   real(8),dimension(:)                                      :: a
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dDelta
   integer                                                   :: ispin,iorb,jorb,ibath
-  integer                                                   :: i,k,ik,l,io,count
-  complex(8),dimension(Nspin*Norb,Nspin*Norb)               :: Haux,Htmp
+  integer                                                   :: i,k,ik,l,io,counter
+  complex(8),dimension(Nspin*Norb,Nspin*Norb)               :: H_reconstructed,Htmp,Hbasis_so
+  complex(8),dimension(Nspin*Norb,Nspin*Norb,Ldelta)        :: Haux
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta)        :: invH_knn
   real(8),dimension(Nspin,Nbath)                            :: dummy_Vbath
   type(nsymm_vector),dimension(Nbath)                       :: dummy_lambda
   !
   !
   !Get Hs
-  count = 0
+  counter = 0
   do ibath=1,Nbath
      allocate(dummy_lambda(ibath)%element(Nlambdas(ibath)))
      !
      do ispin=1,Nspin
-        count = count + 1
-        dummy_vbath(ispin,ibath) = a(count)
+        counter = counter + 1
+        dummy_vbath(ispin,ibath) = a(counter)
      enddo
-     dummy_lambda(ibath)%element=a(count+1:count+Nlambdas(ibath))
-     count=count+Nlambdas(ibath)
+     dummy_lambda(ibath)%element=a(counter+1:counter+Nlambdas(ibath))
+     counter=counter+Nlambdas(ibath)
   enddo
   !
   dDelta=zero
-  count=0
+  counter=0
   do ibath=1,Nbath
-     Htmp     = nn2so_reshape( bath_from_sym(dummy_lambda(ibath)%element) ,Nspin,Norb)
+     H_reconstructed     = nn2so_reshape( bath_from_sym(dummy_lambda(ibath)%element) ,Nspin,Norb)
      do i=1,Ldelta
-        Haux = zeye(Nspin*Norb)*xi*Xdelta(i) - Htmp
-        call inv(Haux)
-        invH_knn(:,:,:,:,i) = so2nn_reshape(Haux,Nspin,Norb)
+        Haux(:,:,i) = zeye(Nspin*Norb)*xi*Xdelta(i) - H_reconstructed
+        call inv(Haux(:,:,i))
+        invH_knn(:,:,:,:,i) = so2nn_reshape(Haux(:,:,i),Nspin,Norb)
      enddo
      !Derivate_Vp
      do ispin=1,Nspin
-        count = count + 1
+        counter = counter + 1
         do iorb=1,Norb
            do jorb=1,Norb
-              dDelta(ispin,ispin,iorb,jorb,:,count)=2d0*dummy_Vbath(ispin,ibath)*invH_knn(ispin,ispin,iorb,jorb,:)
+              dDelta(ispin,ispin,iorb,jorb,:,counter)=2d0*dummy_Vbath(ispin,ibath)*invH_knn(ispin,ispin,iorb,jorb,:)
            enddo
         enddo
      enddo
      !Derivate_lambda_p
-     do k=1,size(dummy_lambda(ibath)%element)
-        count = count + 1
-        do ispin=1,Nspin
-           do iorb=1,Norb
-              do jorb=1,Norb
-                 dDelta(ispin,ispin,iorb,jorb,:,count) = &
-                      (dummy_Vbath(ispin,ibath)*invH_knn(ispin,ispin,iorb,jorb,:))**2*H_basis(k)%O(ispin,ispin,iorb,jorb)
-              enddo
+     do ispin=1,Nspin
+        do k=1,size(dummy_lambda(ibath)%element)
+           counter = counter + 1
+           Hbasis_so=nn2so_reshape(H_basis(k)%O,Nspin,Norb)
+           do l=1,Ldelta
+              ! Hbasis_lso=nnn2lso_reshape(H_basis(k)%O,Nlat,Nspin,Norb)
+              ! Htmp=matmul(Haux(:,:,l),Hbasis_lso)
+              ! Htmp=matmul(Htmp,Haux(:,:,l))
+              Htmp = ((Haux(:,:,l) .x. Hbasis_so)) .x. Haux(:,:,l)
+              dDelta(:,:,:,:,l,counter)=so2nn_reshape((dummy_Vbath(ispin,ibath)**2)*Htmp,Nspin,Norb)
            enddo
         enddo
      enddo
@@ -480,21 +483,22 @@ function grad_g0and_replica(a) result(dG0and)
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dG0and
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta)         :: G0and
   complex(8),dimension(Nspin,Nspin,Norb,Norb,Ldelta,size(a)) :: dDelta
+  complex(8),dimension(Nspin*Norb,Nspin*Norb)                :: dDelta_so,dG0and_so,G0and_so
   integer                                                    :: ispin,iorb,jorb
-  integer                                                    :: ik
+  integer                                                    :: ik,l
   !
   G0and  = g0and_replica(a)
   dDelta = grad_delta_replica(a)
   !
   dG0and = zero
-  do ispin=1,Nspin
-     do iorb=1,Norb
-        do jorb=1,Norb
-           do ik=1,size(a)
-              dG0and(ispin,ispin,iorb,jorb,:,ik) = &
-                   G0and(ispin,ispin,iorb,jorb,:)*G0and(ispin,ispin,iorb,jorb,:)*dDelta(ispin,ispin,iorb,jorb,:,ik)
-           enddo
-        enddo
+  do l=1,Ldelta
+     G0and_so=nn2so_reshape(g0and(:,:,:,:,l),Nspin,Norb)
+     do ik=1,size(a)
+        dDelta_so=nn2so_reshape(dDelta(:,:,:,:,l,ik),Nspin,Norb)
+        ! dG0and_lso=matmul(-G0and_lso,dDelta_lso)
+        ! dG0and_lso=matmul(dG0and_lso,G0and_lso)
+        dG0and_so = (G0and_so .x. dDelta_so) .x. G0and_so
+        dG0and(:,:,:,:,l,ik)=-so2nn_reshape(dG0and_so,Nspin,Norb)
      enddo
   enddo
   !

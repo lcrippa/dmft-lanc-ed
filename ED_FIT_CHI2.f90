@@ -1,7 +1,7 @@
 MODULE ED_FIT_CHI2
   USE SF_CONSTANTS
   USE SF_OPTIMIZE, only:fmin_cg,fmin_cgplus,fmin_cgminimize
-  USE SF_LINALG,   only:eye,zeye,inv,inv_her
+  USE SF_LINALG,   only:eye,zeye,inv,inv_her,operator(.x.)
   USE SF_IOTOOLS,  only:reg,free_unit,txtfy
   USE SF_ARRAYS,   only:arange
   USE SF_MISC,     only:assert_shape 
