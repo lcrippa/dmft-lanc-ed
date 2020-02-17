@@ -73,6 +73,7 @@ contains
        ! lanc_dim_threshold=2
     endif
     !
+    !
     if(Nspin>1.AND.ed_twin.eqv..true.)then
        write(LOGfile,"(A)")"WARNING: using twin_sector with Nspin>1"
        call sleep(1)
@@ -91,7 +92,15 @@ contains
        if(mpiSIZE>1)stop "ED ERROR: ed_diag_type=FULL + MPIsize>1: not possible at the moment"
     end if
     !
-
+    if(ed_diag_type=="lanc")then
+       if(ed_finite_temp)then
+          if(lanc_nstates_total==1)stop "ED ERROR: ed_diag_type==lanc + ed_finite_temp=T *but* lanc_nstates_total==1 => T=0. Increase lanc_nstates_total"
+       else
+          if(lanc_nstates_total>1)print*, "ED WARNING: ed_diag_type==lanc + ed_finite_temp=F, T=0 *AND* lanc_nstates_total>1. re-Set lanc_nstates_total=1"
+          lanc_nstates_total=1
+       endif
+    endif
+    !
   end subroutine ed_checks_global
 
 
@@ -185,15 +194,10 @@ contains
     allocate(sectors_mask(Nsectors))
     allocate(neigen_sector(Nsectors))
     !
+    !
+    finiteT = ed_finite_temp
+    !
     if(ed_diag_type=="lanc")then
-       !check finiteT
-       finiteT=.true.                    !assume doing finite T per default
-       if(lanc_nstates_total==1)then     !is you only want to keep 1 state
-          finiteT=.false.                !set to do zero temperature calculations
-          write(LOGfile,"(A)")"Required Lanc_nstates_total=1 => set T=0 calculation"
-       endif
-       !
-       !check whether lanc_nstates_sector and lanc_states are even (we do want to keep doublet among states)
        if(finiteT)then
           if(mod(lanc_nstates_sector,2)/=0)then
              lanc_nstates_sector=lanc_nstates_sector+1
@@ -203,18 +207,24 @@ contains
              lanc_nstates_total=lanc_nstates_total+1
              write(LOGfile,"(A,I10)")"Increased Lanc_nstates_total:",lanc_nstates_total
           endif
-          write(LOGfile,"(A)")"Lanczos FINITE temperature calculation:"
-          !
           write(LOGfile,"(A,I3)")"Nstates x Sector = ", lanc_nstates_sector
           write(LOGfile,"(A,I3)")"Nstates   Total  = ", lanc_nstates_total
+          !
+          write(LOGfile,"(A)")"Lanczos FINITE temperature calculation:"
           call sleep(1)
        else
           write(LOGfile,"(A)")"Lanczos ZERO temperature calculation:"
           call sleep(1)
        endif
     else
-       write(LOGfile,"(A)")"Full ED finite T calculation"
-       call sleep(1)
+       if(finiteT)then
+          write(LOGfile,"(A)")"Full ED finite T calculation"
+          call sleep(1)
+       else
+          cutoff=1d-1
+          write(LOGfile,"(A)")"Full ED T=0 calculation. Set CUTOFF=1d-1"
+          call sleep(1)
+       endif
     endif
     !
     !

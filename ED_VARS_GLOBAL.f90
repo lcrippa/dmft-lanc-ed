@@ -276,8 +276,7 @@ MODULE ED_VARS_GLOBAL
   integer                                            :: mpiIend
   integer                                            :: mpiIshift
   logical                                            :: mpiAllThreads=.true.
-
-
+  !
 
 contains
 

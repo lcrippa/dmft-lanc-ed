@@ -219,6 +219,7 @@ contains
 #ifdef _MPI
           if(MpiStatus)then
              call bcast_MPI(MpiComm,norm2)
+
              vecDim = vecDim_Hv_sector(jsector)
              allocate(vvloc(vecDim))
              call scatter_vector_MPI(MpiComm,vvinit,vvloc)
@@ -642,13 +643,14 @@ contains
     integer,dimension(2,Ns_Orb) :: Nud
     integer,dimension(2)        :: Iud,Jud
     type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
-    complex(8)                  :: op_mat(2)
+    real(8)                  :: op_mat(2)
     complex(8)                  :: spectral_weight
     real(8)                     :: sgn_cdg,sgn_c
     integer                     :: m,i,j,r,k,p,li,rj
     real(8)                     :: Ei,Ej
     real(8)                     :: expterm,peso,de,w0
     complex(8)                  :: iw
+    !    
     !
     if(ed_total_ud)then
        ialfa = 1
@@ -658,12 +660,13 @@ contains
        iorb1 = 1
     endif
     ibeta  = ialfa + (ispin-1)*Ns_Ud
-    !
+    !       
     do isector=1,Nsectors
        jsector=getCDGsector(ialfa,ispin,isector)
        if(jsector==0)cycle
        !
        idim=getdim(isector)     !i-th sector dimension
+
        call get_DimUp(isector,iDimUps)
        call get_DimDw(isector,iDimDws)
        iDimUp = product(iDimUps)
@@ -758,6 +761,7 @@ contains
     complex(8)                  :: spectral_weight
     real(8)                     :: sgn_cdg,sgn_c
     integer                     :: m,i,j,r,k,p,li,rj
+    integer :: i_iDim,j_jDim
     real(8)                     :: Ei,Ej
     real(8)                     :: expterm,peso,de,w0
     complex(8)                  :: iw
@@ -792,6 +796,7 @@ contains
        jDimUp = product(jDimUps)
        jDimDw = product(jDimDws)
        call build_sector(jsector,HJ)
+       !
        !
        do i=1,iDim          !loop over the states in the i-th sect.
           do j=1,jDim       !loop over the states in the j-th sect.

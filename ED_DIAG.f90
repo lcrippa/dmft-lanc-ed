@@ -20,7 +20,7 @@ module ED_DIAG
 
 
   public :: diagonalize_impurity
-  
+
   real(8),dimension(:),pointer       :: state_cvec
 
 
@@ -387,9 +387,6 @@ contains
     !
     write(LOGfile,"(A)")"DIAG resume:"
     open(free_unit(unit),file='egs'//reg(ed_file_suffix)//".ed",position='append')
-    ! !>DEBUG
-    ! open(846,file="eigenvectors_list"//reg(ed_file_suffix)//".ed",position='append')
-    ! !<DEBUG
     do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
        Ei      = es_return_energy(state_list,istate)
@@ -397,19 +394,7 @@ contains
        call get_Ndw(isector,Ndws)
        write(LOGfile,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',Ei,nups,ndws
        write(unit,"(A,F20.12,"//str(Ns_Ud)//"I4,"//str(Ns_Ud)//"I4)")'Egs =',Ei,nups,ndws
-       !
-       ! !>DEBUG
-       ! state_cvec => es_return_cvector(state_list,istate)
-       ! write(846,*)"Isector=",isector,nups,ndws
-       ! do i=1,size(state_cvec)
-       !    write(846,*)state_cvec(i)
-       ! enddo
-       ! write(846,*)""
-       ! !<DEBUG
     enddo
-    ! !>DEBUG
-    ! close(846)
-    ! !<DEBUG
     close(unit)
     write(LOGfile,"(A,F20.12)")'Z   =',zeta_function
     if(state_list%status)call es_delete_espace(state_list)
