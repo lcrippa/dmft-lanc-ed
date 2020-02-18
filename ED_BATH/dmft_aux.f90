@@ -198,7 +198,7 @@ subroutine init_dmft_bath(dmft_bath_)
         do ibath=1,Nbath
            !read V
            do ispin=1,Nspin
-              read(unit,"(F21.12,1X)")dmft_bath%item(ibath)%v(ispin)
+              read(unit,*)dmft_bath%item(ibath)%v(ispin)
            enddo
            !read lambdas
            read(unit,*)(dmft_bath%item(ibath)%lambda(jo),jo=1,Nlambdas(ibath))
@@ -238,7 +238,7 @@ subroutine write_dmft_bath(dmft_bath_,unit)
           "Vk_l"//reg(txtfy(iorb))//"_s"//reg(txtfy(ispin)),&
           iorb=1,Norb),ispin=1,Nspin)
      do i=1,Nbath
-        write(unit_,"(90(F21.12,1X))")((&
+        write(unit_,"(90(ES21.12,1X))")((&
              dmft_bath_%e(ispin,iorb,i),&
              dmft_bath_%v(ispin,iorb,i),&
              iorb=1,Norb),ispin=1,Nspin)
@@ -251,7 +251,7 @@ subroutine write_dmft_bath(dmft_bath_,unit)
           ("Vk_l"//reg(txtfy(iorb))//"_s"//reg(txtfy(ispin)),iorb=1,Norb),&
           ispin=1,Nspin)
      do i=1,Nbath
-        write(unit_,"(90(F21.12,1X))")(&
+        write(unit_,"(90(ES21.12,1X))")(&
              dmft_bath_%e(ispin,1,i),&
              (dmft_bath_%v(ispin,iorb,i),iorb=1,Norb),&
              ispin=1,Nspin)
@@ -259,7 +259,7 @@ subroutine write_dmft_bath(dmft_bath_,unit)
      !
   case ('replica')
      !
-     string_fmt      ="(A8,A5,"//str(Nspin*Norb)//"(F8.4,1X))"
+     string_fmt      ="(A8,A5,"//str(Nspin*Norb)//"(ES8.4,1X))"
      !
      if(unit_==LOGfile)then
         if(Nspin*Norb.le.8)then
@@ -269,7 +269,7 @@ subroutine write_dmft_bath(dmft_bath_,unit)
               write(unit_,"(A1)")" "
               Hrep_aux   = nn2so_reshape( bath_from_sym(dmft_bath_%item(ibath)%lambda) ,Nspin,Norb)
               do ispin=1,Nspin
-                 write(unit_,"(F8.4)")dmft_bath_%item(ibath)%v(ispin)
+                 write(unit_,"(ES8.4)")dmft_bath_%item(ibath)%v(ispin)
               enddo
               do io=1,Nspin*Norb
                  write(unit_,string_fmt) "  "  ,"||  ",(hrep_aux(io,jo),jo=1,Nspin*Norb)
@@ -281,15 +281,14 @@ subroutine write_dmft_bath(dmft_bath_,unit)
            write(unit_,"(A8,A5,90(A8,1X))")"V"," ","lambdas"        
            do ibath=1,Nbath
               do ispin=1,Nspin
-                 write(unit_,"(F8.4)")dmft_bath_%item(ibath)%v(ispin)
+                 write(unit_,"(ES8.4)")dmft_bath_%item(ibath)%v(ispin)
               enddo
-              write(unit_,"(A8,A5,90(F8.4,1X))")"","|   ",&
+              write(unit_,"(A8,A5,90(ES8.4,1X))")"","|   ",&
                    (dmft_bath_%item(ibath)%lambda(io),io=1,dmft_bath_%item(ibath)%N_dec)
            enddo
         endif
      else
         do ibath=1,Nbath
-           !write number of lambdas
            write(unit,"(I3)")dmft_bath_%item(ibath)%N_dec
         enddo
         do ibath=1,Nbath
