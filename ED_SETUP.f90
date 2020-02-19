@@ -221,8 +221,11 @@ contains
           write(LOGfile,"(A)")"Full ED finite T calculation"
           call sleep(1)
        else
-          cutoff=1d-1
-          write(LOGfile,"(A)")"Full ED T=0 calculation. Set CUTOFF=1d-1"
+          ed_diag_type='lanc'
+          lanc_nstates_total=1
+          lanc_dim_threshold=product(DimUps)*product(DimDws)
+          write(LOGfile,"(A)")"Full ED T=0 calculation. Set LANC_DIM_THRESHOLD to "//str(lanc_dim_threshold)
+          if(lanc_dim_threshold>2**13)stop "Full ED T=0: LANC_DIM_THRESHOLD > 2**13=8192!"
           call sleep(1)
        endif
     endif

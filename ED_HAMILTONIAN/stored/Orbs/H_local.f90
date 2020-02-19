@@ -67,14 +67,9 @@
            ialfa = getBathStride(iorb,kp)
            htmp =htmp + bath_diag(1    ,iorb,kp)*Nup(ialfa) !UP
            htmp =htmp + bath_diag(Nspin,iorb,kp)*Ndw(ialfa) !DW
-           if(dim==1)then
-              print*,"iorb",iorb
-              print*,bath_diag(Nspin,iorb,kp),Ndw(ialfa)
-           endif
         enddo
      enddo
      !
-     if(dim==1)print*,"htmp=",Htmp
      select case(MpiStatus)
      case (.true.)
         call sp_insert_element(MpiComm,spH0d,htmp,i,i)

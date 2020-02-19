@@ -643,8 +643,8 @@ contains
     integer,dimension(2,Ns_Orb) :: Nud
     integer,dimension(2)        :: Iud,Jud
     type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
-    real(8)                  :: op_mat(2)
-    complex(8)                  :: spectral_weight
+    real(8)                     :: op_mat(2)
+    real(8)                     :: spectral_weight
     real(8)                     :: sgn_cdg,sgn_c
     integer                     :: m,i,j,r,k,p,li,rj
     real(8)                     :: Ei,Ej
@@ -660,7 +660,7 @@ contains
        iorb1 = 1
     endif
     ibeta  = ialfa + (ispin-1)*Ns_Ud
-    !       
+    !
     do isector=1,Nsectors
        jsector=getCDGsector(ialfa,ispin,isector)
        if(jsector==0)cycle

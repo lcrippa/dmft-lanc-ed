@@ -604,7 +604,7 @@ contains
     real(8)                             :: state_weight
     real(8)                             :: weight
     real(8)                             :: Ei
-    real(8)                             :: norm
+    real(8)                             :: norm,beta_
     integer                             :: Nud(2,Ns),iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
     integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
@@ -633,6 +633,9 @@ contains
     s2tot   = 0.d0
     Prob    = 0.d0
     !
+    beta_ = beta
+    if(.not.finiteT)beta_=1000d0
+    !
     do isector=1,Nsectors
        iDim  = getdim(isector)
        call get_DimUp(isector,iDimUps)
@@ -643,8 +646,9 @@ contains
        !
        do istate=1,iDim
           Ei=espace(isector)%e(istate)
-          boltzman_weight=exp(-beta*Ei)/zeta_function
+          boltzman_weight=exp(-beta_*Ei)/zeta_function
           if(boltzman_weight < cutoff)cycle
+          print*, boltzman_weight
           !
           evec => espace(isector)%M(:,istate)
           !
@@ -735,7 +739,7 @@ contains
     real(8)                             :: boltzman_weight
     real(8)                             :: state_weight
     real(8)                             :: weight
-    real(8)                             :: norm
+    real(8)                             :: norm,beta_
     real(8),dimension(Nspin,Norb)       :: eloc
     real(8),dimension(:),pointer        :: evec
     integer                             :: iud(2),jud(2)
@@ -762,6 +766,9 @@ contains
        enddo
     enddo
     !
+    beta_ = beta
+    if(.not.finiteT)beta_=1000d0
+    !
     do isector=1,Nsectors
        iDim  = getdim(isector)
        call get_DimUp(isector,iDimUps)
@@ -772,7 +779,7 @@ contains
        !
        do istate=1,idim
           Ei=espace(isector)%e(istate)
-          boltzman_weight=exp(-beta*Ei)/zeta_function
+          boltzman_weight=exp(-beta_*Ei)/zeta_function
           if(boltzman_weight < cutoff)cycle
           !
           evec => espace(isector)%M(:,istate)
