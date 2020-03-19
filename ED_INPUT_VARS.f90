@@ -14,6 +14,7 @@ MODULE ED_INPUT_VARS
   integer              :: Norb                !Norb =# of impurity orbitals
   integer              :: Nspin               !Nspin=# spin degeneracy (max 2)
   integer              :: nloop               !max dmft loop variables
+  integer              :: Nph                 !max number of phonons allowed (cut off)
   real(8),dimension(5) :: Uloc                !local interactions
   real(8)              :: Ust                 !intra-orbitals interactions
   real(8)              :: Jh                  !J_Hund: Hunds' coupling constant 
@@ -21,6 +22,8 @@ MODULE ED_INPUT_VARS
   real(8)              :: Jp                  !J_P: coupling constant for the Pair-hopping interaction term 
   real(8)              :: xmu                 !chemical potential
   real(8)              :: beta                !inverse temperature
+  real(8)              :: g                   !g: electron-phonon coupling constant
+  real(8)              :: w0                  !w0: phonon frequency (constant)
   real(8)              :: eps                 !broadening
   real(8)              :: wini,wfin           !
   integer              :: Nsuccess            !
@@ -124,6 +127,7 @@ contains
     call parse_input_variable(Norb,"NORB",INPUTunit,default=1,comment="Number of impurity orbitals (max 5).")
     call parse_input_variable(Nbath,"NBATH",INPUTunit,default=6,comment="Number of bath sites:(normal=>Nbath per orb)(hybrid=>Nbath total)(replica=>Nbath=Nreplica)")
     call parse_input_variable(Nspin,"NSPIN",INPUTunit,default=1,comment="Number of spin degeneracy (max 2)")
+    call parse_input_variable(Nph,"NPH",INPUTunit,default=0,comment="Max number of phonons allowed (cut off)")
     call parse_input_variable(uloc,"ULOC",INPUTunit,default=[2d0,0d0,0d0,0d0,0d0],comment="Values of the local interaction per orbital (max 5)")
     call parse_input_variable(ust,"UST",INPUTunit,default=0.d0,comment="Value of the inter-orbital interaction term")
     call parse_input_variable(Jh,"JH",INPUTunit,default=0.d0,comment="Hunds coupling")
@@ -131,6 +135,8 @@ contains
     call parse_input_variable(Jp,"JP",INPUTunit,default=0.d0,comment="P-H coupling")
     call parse_input_variable(beta,"BETA",INPUTunit,default=1000.d0,comment="Inverse temperature, at T=0 is used as a IR cut-off.")
     call parse_input_variable(xmu,"XMU",INPUTunit,default=0.d0,comment="Chemical potential. If HFMODE=T, xmu=0 indicates half-filling condition.")
+    call parse_input_variable(g,"G",INPUTunit,default=0.d0,comment="Electron-phonon coupling constant")
+    call parse_input_variable(w0,"W0",INPUTunit,default=0.d0,comment="Phonon frequency")
     call parse_input_variable(nloop,"NLOOP",INPUTunit,default=100,comment="Max number of DMFT iterations.")
     call parse_input_variable(dmft_error,"DMFT_ERROR",INPUTunit,default=0.00001d0,comment="Error threshold for DMFT convergence")
     call parse_input_variable(sb_field,"SB_FIELD",INPUTunit,default=0.1d0,comment="Value of a symmetry breaking field for magnetic solutions.")
