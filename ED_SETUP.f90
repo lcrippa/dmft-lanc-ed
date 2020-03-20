@@ -133,7 +133,7 @@ contains
     end select
     !
     DimPh = Nph+1
-    Nsectors = DimPh*((Ns_Orb+1)*(Ns_Orb+1))**Ns_Ud
+    Nsectors = ((Ns_Orb+1)*(Ns_Orb+1))**Ns_Ud
   end subroutine ed_setup_dimensions
 
 
@@ -168,9 +168,10 @@ contains
        write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
        write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
        write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
-       write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
+       write(LOGfile,"(A,I15)")'# of electron sectors = ',Nsectors
        write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
        write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
+       write(LOGfile,"(A,I15)")'Nph                   = ',Nph
        write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
             'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
        write(LOGfile,"(A)")"--------------------------------------------"
@@ -563,8 +564,19 @@ contains
   end function idw_index
 
 
+  function global_sector(isector,iph) result(glob_sec)
+    integer :: isector
+    integer :: iph
+    integer :: glob_sec
+    glob_sec = isector+(iph-1)*Nsectors
+  end function global_sector
 
-
+  function electron_sector(Tsector) result(el_sec)
+    integer :: Tsector
+    integer :: el_sec
+    el_sec = mod(Tsector-1,Nsectors)+1
+  end function electron_sector
+ 
 
 #ifdef _MPI
   !! Scatter V into the arrays Vloc on each thread: sum_threads(size(Vloc)) must be equal to size(v)
