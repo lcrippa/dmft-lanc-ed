@@ -112,6 +112,7 @@ MODULE ED_VARS_GLOBAL
   integer,save                                       :: Nsectors !Number of sectors
   integer,save                                       :: Ns_orb
   integer,save                                       :: Ns_ud
+  integer,save                                       :: DimPh    !Number of phonon states
 
   !local part of the Hamiltonian
   !INTERNAL USE (accessed thru functions)
