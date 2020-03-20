@@ -190,12 +190,12 @@ contains
     !
     allocate(impIndex(Norb,2));impIndex=0
     !
-    allocate(getDim(Nsectors));getDim=0
+    allocate(getDim(Nsectors*DimPh));getDim=0
     !
     allocate(getBathStride(Norb,Nbath));getBathStride=0
-    allocate(twin_mask(Nsectors))
-    allocate(sectors_mask(Nsectors))
-    allocate(neigen_sector(Nsectors))
+    allocate(twin_mask(Nsectors*DimPh))
+    allocate(sectors_mask(Nsectors*DimPh))
+    allocate(neigen_sector(Nsectors*DimPh))
     !
     !
     finiteT = ed_finite_temp
@@ -306,7 +306,7 @@ contains
     integer,dimension(:),allocatable :: list_sector
     !
     !Store full dimension of the sectors:
-    do isector=1,Nsectors
+    do isector=1,Nsectors*DimPh
        call get_DimUp(isector,DimUps)
        call get_DimDw(isector,DimDws)
        DimUp = product(DimUps)
@@ -334,23 +334,23 @@ contains
        close(unit)
        !
        lanc_nstates_total = list_len
-       do isector=1,Nsectors
+       do isector=1,Nsectors*DimPh
           neigen_sector(isector) = max(1,count(list_sector==isector))
        enddo
     else
-       do isector=1,Nsectors
+       do isector=1,Nsectors*DimPh
           neigen_sector(isector) = min(getDim(isector),lanc_nstates_sector) !init every sector to required eigenstates
        enddo
     endif
     !
     twin_mask=.true.
     if(ed_twin)then
-       do isector=1,Nsectors
+       do isector=1,Nsectors*DimPh
           call get_Nup(isector,Nups)
           call get_Ndw(isector,Ndws)
           if(any(Nups < Ndws))twin_mask(isector)=.false.
        enddo
-       write(LOGfile,"(A,I6,A,I9)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
+       write(LOGfile,"(A,I6,A,I9)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors*DimPh
        call sleep(1)
     endif
     !
