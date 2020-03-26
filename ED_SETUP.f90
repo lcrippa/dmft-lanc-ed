@@ -19,7 +19,7 @@ MODULE ED_SETUP
   public :: delete_sector
   !
   public :: get_Sector
-  public :: get_Indices
+  public :: get_QuantumNumbers
   public :: get_Nup
   public :: get_Ndw
   public :: get_DimUp
@@ -168,12 +168,12 @@ contains
        write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
        write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
        write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
-       write(LOGfile,"(A,I15)")'# of electron sectors = ',Nsectors
+       write(LOGfile,"(A,I15)")'# of  sectors         = ',Nsectors
        write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
        write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
        write(LOGfile,"(A,I15)")'Nph                   = ',Nph
        write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
-            'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
+            'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)*DimPh
        write(LOGfile,"(A)")"--------------------------------------------"
     endif
     call sleep(1)
@@ -188,14 +188,12 @@ contains
     allocate(getCsector(Ns_Ud,2,Nsectors))  ;getCsector  =0
     allocate(getCDGsector(Ns_Ud,2,Nsectors));getCDGsector=0
     !
-    allocate(impIndex(Norb,2));impIndex=0
-    !
-    allocate(getDim(Nsectors*DimPh));getDim=0
+    allocate(getDim(Nsectors));getDim=0
     !
     allocate(getBathStride(Norb,Nbath));getBathStride=0
-    allocate(twin_mask(Nsectors*DimPh))
-    allocate(sectors_mask(Nsectors*DimPh))
-    allocate(neigen_sector(Nsectors*DimPh))
+    allocate(twin_mask(Nsectors))
+    allocate(sectors_mask(Nsectors))
+    allocate(neigen_sector(Nsectors))
     !
     !
     finiteT = ed_finite_temp
@@ -306,12 +304,12 @@ contains
     integer,dimension(:),allocatable :: list_sector
     !
     !Store full dimension of the sectors:
-    do isector=1,Nsectors*DimPh
+    do isector=1,Nsectors
        call get_DimUp(isector,DimUps)
        call get_DimDw(isector,DimDws)
        DimUp = product(DimUps)
        DimDw = product(DimDws)       
-       getDim(isector)  = DimUp*DimDw
+       getDim(isector)  = DimUp*DimDw*DimPh
     enddo
     !
     !
@@ -334,30 +332,25 @@ contains
        close(unit)
        !
        lanc_nstates_total = list_len
-       do isector=1,Nsectors*DimPh
+       do isector=1,Nsectors
           neigen_sector(isector) = max(1,count(list_sector==isector))
        enddo
     else
-       do isector=1,Nsectors*DimPh
+       do isector=1,Nsectors
           neigen_sector(isector) = min(getDim(isector),lanc_nstates_sector) !init every sector to required eigenstates
        enddo
     endif
     !
     twin_mask=.true.
     if(ed_twin)then
-       do isector=1,Nsectors*DimPh
+       do isector=1,Nsectors
           call get_Nup(isector,Nups)
           call get_Ndw(isector,Ndws)
           if(any(Nups < Ndws))twin_mask(isector)=.false.
        enddo
-       write(LOGfile,"(A,I6,A,I9)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors*DimPh
+       write(LOGfile,"(A,I6,A,I9)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
        call sleep(1)
     endif
-    !
-    do iorb=1,Norb
-       impIndex(iorb,1)=iorb
-       impIndex(iorb,2)=iorb+Ns
-    enddo
     !
     select case(bath_type)
     case default
@@ -447,35 +440,35 @@ contains
   end function get_sector_dimension
 
 
-  subroutine get_Sector(indices,N,isector)
-    integer,dimension(:) :: indices
+  subroutine get_Sector(QN,N,isector)
+    integer,dimension(:) :: QN
     integer              :: N
     integer              :: isector
     integer              :: i,Nind,factor
-    Nind = size(indices)
+    Nind = size(QN)
     Factor = N+1
     isector = 1
     do i=Nind,1,-1
-       isector = isector + indices(i)*(Factor)**(Nind-i)
+       isector = isector + QN(i)*(Factor)**(Nind-i)
     enddo
   end subroutine get_Sector
 
 
-  subroutine get_Indices(isector,N,indices)
+  subroutine get_QuantumNumbers(isector,N,QN)
     integer                          :: isector,N
-    integer,dimension(:)             :: indices
+    integer,dimension(:)             :: QN
     integer                          :: i,count,Dim
-    integer,dimension(size(indices)) :: indices_
+    integer,dimension(size(QN)) :: QN_
     !
-    Dim = size(indices)
-    if(mod(Dim,2)/=0)stop "get_Indices_main error: Dim%2 != 0"
+    Dim = size(QN)
+    if(mod(Dim,2)/=0)stop "get_QuantumNumbers error: Dim%2 != 0"
     count=isector-1
     do i=1,Dim
-       indices_(i) = mod(count,N+1)
+       QN_(i) = mod(count,N+1)
        count      = count/(N+1)
     enddo
-    indices = indices_(Dim:1:-1)
-  end subroutine get_Indices
+    QN = QN_(Dim:1:-1)
+  end subroutine get_QuantumNumbers
 
 
   subroutine get_Nup(isector,Nup)
@@ -562,20 +555,6 @@ contains
     integer :: idw
     idw = (i-1)/DimUp+1
   end function idw_index
-
-
-  function global_sector(isector,iph) result(glob_sec)
-    integer :: isector
-    integer :: iph
-    integer :: glob_sec
-    glob_sec = isector+(iph-1)*Nsectors
-  end function global_sector
-
-  function electron_sector(Tsector) result(el_sec)
-    integer :: Tsector
-    integer :: el_sec
-    el_sec = mod(Tsector-1,Nsectors)+1
-  end function electron_sector
  
 
 #ifdef _MPI
