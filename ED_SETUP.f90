@@ -74,6 +74,7 @@ contains
        ! lanc_dim_threshold=2
     endif
     !
+    if(ed_finite_temp .AND. Nph>0)stop "ED ERROR: ed_finite_temp=T is currently not supported with Nph>0"
     !
     if(Nspin>1.AND.ed_twin.eqv..true.)then
        write(LOGfile,"(A)")"WARNING: using twin_sector with Nspin>1"

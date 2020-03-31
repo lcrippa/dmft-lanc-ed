@@ -118,16 +118,16 @@ contains
                 write(LOGfile,"(1X,I9,A,I9,A6,"&
                      //str(Ns_Ud)//"I3,A6,"&
                      //str(Ns_Ud)//"I3,A7,"&
-                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I20,A12,3I6)")&
+                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I6,I20,A12,3I6)")&
                      iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
-                     DimUps,DimDws,getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
+                     DimUps,DimDws,DimPh,getdim(isector),", Lanc Info:",Neigen,Nitermax,Nblock
              else
                 write(LOGfile,"(1X,I9,A,I9,A6,"&
                      //str(Ns_Ud)//"I3,A6,"&
                      //str(Ns_Ud)//"I3,A7,"&
-                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I20)")&
+                     //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I6,I20)")&
                      iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
-                     DimUps,DimDws,getdim(isector)
+                     DimUps,DimDws,DimPh,getdim(isector)
              endif
           elseif(ed_verbose==1.OR.ed_verbose==2)then
              call eta(iter,count(twin_mask),LOGfile)
@@ -167,7 +167,7 @@ contains
                      iverbose=(ed_verbose>3))
              endif
 #else
-             call call sp_eigh(spHtimesV_p,eig_values,eig_basis,&
+             call sp_eigh(spHtimesV_p,eig_values,eig_basis,&
                   Nblock,&
                   Nitermax,&
                   tol=lanc_tolerance,&
@@ -325,9 +325,9 @@ contains
              write(LOGfile,"(1X,I9,A,I9,A6,"&
                   //str(Ns_Ud)//"I3,A6,"&
                   //str(Ns_Ud)//"I3,A7,"&
-                  //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I20)")&
+                  //str(Ns_Ud)//"I6,"//str(Ns_Ud)//"I6,I6,I20)")&
                   iter,"-Solving sector:",isector,", nup:",nups,", ndw:",ndws,", dims=",&
-                  DimUps,DimDws,getdim(isector)
+                  DimUps,DimDws,DimPh,getdim(isector)
           elseif(ed_verbose==1.OR.ed_verbose==2)then
              call eta(isector,Nsectors,LOGfile)
           endif

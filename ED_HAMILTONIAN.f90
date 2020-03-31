@@ -241,7 +241,7 @@ contains
     mpiQdw = DimDw
 #endif
     !
-    vecDim=DimUp*mpiQdw
+    vecDim=DimUp*mpiQdw*DimPh
     !
   end function vecDim_Hv_sector
 
