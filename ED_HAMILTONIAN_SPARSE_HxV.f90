@@ -77,21 +77,29 @@ contains
 #ifdef _MPI
     if(MpiStatus)then
        call sp_set_mpi_matrix(MpiComm,spH0d,mpiIstart,mpiIend,mpiIshift)
-       call sp_init_matrix(MpiComm,spH0d,Dim)
+       call sp_init_matrix(MpiComm,spH0d,DimUp*DimDw)
+       if(DimPh>1) then
+          call sp_set_mpi_matrix(MpiComm,spH0_eph,mpiIstart,mpiIend,mpiIshift)
+          call sp_init_matrix(MpiComm,spH0_eph,DimUp*DimDw)
+       end if
+       !
        if(Jhflag)then
           call sp_set_mpi_matrix(MpiComm,spH0nd,mpiIstart,mpiIend,mpiIshift)
-          call sp_init_matrix(MpiComm,spH0nd,Dim)
+          call sp_init_matrix(MpiComm,spH0nd,DimUp*DimDw)
        endif
     else
-       call sp_init_matrix(spH0d,Dim)
-       if(Jhflag)call sp_init_matrix(spH0nd,Dim)
+       call sp_init_matrix(spH0d,DimUp*DimDw)
+       if(DimPh>1) call sp_init_matrix(spH0_eph,DimUp*DimDw)
+       if(Jhflag)call sp_init_matrix(spH0nd,DimUp*DimDw)
     endif
 #else
-    call sp_init_matrix(spH0d,Dim)
-    if(Jhflag)call sp_init_matrix(spH0nd,Dim)
+    call sp_init_matrix(spH0d,DimUp*DimDw)
+    if(DimPh>1) call sp_init_matrix(spH0_eph,DimUp*DimDown)
+    if(Jhflag)call sp_init_matrix(spH0nd,DimUp*DimDw)
 #endif
     call sp_init_matrix(spH0dws(1),DimDw)
     call sp_init_matrix(spH0ups(1),DimUp)
+    if(DimPh>1) call sp_init_matrix(spH0_ph,DimPh)
     !
     !-----------------------------------------------!
     !LOCAL HAMILTONIAN TERMS

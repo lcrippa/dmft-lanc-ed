@@ -704,6 +704,7 @@ contains
   !BUILD SECTORS
   !##################################################################
   !##################################################################
+  !Here the electronic sector is built without contribution from phonons
   subroutine build_sector(isector,H)
     integer                             :: isector
     type(sector_map),dimension(2*Ns_Ud) :: H
@@ -817,19 +818,23 @@ contains
     type(sector_map),dimension(2*Ns_Ud) :: H
     integer,dimension(2*Ns_Ud)          :: Indices,Istates
     integer,dimension(Ns_Ud)            :: DimUps,DimDws
-    integer                             :: Dim
-    integer                             :: i,iud
+    integer                             :: Dim,DimUp,DimDw
+    integer                             :: i,iud,iph,i_el
     !
     Dim = GetDim(isector)
     if(size(Order)/=Dim)stop "twin_sector_order error: wrong dimensions of *order* array"
     call get_DimUp(isector,DimUps)
     call get_DimDw(isector,DimDws)
+    DimUp = product(DimUps)
+    DimDw = product(DimDws)
     !
     call build_sector(isector,H)
     do i=1,Dim
-       call state2indices(i,[DimUps,DimDws],Indices)
+       iph = (i-1)/(DimUp*DimDw)		!find number of phonons
+       i_el = mod(i-1,DimUp*DimDw) + 1		!electronic index
+       call state2indices(i_el,[DimUps,DimDws],Indices)
        forall(iud=1:2*Ns_Ud)Istates(iud) = H(iud)%map(Indices(iud))
-       Order(i) = flip_state( Istates )
+       Order(i) = flip_state( Istates ) + iph*DimUp*DimDw	!flipped electronic state + phononic contribution
     enddo
     call delete_sector(isector,H)
     !
