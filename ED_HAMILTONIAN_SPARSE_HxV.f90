@@ -81,7 +81,7 @@ contains
        if(DimPh>1) then
           call sp_set_mpi_matrix(MpiComm,spH0_eph,mpiIstart,mpiIend,mpiIshift)
           call sp_init_matrix(MpiComm,spH0_eph,DimUp*DimDw)
-       end if
+       endif
        !
        if(Jhflag)then
           call sp_set_mpi_matrix(MpiComm,spH0nd,mpiIstart,mpiIend,mpiIshift)
@@ -115,6 +115,14 @@ contains
     !
     !DW TERMS
     include "ED_HAMILTONIAN/stored/H_dw.f90"
+    !
+    if(DimPh>1) then
+    !PHONON TERMS
+       include "ED_HAMILTONIAN/stored/H_ph.f90"
+    !
+    !ELECTRON-PHONON TERMS (electronic part)
+       include "ED_HAMILTONIAN/stored/H_e_ph.f90"
+    endif
     !-----------------------------------------------!
     !
     if(present(Hmat))then
