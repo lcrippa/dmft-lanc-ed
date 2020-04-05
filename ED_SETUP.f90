@@ -173,8 +173,8 @@ contains
        write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
        write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
        write(LOGfile,"(A,I15)")'Nph                   = ',Nph
-       write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
-            'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)*DimPh
+       write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I8,I20)")&
+            'Largest Sector(s)     = ',DimUps,DimDws,DimPh,product(DimUps)*product(DimDws)*DimPh
        write(LOGfile,"(A)")"--------------------------------------------"
     endif
     call sleep(1)
@@ -225,7 +225,7 @@ contains
        else
           ed_diag_type='lanc'
           lanc_nstates_total=1
-          lanc_dim_threshold=product(DimUps)*product(DimDws)
+          lanc_dim_threshold=product(DimUps)*product(DimDws)*Dimph
           write(LOGfile,"(A)")"Full ED T=0 calculation. Set LANC_DIM_THRESHOLD to "//str(lanc_dim_threshold)
           if(lanc_dim_threshold>2**13)stop "Full ED T=0: LANC_DIM_THRESHOLD > 2**13=8192!"
           call sleep(1)

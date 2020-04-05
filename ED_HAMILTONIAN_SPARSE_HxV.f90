@@ -25,7 +25,8 @@ contains
   subroutine ed_buildh_main(isector,Hmat)
     integer                                        :: isector   
     real(8),dimension(:,:),optional                :: Hmat
-    real(8),dimension(:,:),allocatable             :: Htmp_up,Htmp_dw,Hrdx
+    real(8),dimension(:,:),allocatable             :: Htmp_up,Htmp_dw,Hrdx,Hmat_tmp
+    real(8),dimension(:,:),allocatable             :: Htmp_ph,Htmp_eph_e,Htmp_eph_ph
     integer,dimension(2*Ns_Ud)                     :: Indices    ![2-2*Norb]
     integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)                          :: Nup,Ndw    ![Ns]
@@ -79,8 +80,8 @@ contains
        call sp_set_mpi_matrix(MpiComm,spH0d,mpiIstart,mpiIend,mpiIshift)
        call sp_init_matrix(MpiComm,spH0d,DimUp*DimDw)
        if(DimPh>1) then
-          call sp_set_mpi_matrix(MpiComm,spH0_eph,mpiIstart,mpiIend,mpiIshift)
-          call sp_init_matrix(MpiComm,spH0_eph,DimUp*DimDw)
+          call sp_set_mpi_matrix(MpiComm,spH0e_eph,mpiIstart,mpiIend,mpiIshift)
+          call sp_init_matrix(MpiComm,spH0e_eph,DimUp*DimDw)
        endif
        !
        if(Jhflag)then
@@ -89,7 +90,7 @@ contains
        endif
     else
        call sp_init_matrix(spH0d,DimUp*DimDw)
-       if(DimPh>1) call sp_init_matrix(spH0_eph,DimUp*DimDw)
+       if(DimPh>1) call sp_init_matrix(spH0e_eph,DimUp*DimDw)
        if(Jhflag)call sp_init_matrix(spH0nd,DimUp*DimDw)
     endif
 #else
@@ -99,7 +100,10 @@ contains
 #endif
     call sp_init_matrix(spH0dws(1),DimDw)
     call sp_init_matrix(spH0ups(1),DimUp)
-    if(DimPh>1) call sp_init_matrix(spH0_ph,DimPh)
+    if(DimPh>1) then
+       call sp_init_matrix(spH0_ph,DimPh)
+       call sp_init_matrix(spH0ph_eph,DimPh)
+    end if
     !
     !-----------------------------------------------!
     !LOCAL HAMILTONIAN TERMS
@@ -120,7 +124,7 @@ contains
     !PHONON TERMS
        include "ED_HAMILTONIAN/stored/H_ph.f90"
     !
-    !ELECTRON-PHONON TERMS (electronic part)
+    !ELECTRON-PHONON TERMS
        include "ED_HAMILTONIAN/stored/H_e_ph.f90"
     endif
     !-----------------------------------------------!
@@ -129,19 +133,20 @@ contains
        Hmat = 0d0
        allocate(Htmp_up(DimUp,DimUp));Htmp_up=0d0
        allocate(Htmp_dw(DimDw,DimDw));Htmp_dw=0d0
+       allocate(Hmat_tmp(DimUp*DimDw,DimUp*DimDw));Hmat_tmp=0.d0
        !
 #ifdef _MPI
        if(MpiStatus)then
-          call sp_dump_matrix(MpiComm,spH0d,Hmat)
+          call sp_dump_matrix(MpiComm,spH0d,Hmat_tmp)
        else
-          call sp_dump_matrix(spH0d,Hmat)
+          call sp_dump_matrix(spH0d,Hmat_tmp)
        endif
 #else
-       call sp_dump_matrix(spH0d,Hmat)
+       call sp_dump_matrix(spH0d,Hmat_tmp)
 #endif
        !
        if(Jhflag)then
-          allocate(Hrdx(Dim,Dim));Hrdx=0d0
+          allocate(Hrdx(DimUp*DimDw,DimUp*DimDw));Hrdx=0d0
 #ifdef _MPI
           if(MpiStatus)then
              call sp_dump_matrix(MpiComm,spH0nd,Hrdx)
@@ -151,19 +156,41 @@ contains
 #else
           call sp_dump_matrix(spH0nd,Hrdx)
 #endif
-          Hmat = Hmat + Hrdx
+          Hmat_tmp = Hmat_tmp + Hrdx
           deallocate(Hrdx)
        endif
        !
        call sp_dump_matrix(spH0ups(1),Htmp_up)
        call sp_dump_matrix(spH0dws(1),Htmp_dw)
-       Hmat = Hmat + kronecker_product(Htmp_dw,eye(DimUp))
-       Hmat = Hmat + kronecker_product(eye(DimDw),Htmp_up)
+       Hmat_tmp = Hmat_tmp + kronecker_product(Htmp_dw,eye(DimUp))
+       Hmat_tmp = Hmat_tmp + kronecker_product(eye(DimDw),Htmp_up)
        !
-       deallocate(Htmp_up,Htmp_dw)
+       if(DimPh>1) then
+          allocate(Htmp_ph(DimPh,DimPh));Htmp_ph=0d0
+          allocate(Htmp_eph_ph(DimPh,DimPh));Htmp_eph_ph=0d0
+          allocate(Htmp_eph_e(DimUp*DimDw,DimUp*DimDw));Htmp_eph_e=0d0
+          !
+          call sp_dump_matrix(spH0_ph,Htmp_ph)
+          call sp_dump_matrix(spH0e_eph,Htmp_eph_e)
+          call sp_dump_matrix(spH0ph_eph,Htmp_eph_ph)
+          !
+          Hmat = kronecker_product(eye(Dimph),Hmat_tmp) +     &
+                 kronecker_product(Htmp_ph,eye(DimUp*DimDw)) +&
+                 kronecker_product(Htmp_eph_ph,Htmp_eph_e)
+          !
+          deallocate(Htmp_ph,Htmp_eph_e,Htmp_eph_ph)
+       else
+          Hmat = Hmat_tmp
+       endif
+       !
+       deallocate(Htmp_up,Htmp_dw,Hmat_tmp)
     endif
     !
     deallocate(diag_hybr,bath_diag)
+do iph = 1,Dim
+   print*, Hmat(iph,:)
+end do
+stop "vediamo cosa succede fino a qui"
     return
     !
   end subroutine ed_buildh_main

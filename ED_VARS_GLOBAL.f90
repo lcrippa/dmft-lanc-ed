@@ -143,7 +143,7 @@ MODULE ED_VARS_GLOBAL
   type(sparse_matrix_csr)                            :: spH0nd !non-diagonal part
   type(sparse_matrix_csr),dimension(:),allocatable   :: spH0ups,spH0dws !reduced UP and DW parts
   type(sparse_matrix_csr)			     :: spH0_ph !Hamiltonian for phonons
-  type(sparse_matrix_csr)			     :: spH0_eph !electron-phonon interaction
+  type(sparse_matrix_csr)			     :: spH0e_eph, spH0ph_eph !electron-phonon interaction
   !
   procedure(dd_sparse_HxV),pointer                   :: spHtimesV_p=>null()
 
