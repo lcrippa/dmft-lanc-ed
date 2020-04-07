@@ -131,7 +131,7 @@ contains
     integer                               :: i
     !
     !put here a delete statement to avoid problems
-    if(sparse%status)stop "sp_init_matrix: alreay allocate can not init"
+    if(sparse%status)stop "sp_init_matrix: already allocated can not init"
     !
     sparse%Nrow=N
     sparse%Ncol=N 

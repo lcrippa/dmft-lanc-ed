@@ -95,7 +95,7 @@ contains
     endif
 #else
     call sp_init_matrix(spH0d,DimUp*DimDw)
-    if(DimPh>1) call sp_init_matrix(spH0_eph,DimUp*DimDown)
+    if(DimPh>1) call sp_init_matrix(spH0e_eph,DimUp*DimDown)
     if(Jhflag)call sp_init_matrix(spH0nd,DimUp*DimDw)
 #endif
     call sp_init_matrix(spH0dws(1),DimDw)
@@ -187,10 +187,6 @@ contains
     endif
     !
     deallocate(diag_hybr,bath_diag)
-do iph = 1,Dim
-   print*, Hmat(iph,:)
-end do
-stop "vediamo cosa succede fino a qui"
     return
     !
   end subroutine ed_buildh_main
@@ -341,57 +337,91 @@ stop "vediamo cosa succede fino a qui"
     real(8),dimension(Nloc)         :: v
     real(8),dimension(Nloc)         :: Hv
     real(8)                         :: val
-    integer                         :: i,iup,idw,j,jup,jdw,jj
+    integer                         :: i,iup,idw,j,jup,jdw,jj,i_el,j_el
     !
     !
     Hv=0d0
     !
     !Local:
     do i = 1,Nloc
-       do j=1,spH0d%row(i)%Size
-          Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(spH0d%row(i)%cols(j))
+       iph = (i-1)/(DimUp*DimDw) + 1		!phonon index [1:DimPh]
+       i_el = mod(i-1,DimUp*DimDw) + 1		!electron index [1:DimUp*DimDw]
+       do j_el=1,spH0d%row(i_el)%Size
+          val = spH0d%row(i_el)%vals(j_el)
+          j = spH0d%row(i_el)%cols(j_el) + (iph-1)*DimUp*DimDw
+          Hv(i) = Hv(i) + val*v(j)
        enddo
     enddo
     !
-    !DW:
-    do iup=1,DimUp
-       !
-       do idw=1,DimDw
-          i = iup + (idw-1)*DimUp
-          do jj=1,spH0dws(1)%row(idw)%Size
-             jup = iup
-             jdw = spH0dws(1)%row(idw)%cols(jj)
-             val = spH0dws(1)%row(idw)%vals(jj)
-             j     = jup +  (jdw-1)*DimUp
-             Hv(i) = Hv(i) + val*V(j)
-          enddo
-       enddo
-       !
-    enddo
-    !
-    !UP:
-    do idw=1,DimDw
-       !
+    do iph = 1,DimPh
+       !DW:
        do iup=1,DimUp
-          i = iup + (idw-1)*DimUp
-          do jj=1,spH0ups(1)%row(iup)%Size
-             jup = spH0ups(1)%row(iup)%cols(jj)
-             jdw = idw
-             val = spH0ups(1)%row(iup)%vals(jj)
-             j =  jup + (jdw-1)*DimUp
-             Hv(i) = Hv(i) + val*V(j)
+          !
+          do idw=1,DimDw
+             i = iup + (idw-1)*DimUp + (iph-1)*DimUp*DimDw
+             do jj=1,spH0dws(1)%row(idw)%Size
+                jup = iup
+                jdw = spH0dws(1)%row(idw)%cols(jj)
+                val = spH0dws(1)%row(idw)%vals(jj)
+                j     = jup +  (jdw-1)*DimUp + (iph-1)*DimUp*DimDw
+                Hv(i) = Hv(i) + val*V(j)
+             enddo
           enddo
+          !
        enddo
+       !
+       !UP:
+       do idw=1,DimDw
+          !
+          do iup=1,DimUp
+             i = iup + (idw-1)*DimUp + (iph-1)*DimUp*DimDw
+             do jj=1,spH0ups(1)%row(iup)%Size
+                jup = spH0ups(1)%row(iup)%cols(jj)
+                jdw = idw
+                val = spH0ups(1)%row(iup)%vals(jj)
+                j =  jup + (jdw-1)*DimUp + (iph-1)*DimUp*DimDw
+                Hv(i) = Hv(i) + val*V(j)
+             enddo
+          enddo
+          !
+       enddo
+       !
+       if(DimPh>1) then
+          do i_el = 1,DimUp*DimDw
+             i = i_el + (iph-1)*DimUp*DimDw
+             !
+             !PHONON
+             do jj = 1,spH0_ph%row(iph)%Size
+                val = spH0_ph%row(iph)%vals(jj)
+                j = i_el + (spH0_ph%row(iph)%cols(jj)-1)*DimUp*DimDw
+                Hv(i) = Hv(i) + val*v(j)
+             enddo
+             !
+             !ELECTRON-PHONON
+             do j_el = 1,spH0e_eph%row(i_el)%Size
+                do jj = 1,spH0ph_eph%row(iph)%Size
+                   val = spH0e_eph%row(i_el)%vals(j_el)*&
+                         spH0ph_eph%row(iph)%vals(jj)
+                   j = spH0e_eph%row(i_el)%cols(j_el) +&
+                       (spH0ph_eph%row(iph)%cols(jj)-1)*DimUp*DimDw
+                   Hv(i) = Hv(i) + val*v(j)
+                enddo
+             enddo
+             !
+          enddo
+       endif
        !
     enddo
     !
     !Non-Local:
     if(jhflag)then
        do i = 1,Nloc
-          do j=1,spH0nd%row(i)%Size
-             val   = spH0nd%row(i)%vals(j)
-             jj    = spH0nd%row(i)%cols(j)
-             Hv(i) = Hv(i) + val*V(jj)
+          iph = (i-1)/(DimUp*DimDw) + 1		!phonon index [1:DimPh]
+          i_el = mod(i-1,DimUp*DimDw) + 1	!electron index [1:DimUp*DimDw]
+          do j_el=1,spH0nd%row(i_el)%Size
+             val = spH0nd%row(i_el)%vals(j_el)
+             j = spH0nd%row(i_el)%cols(j_el) + (iph-1)*DimUp*DimDw
+             Hv(i) = Hv(i) + val*v(j)
           enddo
        enddo
     endif
