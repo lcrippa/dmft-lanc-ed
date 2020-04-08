@@ -77,6 +77,13 @@ contains
     !DW HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/direct/HxV_dw.f90"
     !
+    if(DimPh>1) then
+       !PHONON TERMS
+       include "ED_HAMILTONIAN/direct/HxV_ph.f90"
+       !ELECTRON-PHONON INTERACTION
+       include "ED_HAMILTONIAN/direct/HxV_eph.f90"
+    end if
+    !
     !NON-LOCAL HAMILTONIAN PART: H_non_loc*vin = vout
     if(Jhflag)then
        include "ED_HAMILTONIAN/direct/HxV_non_local.f90"

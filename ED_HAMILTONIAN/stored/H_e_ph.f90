@@ -26,13 +26,13 @@
 !Here we build the phononc part of the electron-phonon interaction: (b^+ + b)
   htmp = zero
   do iph=1,DimPh
-     i = iph + 1	!creation
+     i = iph + 1	!destruction operator: from the col to the row state
      if(i <= DimPh) then
         htmp = sqrt(dble(iph))
         call sp_insert_element(spH0ph_eph,htmp,iph,i)
      end if
-     i = iph - 1
-     if(i>0) then	!destruction
+     i = iph - 1	!construction operator: from the col to the row state
+     if(i>0) then
         htmp = sqrt(dble(iph - 1))
         call sp_insert_element(spH0ph_eph,htmp,iph,i)
      end if
