@@ -38,6 +38,7 @@ MODULE ED_OBSERVABLES
   integer                            :: iup,idw
   integer                            :: jup,jdw
   integer                            :: mup,mdw
+  integer                            :: iph,i_el
   real(8)                            :: sgn,sgn1,sgn2,sg1,sg2,sg3,sg4
   real(8)                            :: gs_weight
   !
@@ -139,7 +140,10 @@ contains
        if(MpiMaster)then
           call build_sector(isector,HI)
           do i = 1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              do ii=1,Ns_Ud
                 mup = HI(ii)%map(Indices(ii))
                 mdw = HI(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
@@ -229,7 +233,10 @@ contains
        if(MpiMaster)then
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              do ii=1,Ns_Ud
                 mup = HI(ii)%map(Indices(ii))
                 mdw = HI(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
@@ -263,6 +270,8 @@ contains
                             Jndices(1+(ispin-1)*Ns_Ud) = &
                                  binary_search(HI(1+(ispin-1)*Ns_Ud)%map,k)
                             call indices2state(Jndices,[iDimUps,iDimDws],j)
+                            !
+                            j = j + (iph-1)*iDimUp*iDimDw
                             !
                             imp_density_matrix(ispin,ispin,iorb,jorb) = &
                                  imp_density_matrix(ispin,ispin,iorb,jorb) + &
@@ -377,7 +386,10 @@ contains
        if(MpiMaster)then
           call build_sector(isector,H)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              do ii=1,Ns_Ud
                 mup = H(ii)%map(Indices(ii))
                 mdw = H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
@@ -653,7 +665,10 @@ contains
           evec => espace(isector)%M(:,istate)
           !
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              do ii=1,Ns_Ud
                 mup = HI(ii)%map(Indices(ii))
                 mdw = HI(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
@@ -785,7 +800,10 @@ contains
           evec => espace(isector)%M(:,istate)
           !
           do i=1,idim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              do ii=1,Ns_Ud
                 mup = H(ii)%map(Indices(ii))
                 mdw = H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))

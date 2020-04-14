@@ -21,6 +21,7 @@ MODULE ED_GF_NORMAL
   integer             :: i,iup,idw
   integer             :: j,jup,jdw  
   integer             :: m,mup,mdw
+  integer             :: iph,i_el
   real(8)             :: sgn,norm2,norm0
   integer             :: Nitermax,Nlanc,vecDim
 
@@ -187,7 +188,10 @@ contains
              !
              call build_sector(jsector,HJ)
              do i=1,iDim
-                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iph = (i-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(i-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -198,6 +202,8 @@ contains
                 Jndices        = Indices
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                j = j + (iph-1)*jDimUp*jDimDw
                 !
                 vvinit(j) = sgn*state_cvec(i)
              enddo
@@ -256,7 +262,10 @@ contains
              !
              call build_sector(jsector,HJ)
              do i=1,iDim
-                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iph = (i-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(i-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -267,6 +276,8 @@ contains
                 Jndices        = Indices
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                j = j + (iph-1)*jDimUp*jDimDw
                 !
                 vvinit(j) = sgn*state_cvec(i)
              enddo
@@ -384,6 +395,8 @@ contains
           jdim   = getdim(jsector)
           call get_DimUp(jsector,jDimUps)
           call get_DImDw(jsector,jDimDws)
+          jDimUp = product(jDimUps)
+          jDimDw = product(jDimDws)
           !
           if(MpiMaster)then
              if(ed_verbose>=3)write(LOGfile,"(A,I15)")' add particle:',jsector
@@ -391,7 +404,10 @@ contains
              !
              call build_sector(jsector,HJ)
              do i=1,iDim
-                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iph = (i-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(i-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -404,10 +420,15 @@ contains
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
                 !
+                j = j + (iph-1)*jDimUp*jDimDw
+                !
                 vvinit(j) = sgn*state_cvec(i)
              enddo
              do i=1,iDim
-                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iph = (i-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(i-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(jalfa)%map(Indices(jalfa))
                 iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -419,6 +440,8 @@ contains
                 Jndices        = Indices
                 Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                j = j + (iph-1)*jDimUp*jDimDw
                 !
                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
@@ -464,6 +487,8 @@ contains
           jdim   = getdim(jsector)
           call get_DimUp(jsector,jDimUps)
           call get_DImDw(jsector,jDimDws)
+          jDimUp = product(jDimUps)
+          jDimDw = product(jDimDws)
           !
           if(MpiMaster)then
              if(ed_verbose>=3)write(LOGfile,"(A,I15)")' del particle:',jsector
@@ -471,7 +496,10 @@ contains
              !
              call build_sector(jsector,HJ)
              do i=1,iDim
-                call state2indices(i,[iDimUps,iDimDws],Indices)
+                iph = (i-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(i-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -484,9 +512,14 @@ contains
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
                 !
+                j = j + (iph-1)*jDimUp*jDimDw
+                !
                 vvinit(j) = sgn*state_cvec(i)
              enddo
              do i=1,iDim
+                iph = (i-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(i-1,iDimUp*iDimDw) + 1
+                !
                 call state2indices(i,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(jalfa)%map(Indices(jalfa))
                 iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
@@ -499,6 +532,8 @@ contains
                 Jndices        = Indices
                 Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
                 call indices2state(Jndices,[jDimUps,jDimDws],j)
+                !
+                j = j + (iph-1)*jDimUp*jDimDw
                 !
                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
@@ -689,7 +724,10 @@ contains
              op_mat=0d0
              !
              do li=1,idim              !loop over the component of |I> (IN state!)
-                call state2indices(li,[iDimUps,iDimDws],Indices)
+                iph = (li-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(li-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -701,12 +739,17 @@ contains
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,k)
                 call indices2state(Jndices,[jDimUps,jDimDws],rj)
                 !
+                rj = rj + (iph-1)*jDimUp*jDimDw
+                !
                 ! op_mat(1)=op_mat(1) + conjg(espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
                 op_mat(1)=op_mat(1) + (espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
              enddo
              !
              do rj=1,jdim
-                call state2indices(rj,[jDimUps,jDimDws],Jndices)
+                iph = (rj-1)/(jDimUp*jDimDw) + 1
+                i_el = mod(rj-1,jDimUp*jDimDw) + 1
+                !
+                call state2indices(i_el,[jDimUps,jDimDws],Jndices)
                 iud(1)   = HJ(ialfa)%map(Jndices(ialfa))
                 iud(2)   = HJ(ialfa+Ns_Ud)%map(Jndices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -716,6 +759,8 @@ contains
                 Indices        = Jndices
                 Indices(ibeta) = binary_search(HI(ibeta)%map,k)
                 call indices2state(Indices,[iDimUps,iDimDws],li)
+                !
+                li = li + (iph-1)*iDimUp*iDimDw
                 !
                 ! op_mat(2)=op_mat(2) + conjg(espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
                 op_mat(2)=op_mat(2) + (espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
@@ -807,7 +852,10 @@ contains
              op_mat=0d0
              !
              do li=1,idim              !loop over the component of |I> (IN state!)
-                call state2indices(li,[iDimUps,iDimDws],Indices)
+                iph = (li-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(li-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -819,12 +867,17 @@ contains
                 Jndices(ibeta) = binary_search(HJ(ibeta)%map,k)
                 call indices2state(Jndices,[jDimUps,jDimDws],rj)
                 !
+                rj = rj + (iph-1)*jDimUp*jDimDw
+                !
                 ! op_mat(1)=op_mat(1) + conjg(espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
                 op_mat(1)=op_mat(1) + (espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
              enddo
              !
              do rj=1,jdim
-                call state2indices(rj,[jDimUps,jDimDws],Jndices)
+                iph = (rj-1)/(jDimUp*jDimDw) + 1
+                i_el = mod(rj-1,jDimUp*jDimDw) + 1
+                !
+                call state2indices(i_el,[jDimUps,jDimDws],Jndices)
                 iud(1)   = HJ(jalfa)%map(Jndices(jalfa))
                 iud(2)   = HJ(jalfa+Ns_Ud)%map(Jndices(jalfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -834,6 +887,8 @@ contains
                 Indices        = Jndices
                 Indices(jbeta) = binary_search(HI(jbeta)%map,k)
                 call indices2state(Indices,[iDimUps,iDimDws],li)
+                !
+                li = li + (iph-1)*iDimUp*iDimDw
                 !
                 ! op_mat(2)=op_mat(2) + conjg(espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
                 op_mat(2)=op_mat(2) + (espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)

@@ -19,6 +19,7 @@ MODULE ED_GF_CHISPIN
   integer             :: i,iup,idw
   integer             :: j,jup,jdw  
   integer             :: m,mup,mdw
+  integer             :: iph,i_el
   real(8)             :: sgn,norm2,norm0
   integer             :: Nitermax,Nlanc,vecDim
 
@@ -156,7 +157,10 @@ contains
           !
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              iud(1)   = HI(ialfa)%map(Indices(ialfa))
              iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -258,7 +262,10 @@ contains
           !
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              iud(1)   = HI(ialfa)%map(Indices(ialfa))
              iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -360,7 +367,10 @@ contains
           !
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              !
              iud(1)   = HI(ialfa)%map(Indices(ialfa))
              iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
@@ -529,7 +539,10 @@ contains
              expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(isector)%e(j))
              if(expterm<cutoff)cycle
              do ll=1,idim
-                call state2indices(ll,[iDimUps,iDimDws],Indices)
+                iph = (ll-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(ll-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)
