@@ -11,7 +11,7 @@
      !
      htmp = zero
      do iorb=1,Norb
-        htmp = htmp + g_ph(iorb)*(nup(iorb)+ndw(iorb))
+        htmp = htmp + g_ph(iorb)*(nup(iorb)+ndw(iorb) - 1.d0)
      enddo
      !
      select case(MpiStatus)

@@ -49,7 +49,7 @@ contains
           case ("full")
              call full_build_gf_normal_main(iorb,ispin)
           end select
-          if(MPIMASTER)call stop_timer(LOGfile)
+          if(MPIMASTER)call stop_timer(unit=LOGfile)
        enddo
     enddo
     !
@@ -70,7 +70,7 @@ contains
                 case ("full")
                    call full_build_gf_normal_mix_main(iorb,jorb,ispin)
                 end select
-                if(MPIMASTER)call stop_timer(LOGfile)
+                if(MPIMASTER)call stop_timer(unit=LOGfile)
              enddo
           enddo
        enddo

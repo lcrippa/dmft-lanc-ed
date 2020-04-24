@@ -46,7 +46,7 @@ contains
        case ("full")
           call full_ed_build_spinChi_main(iorb,iorb)
        end select
-       if(MPIMASTER)call stop_timer(LOGfile)
+       if(MPIMASTER)call stop_timer(unit=LOGfile)
     enddo
     !
     if(Norb>1)then
@@ -60,7 +60,7 @@ contains
              case ("full")
                 call full_ed_build_spinChi_main(iorb,jorb)
              end select
-             if(MPIMASTER)call stop_timer(LOGfile)
+             if(MPIMASTER)call stop_timer(unit=LOGfile)
           end do
        end do
        !
@@ -72,7 +72,7 @@ contains
        case ("full")
        ! Chi_spin_tot not implemented yet in the FULL ED case
        end select
-       if(MPIMASTER)call stop_timer(LOGfile)
+       if(MPIMASTER)call stop_timer(unit=LOGfile)
        !
        !
        do iorb=1,Norb

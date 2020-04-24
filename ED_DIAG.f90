@@ -278,7 +278,7 @@ contains
        if(allocated(eig_basis))deallocate(eig_basis)
        !
     enddo sector
-    if(MPIMASTER)call stop_timer(LOGfile)
+    if(MPIMASTER)call stop_timer(unit=LOGfile)
   end subroutine ed_diag_d
 
 
@@ -369,7 +369,7 @@ contains
        !
     enddo sector
     !
-    if(MPIMASTER)call stop_timer(LOGfile)
+    if(MPIMASTER)call stop_timer(unit=LOGfile)
     !
     !Get the ground state energy and rescale energies
     egs=minval(e0)

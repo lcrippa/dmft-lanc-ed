@@ -14,7 +14,7 @@
      !
      htmp=zero
      do iorb=1,Norb
-        htmp = htmp + g_ph(iorb)*(nup(iorb)+ndw(iorb))	!electronin part
+        htmp = htmp + g_ph(iorb)*(nup(iorb)+ndw(iorb) - 1.d0)	!electronin part
      enddo
      !
      do jj = 1,DimPh
