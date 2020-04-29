@@ -1,9 +1,10 @@
+do iph=1,DimPh
   do jdw=1,MpiQdw
      do jup=1,DimUp
         mup  = Hs(1)%map(jup)
         nup  = bdecomp(mup,Ns)
-        j    = jup + (jdw-1)*dimUp
         !
+        j    = jup + (jdw-1)*dimUp + (iph-1)*DimUp*MpiQdw
         !
         !> H_imp: Off-diagonal elements, i.e. non-local part. 
         !remark: iorb=jorb cant have simultaneously n=0 and n=1 (Jcondition)
@@ -17,7 +18,7 @@
                  call cdg(iorb,k1,k2,sg2)
                  iup  = binary_search(Hs(1)%map,k2)
                  idw  = jdw
-                 i    = iup + (idw-1)*dimUp
+                 i    = iup + (idw-1)*dimUp + (iph-1)*DimUp*MpiQdw
                  htmp = impHloc(1,1,iorb,jorb)*sg1*sg2
                  !
                  Hv(i) = Hv(i) + htmp*vin(j)
@@ -44,7 +45,7 @@
                        call cdg(ialfa,k1,k2,sg2)
                        iup  = binary_search(Hs(1)%map,k2)
                        idw  = jdw
-                       i    = iup + (idw-1)*dimUp
+                       i    = iup + (idw-1)*dimUp + (iph-1)*DimUp*MpiQdw
                        htmp = hbath_tmp(1,1,iorb,jorb,kp)*sg1*sg2
                        !
                        hv(i) = hv(i) + htmp*vin(j)
@@ -67,7 +68,7 @@
                  call cdg(ialfa,k1,k2,sg2)
                  iup  = binary_search(Hs(1)%map,k2)
                  idw  = jdw
-                 i    = iup + (idw-1)*dimUp
+                 i    = iup + (idw-1)*dimUp + (iph-1)*DimUp*MpiQdw
                  htmp = diag_hybr(1,iorb,kp)*sg1*sg2
                  !
                  hv(i) = hv(i) + htmp*vin(j)
@@ -80,7 +81,7 @@
                  call cdg(iorb,k1,k2,sg2)
                  iup  = binary_search(Hs(1)%map,k2)
                  idw  = jdw
-                 i    = iup + (idw-1)*dimUp
+                 i    = iup + (idw-1)*dimUp + (iph-1)*DimUp*MpiQdw
                  htmp = diag_hybr(1,iorb,kp)*sg1*sg2
                  !
                  hv(i) = hv(i) + htmp*vin(j)
@@ -92,8 +93,6 @@
         !
      enddo
   enddo
-
-
-
+enddo
 
 

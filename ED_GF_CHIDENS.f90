@@ -172,7 +172,7 @@ contains
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
        else
-          allocate(vvinit(0))
+          allocate(vvinit(1));vvinit=0.d0
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -277,7 +277,7 @@ contains
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
        else
-          allocate(vvinit(0))
+          allocate(vvinit(1));vvinit=0.d0
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -389,7 +389,7 @@ contains
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
        else
-          allocate(vvinit(0))
+          allocate(vvinit(1));vvinit=0.d0
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
