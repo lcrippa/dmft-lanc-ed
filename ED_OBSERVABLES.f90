@@ -25,6 +25,7 @@ MODULE ED_OBSERVABLES
   real(8),dimension(:),allocatable   :: magz
   real(8),dimension(:,:),allocatable :: sz2,n2
   real(8),dimension(:,:),allocatable :: zimp,simp
+  real(8)                            :: dens_ph
   real(8)                            :: s2tot
   real(8)                            :: Egs
   real(8)                            :: Ei
@@ -112,6 +113,7 @@ contains
     n2      = 0.d0
     s2tot   = 0.d0
     Prob    = 0.d0
+    dens_ph = 0.d0
     !
     do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
@@ -187,6 +189,7 @@ contains
                 enddo
              enddo
              s2tot = s2tot  + (sum(sz))**2*gs_weight
+             dens_ph = dens_ph + (iph-1)*gs_weight
           enddo
           call delete_sector(isector,HI)
        endif
@@ -644,6 +647,7 @@ contains
     n2      = 0.d0
     s2tot   = 0.d0
     Prob    = 0.d0
+    dens_ph = 0.d0
     !
     beta_ = beta
     if(.not.finiteT)beta_=1000d0
@@ -713,6 +717,7 @@ contains
                 enddo
              enddo
              s2tot = s2tot  + (sum(sz))**2*weight
+             dens_ph = dens_ph + (iph-1)*weight
           enddo
        enddo
        call delete_sector(isector,HI)
@@ -982,7 +987,8 @@ contains
          ((reg(txtfy(5*Norb+2+(iorb-1)*Norb+jorb))//"sz2_"//reg(txtfy(iorb))//reg(txtfy(jorb)),jorb=1,Norb),iorb=1,Norb),&
          ((reg(txtfy((5+Norb)*Norb+2+(iorb-1)*Norb+jorb))//"n2_"//reg(txtfy(iorb))//reg(txtfy(jorb)),jorb=1,Norb),iorb=1,Norb),&
          ((reg(txtfy((5+2*Norb)*Norb+2+(ispin-1)*Nspin+iorb))//"z_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
-         ((reg(txtfy((6+2*Norb)*Norb+2+Nspin+(ispin-1)*Nspin+iorb))//"sig_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin)
+         ((reg(txtfy((6+2*Norb)*Norb+2+Nspin+(ispin-1)*Nspin+iorb))//"sig_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
+         reg(txtfy((6+2*Norb)*Norb+3+Nspin+(Nspin-1)*Nspin+Norb))//"nph"
 
     close(unit)
     !
@@ -1029,7 +1035,8 @@ contains
          ((sz2(iorb,jorb),jorb=1,Norb),iorb=1,Norb),&
          ((n2(iorb,jorb),jorb=1,Norb),iorb=1,Norb),&
          ((zimp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
-         ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin)
+         ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
+         dens_ph
     close(unit)    
     !
     unit = free_unit()
@@ -1049,7 +1056,8 @@ contains
          ((sz2(iorb,jorb),jorb=1,Norb),iorb=1,Norb),&
          ((n2(iorb,jorb),jorb=1,Norb),iorb=1,Norb),&
          ((zimp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
-         ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin)
+         ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
+         dens_ph
     close(unit)         
     !
     unit = free_unit()
