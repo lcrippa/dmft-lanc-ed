@@ -3,8 +3,8 @@
      i_el = mod(i-1,DimUp*MpiQdw) + 1
      iph = (i-1)/(DimUp*MpiQdw) + 1
      !
-     iup = iup_index(i_el,DimUp)
-     idw = idw_index(i_el,DimUp)
+     iup = iup_index(i_el+mpiIshift,DimUp)
+     idw = idw_index(i_el+mpiIshift,DimUp)
      !
      mup = Hs(1)%map(iup)
      mdw = Hs(2)%map(idw)
