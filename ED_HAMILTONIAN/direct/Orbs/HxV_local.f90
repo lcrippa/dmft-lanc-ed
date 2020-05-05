@@ -1,5 +1,7 @@
-  do i=1,Dim
-     call state2indices(i,[DimUps,DimDws],Indices)
+  do i=1,Nloc
+     i_el = mod(i-1,DimUp*DimDw) + 1	!electronic index
+     !
+     call state2indices(i_el,[DimUps,DimDws],Indices)
      do iud=1,Ns_Ud
         mup = Hs(iud)%map(Indices(iud))
         mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
@@ -8,7 +10,6 @@
      enddo
      Nup = Breorder(Nups)
      Ndw = Breorder(Ndws)
-     !
      !
      ! HxV_imp: Diagonal Elements, i.e. local part
      htmp = zero

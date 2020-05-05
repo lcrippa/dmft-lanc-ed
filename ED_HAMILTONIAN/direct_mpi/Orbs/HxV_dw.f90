@@ -3,11 +3,9 @@
         j = jjup + (jjdw-1)*DimDw
         call state2indices(j,[DimDws,DimUps],Jndices)
         !
-        !
-        !
         !>H_hyb: hopping terms for a given spin (imp <--> bath)
         do iorb=1,Ns_Ud           
-           mdw  = Hs(iorb+Ns_Ud)%map( Indices(iorb) )
+           mdw  = Hs(iorb+Ns_Ud)%map( Jndices(iorb) )
            Ndws(iorb,:) = bdecomp(mdw,Ns_Orb)
            !
            do kp=1,Nbath

@@ -157,6 +157,13 @@ contains
     !
     !DW HAMILTONIAN TERMS
     include "ED_HAMILTONIAN/direct/Orbs/HxV_dw.f90"
+    !
+    if(DimPh>1)then
+       !PHONON
+       include "ED_HAMILTONIAN/direct/Orbs/HxV_ph.f90"
+       !ELECTRON-PHONON
+       include "ED_HAMILTONIAN/direct/Orbs/HxV_eph.f90"
+    endif
     !-----------------------------------------------!
     !
     deallocate(diag_hybr,bath_diag)
@@ -182,9 +189,6 @@ contains
     real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
     integer                                        :: i_start,i_end
-    integer                                        :: MpiIerr
-    integer,allocatable,dimension(:)               :: Counts
-    integer,allocatable,dimension(:)               :: Offset
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -250,6 +254,7 @@ contains
        deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0         !reallocate Vt
        call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt) !Hvt^T --> Vt
        Hv(i_start:i_end) = Hv(i_start:i_end) + Vt
+       !
        deallocate(vt,Hvt)
     end do
     !
@@ -290,7 +295,7 @@ contains
     integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)                          :: Nup,Ndw
     real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
-    integer,allocatable,dimension(:)               :: Counts,Displs
+    integer                                        :: i_start,i_end
     !
     if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
     isector=Hsector
@@ -346,13 +351,28 @@ contains
     !DW HAMILTONIAN TERMS: MEMORY NON-CONTIGUOUS
     mpiQup=DimUp/MpiSize
     if(MpiRank<mod(DimUp,MpiSize))MpiQup=MpiQup+1
-    allocate(vt(mpiQup*DimDw)) ;vt=0d0
-    allocate(Hvt(mpiQup*DimDw));Hvt=0d0
-    call vector_transpose_MPI(DimUp,MpiQdw,Vin,DimDw,MpiQup,vt) !Vin^T --> Vt
-    include "ED_HAMILTONIAN/direct_mpi/Orbs/HxV_dw.f90"
-    deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0         !reallocate Vt
-    call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt) !Hvt^T --> Vt
-    Hv = Hv + Vt
+    !
+    do iph=1,DimPh
+       allocate(vt(mpiQup*DimDw)) ;vt=0d0
+       allocate(Hvt(mpiQup*DimDw));Hvt=0d0
+       i_start = 1 + (iph-1)*DimUp*MpiQdw
+       i_end = iph*DimUp*MpiQdw
+       !
+       call vector_transpose_MPI(DimUp,MpiQdw,Vin(i_start:i_end),DimDw,MpiQup,vt) !Vin^T --> Vt
+       include "ED_HAMILTONIAN/direct_mpi/Orbs/HxV_dw.f90"
+       deallocate(vt) ; allocate(vt(DimUp*mpiQdw)) ;vt=0d0         !reallocate Vt
+       call vector_transpose_MPI(DimDw,mpiQup,Hvt,DimUp,mpiQdw,vt) !Hvt^T --> Vt
+       Hv(i_start:i_end) = Hv(i_start:i_end) + Vt
+       !
+       deallocate(Hvt,vt)
+    enddo
+    !
+    if(DimPh>1)then
+       !PHONON TERMS
+       include "ED_HAMILTONIAN/direct_mpi/Orbs/HxV_ph.f90"
+       !ELECTRON-PHONON INTERACTION
+       include "ED_HAMILTONIAN/direct_mpi/Orbs/HxV_eph.f90"
+    endif
     !-----------------------------------------------!
     !
     deallocate(diag_hybr,bath_diag)
