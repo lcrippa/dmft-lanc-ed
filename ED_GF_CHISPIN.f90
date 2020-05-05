@@ -225,10 +225,8 @@ contains
     type(sector_map)            :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
     !
     if(ed_total_ud)then
-       ialfa = 1
-       iorb1 = iorb
+       iorb1 = Norb
     else
-       ialfa = iorb
        iorb1 = 1
     endif
     !
@@ -266,13 +264,21 @@ contains
              i_el = mod(i-1,iDimUp*iDimDw) + 1
              !
              call state2indices(i_el,[iDimUps,iDimDws],Indices)
-             iud(1)   = HI(ialfa)%map(Indices(ialfa))
-             iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
              !
-             Sup = sum(nud(1,1:Norb))
-             Sdw = sum(nud(2,1:Norb))
+             Sup = 0.d0
+             Sdw = 0.d0
+             do j=1,Ns_ud
+                iud(1)   = HI(j)%map(Indices(j))
+                iud(2)   = HI(j+Ns_Ud)%map(Indices(j+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                !
+                do ialfa=1,iorb1
+                   Sup = Sup + nud(1,ialfa)
+                   Sdw = Sdw + nud(2,ialfa)
+                enddo
+             enddo
+             !
              sgn = 0.5d0*(Sup - Sdw)
              !
              vvinit(i) = sgn*state_cvec(i)

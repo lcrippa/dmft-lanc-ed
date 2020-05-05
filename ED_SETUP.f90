@@ -69,7 +69,6 @@ contains
     if(.not.ed_total_ud)then
        if(bath_type=="hybrid")stop "ED ERROR: ed_total_ud=F can not be used with bath_type=hybrid"
        if(Jhflag)stop "ED ERROR: ed_total_ud=F can not be used with Jx!=0 OR Jp!=0"
-       if(Nph>0)stop "ED ERROR: ed_total_ud=F is currently not supported with Nph>0"
        ! !<ACTHUNG:
        ! lanc_dim_threshold=2
     endif

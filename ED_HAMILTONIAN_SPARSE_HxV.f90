@@ -95,7 +95,7 @@ contains
     endif
 #else
     call sp_init_matrix(spH0d,DimUp*DimDw)
-    if(DimPh>1) call sp_init_matrix(spH0e_eph,DimUp*DimDown)
+    if(DimPh>1) call sp_init_matrix(spH0e_eph,DimUp*DimDw)
     if(Jhflag)call sp_init_matrix(spH0nd,DimUp*DimDw)
 #endif
     call sp_init_matrix(spH0dws(1),DimDw)
@@ -207,6 +207,7 @@ contains
     integer                                        :: isector
     integer                                        :: mDimUp,mDimDw
     real(8),dimension(:,:),optional                :: Hmat
+    real(8),dimension(:,:),allocatable             :: Hmat_tmp,Htmp_ph,Htmp_eph_e,Htmp_eph_ph 
     integer,dimension(2*Ns_Ud)                     :: Indices,Jndices
     integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)                          :: Nup,Ndw    ![Ns]
@@ -260,17 +261,27 @@ contains
 #ifdef _MPI
     if(MpiStatus)then
        call sp_set_mpi_matrix(MpiComm,spH0d,mpiIstart,mpiIend,mpiIshift)
-       call sp_init_matrix(MpiComm,spH0d,Dim)
+       call sp_init_matrix(MpiComm,spH0d,DimUp*DimDw)
+       if(DimPh>1) then
+          call sp_set_mpi_matrix(MpiComm,spH0e_eph,mpiIstart,mpiIend,mpiIshift)
+          call sp_init_matrix(MpiComm,spH0e_eph,DimUp*DimDw)
+       endif
     else
-       call sp_init_matrix(spH0d,Dim)
+       call sp_init_matrix(spH0d,DimUp*DimDw)
+       if(DimPh>1) call sp_init_matrix(spH0e_eph,DimUp*DimDw)
     endif
 #else
-    call sp_init_matrix(spH0d,Dim)
+    call sp_init_matrix(spH0d,DimUp*DimDw)
+    if(DimPh>1) call sp_init_matrix(spH0e_eph,DimUp*DimDw)
 #endif
     do iud=1,Ns_Ud
        call sp_init_matrix(spH0dws(iud),DimDws(iud))
        call sp_init_matrix(spH0ups(iud),DimUps(iud))
     enddo
+    if(DimPh>1) then
+       call sp_init_matrix(spH0_ph,DimPh)
+       call sp_init_matrix(spH0ph_eph,DimPh)
+    end if
     !
     !-----------------------------------------------!
     !LOCAL HAMILTONIAN TERMS
@@ -281,20 +292,29 @@ contains
     !
     !DW TERMS
     include "ED_HAMILTONIAN/stored/Orbs/H_dw.f90"
+    !
+    if(DimPh>1)then
+       !PHONON TERMS
+       include "ED_HAMILTONIAN/stored/Orbs/H_ph.f90"
+       !
+       !ELECTRON-PHONON TERMS
+       include "ED_HAMILTONIAN/stored/Orbs/H_e_ph.f90"
+    endif
     !-----------------------------------------------!
     !
     if(present(Hmat))then
-       Hmat = 0d0       
+       Hmat = 0d0 
+       allocate(Hmat_tmp(DimUp*DimDw,DimUp*DimDw));Hmat_tmp=0.d0      
 #ifdef _MPI
        if(MpiStatus)then
-          call sp_dump_matrix(MpiComm,spH0d,Hmat)
+          call sp_dump_matrix(MpiComm,spH0d,Hmat_tmp)
        else
-          call sp_dump_matrix(spH0d,Hmat)
+          call sp_dump_matrix(spH0d,Hmat_tmp)
        endif
 #else
-       call sp_dump_matrix(spH0d,Hmat)
+       call sp_dump_matrix(spH0d,Hmat_tmp)
 #endif
-       do i=1,Dim
+       do i=1,DimUp*DimDw
           call state2indices(i,[DimUps,DimDws],Indices)
           do iud=1,Ns_Ud
              !UP:
@@ -302,18 +322,46 @@ contains
              do jj=1,spH0ups(iud)%row(iup)%Size
                 Jndices = Indices ; Jndices(iud) = spH0ups(iud)%row(iup)%cols(jj)
                 call indices2state(Jndices,[DimUps,DimDws],j)
-                Hmat(i,j) = Hmat(i,j) + spH0ups(iud)%row(iup)%vals(jj)
+                Hmat_tmp(i,j) = Hmat_tmp(i,j) + spH0ups(iud)%row(iup)%vals(jj)
              enddo
              !DW:
              idw = Indices(iud+Ns_Ud)
              do jj=1,spH0dws(iud)%row(idw)%Size
                 Jndices = Indices ; Jndices(iud+Ns_Ud) = spH0dws(iud)%row(idw)%cols(jj)
                 call indices2state(Jndices,[DimUps,DimDws],j)
-                Hmat(i,j) = Hmat(i,j) + spH0dws(iud)%row(idw)%vals(jj)
+                Hmat_tmp(i,j) = Hmat_tmp(i,j) + spH0dws(iud)%row(idw)%vals(jj)
              enddo
              !
           enddo
        enddo
+       !
+       if(DimPh>1) then
+          allocate(Htmp_ph(DimPh,DimPh));Htmp_ph=0d0
+          allocate(Htmp_eph_ph(DimPh,DimPh));Htmp_eph_ph=0d0
+          allocate(Htmp_eph_e(DimUp*DimDw,DimUp*DimDw));Htmp_eph_e=0d0
+          !
+          call sp_dump_matrix(spH0_ph,Htmp_ph)
+#ifdef _MPI
+          if(MpiStatus)then
+             call sp_dump_matrix(MpiComm,spH0e_eph,Htmp_eph_e)
+          else
+             call sp_dump_matrix(spH0e_eph,Htmp_eph_e)
+          endif
+#else
+          call sp_dump_matrix(spH0e_eph,Htmp_eph_e)
+#endif
+          call sp_dump_matrix(spH0ph_eph,Htmp_eph_ph)
+          !
+          Hmat = kronecker_product(eye(Dimph),Hmat_tmp) +     &
+                 kronecker_product(Htmp_ph,eye(DimUp*DimDw)) +&
+                 kronecker_product(Htmp_eph_ph,Htmp_eph_e)
+          !
+          deallocate(Htmp_ph,Htmp_eph_e,Htmp_eph_ph)
+       else
+          Hmat = Hmat_tmp
+       endif
+       !
+       deallocate(Hmat_tmp)
     endif
     !
     deallocate(diag_hybr,bath_diag)
@@ -440,7 +488,8 @@ contains
     integer                    :: Nloc
     real(8),dimension(Nloc)    :: v
     real(8),dimension(Nloc)    :: Hv
-    integer                    :: i,iup,idw,j,jup,jdw,jj
+    real(8)                    :: val
+    integer                    :: i,iup,idw,j,jup,jdw,jj,i_el,j_el
     integer                    :: iud
     integer,dimension(2*Ns_Ud) :: Indices,Jndices
     !
@@ -448,14 +497,19 @@ contains
     Hv=0d0
     !
     do i = 1,Nloc
-       do j=1,spH0d%row(i)%Size
-          Hv(i) = Hv(i) + spH0d%row(i)%vals(j)*v(spH0d%row(i)%cols(j))
+       i_el = mod(i-1,DimUp*DimDw) + 1
+       !
+       do j=1,spH0d%row(i_el)%Size
+          Hv(i) = Hv(i) + spH0d%row(i_el)%vals(j)*v(i)
        enddo
     enddo
     !
     !
-    do i=1,Dim
-       call state2indices(i,[DimUps,DimDws],Indices)
+    do i=1,Nloc
+       i_el = mod(i-1,DimUp*DimDw) + 1
+       iph = (i-1)/(DimUp*DimDw) + 1
+       !
+       call state2indices(i_el,[DimUps,DimDws],Indices)
        do iud=1,Ns_Ud
           !
           !UP:
@@ -463,6 +517,8 @@ contains
           do jj=1,spH0ups(iud)%row(iup)%Size
              Jndices = Indices ; Jndices(iud) = spH0ups(iud)%row(iup)%cols(jj)
              call indices2state(Jndices,[DimUps,DimDws],j)
+             !
+             j = j + (iph-1)*DimUp*DimDw
              Hv(i) = Hv(i) + spH0ups(iud)%row(iup)%vals(jj)*V(j)
           enddo
           !
@@ -471,11 +527,39 @@ contains
           do jj=1,spH0dws(iud)%row(idw)%Size
              Jndices = Indices ; Jndices(iud+Ns_Ud) = spH0dws(iud)%row(idw)%cols(jj)
              call indices2state(Jndices,[DimUps,DimDws],j)
+             !
+             j = j + (iph-1)*DimUp*DimDw
              Hv(i) = Hv(i) + spH0dws(iud)%row(idw)%vals(jj)*V(j)
           enddo
           !
        enddo
     enddo
+    !
+    if(DimPh>1)then
+       do i=1,Nloc
+          i_el = mod(i-1,DimUp*DimDw) + 1
+          iph = (i-1)/(DimUp*DimDw) + 1
+          !
+          !PHONON
+          do jj = 1,spH0_ph%row(iph)%Size
+             val = spH0_ph%row(iph)%vals(jj)
+             j = i_el + (spH0_ph%row(iph)%cols(jj)-1)*DimUp*DimDw
+             Hv(i) = Hv(i) + val*v(j)
+          enddo
+          !
+          !ELECTRON-PHONON
+          do j_el = 1,spH0e_eph%row(i_el)%Size
+             do jj = 1,spH0ph_eph%row(iph)%Size
+                val = spH0e_eph%row(i_el)%vals(j_el)*&
+                      spH0ph_eph%row(iph)%vals(jj)
+                j = spH0e_eph%row(i_el)%cols(j_el) +&
+                    (spH0ph_eph%row(iph)%cols(jj)-1)*DimUp*DimDw
+                 Hv(i) = Hv(i) + val*v(j)
+             enddo
+          enddo
+          !
+       enddo
+    endif
     !
   end subroutine spMatVec_orbs
 
