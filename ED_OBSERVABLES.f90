@@ -30,6 +30,7 @@ MODULE ED_OBSERVABLES
   real(8)                            :: Egs
   real(8)                            :: Ei
   real(8),dimension(:),allocatable   :: Prob
+  real(8),dimension(:),allocatable   :: prob_ph
   !
   integer                            :: iorb,jorb,iorb1,jorb1
   integer                            :: ispin,jspin
@@ -102,6 +103,7 @@ contains
     allocate(magz(Norb),sz2(Norb,Norb),n2(Norb,Norb))
     allocate(simp(Norb,Nspin),zimp(Norb,Nspin))
     allocate(Prob(3**Norb))
+    allocate(prob_ph(DimPh))
     !
     Egs     = state_list%emin
     dens    = 0.d0
@@ -113,6 +115,7 @@ contains
     n2      = 0.d0
     s2tot   = 0.d0
     Prob    = 0.d0
+    prob_ph = 0.d0
     dens_ph = 0.d0
     !
     do istate=1,state_list%size
@@ -189,6 +192,7 @@ contains
                 enddo
              enddo
              s2tot = s2tot  + (sum(sz))**2*gs_weight
+             prob_ph(iph) = prob_ph(iph) + gs_weight
              dens_ph = dens_ph + (iph-1)*gs_weight
           enddo
           call delete_sector(isector,HI)
@@ -717,6 +721,7 @@ contains
                 enddo
              enddo
              s2tot = s2tot  + (sum(sz))**2*weight
+             prob_ph(iph) = prob_ph(iph) + gs_weight
              dens_ph = dens_ph + (iph-1)*weight
           enddo
        enddo
@@ -999,6 +1004,12 @@ contains
          reg(txtfy(2+Norb+1))//"U'",reg(txtfy(2+Norb+2))//"Jh"
     close(unit)
     !
+    unit = free_unit()
+    open(unit,file="Nph_probability_info.ed")
+    write(unit,"(A1,90(A10,6X))")"#",&
+         (reg(txtfy(i+1))//"Nph="//reg(txtfy(i)),i=0,DimPh-1)
+    close(unit)
+    !
     iolegend=.false.
   end subroutine write_legend
 
@@ -1064,6 +1075,11 @@ contains
     open(unit,file="Occupation_prob"//reg(ed_file_suffix)//".ed")
     write(unit,"(125F15.9)")Uloc(1),Prob,sum(Prob)
     close(unit)         
+    !
+    unit = free_unit()
+    open(unit,file="Nph_probability"//reg(ed_file_suffix)//".ed")
+    write(unit,"(90(F15.9,1X))") (prob_ph(i),i=1,DimPh)
+    close(unit)
   end subroutine write_observables
 
   subroutine write_energy()
