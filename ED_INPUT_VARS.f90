@@ -26,10 +26,11 @@ MODULE ED_INPUT_VARS
   real(8)              :: w0_ph               !w0_ph: phonon frequency (constant)
   real(8)              :: eps                 !broadening
   real(8)              :: wini,wfin           !
+  real(8)              :: xmin,xmax           !x-range for the local lattice probability distribution function (phonons)
   integer              :: Nsuccess            !
-  logical              :: chispin_flag             !
-  logical              :: chidens_flag             !
-  logical              :: chipair_flag             !
+  logical              :: chispin_flag        !
+  logical              :: chidens_flag        !
+  logical              :: chipair_flag        !
   logical              :: HFmode              !flag for HF interaction form U(n-1/2)(n-1/2) VS Unn
   real(8)              :: cutoff              !cutoff for spectral summation
   real(8)              :: gs_threshold        !Energy threshold for ground state degeneracy loop up
@@ -88,6 +89,7 @@ MODULE ED_INPUT_VARS
   integer              :: Lreal
   integer              :: Lfit
   integer              :: Ltau
+  integer              :: Lpos
 
   !LOG AND Hamiltonian UNITS
   !=========================================================
@@ -159,12 +161,15 @@ contains
     call parse_input_variable(Lreal,"LREAL",INPUTunit,default=5000,comment="Number of real-axis frequencies.")
     call parse_input_variable(Ltau,"LTAU",INPUTunit,default=1000,comment="Number of imaginary time points.")
     call parse_input_variable(Lfit,"LFIT",INPUTunit,default=1000,comment="Number of Matsubara frequencies used in the \Chi2 fit.")
+    call parse_input_variable(Lpos,"LPOS",INPUTunit,default=100,comment="Number of points for the lattice PDF.")
     call parse_input_variable(nread,"NREAD",INPUTunit,default=0.d0,comment="Objective density for fixed density calculations.")
     call parse_input_variable(nerr,"NERR",INPUTunit,default=1.d-4,comment="Error threshold for fixed density calculations.")
     call parse_input_variable(ndelta,"NDELTA",INPUTunit,default=0.1d0,comment="Initial step for fixed density calculations.")
     call parse_input_variable(ncoeff,"NCOEFF",INPUTunit,default=1d0,comment="multiplier for the initial ndelta read from a file (ndelta-->ndelta*ncoeff).")    
     call parse_input_variable(wini,"WINI",INPUTunit,default=-5.d0,comment="Smallest real-axis frequency")
     call parse_input_variable(wfin,"WFIN",INPUTunit,default=5.d0,comment="Largest real-axis frequency")
+    call parse_input_variable(xmin,"XMIN",INPUTunit,default=-3.d0,comment="Smallest position for the lattice PDF")
+    call parse_input_variable(xmax,"XMAX",INPUTunit,default=3.d0,comment="Largest position for the lattice PDF")
     call parse_input_variable(chispin_flag,"CHISPIN_FLAG",INPUTunit,default=.false.,comment="Flag to activate spin susceptibility calculation.")
     call parse_input_variable(chidens_flag,"CHIDENS_FLAG",INPUTunit,default=.false.,comment="Flag to activate density susceptibility calculation.")
     call parse_input_variable(chipair_flag,"CHIPAIR_FLAG",INPUTunit,default=.false.,comment="Flag to activate pair susceptibility calculation.")
