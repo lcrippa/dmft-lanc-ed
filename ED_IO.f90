@@ -186,6 +186,7 @@ MODULE ED_IO
   public :: ed_print_impSigma
   public :: ed_print_impG
   public :: ed_print_impG0
+  public :: ed_print_impD
   public :: ed_print_impChi
 
 
@@ -411,6 +412,21 @@ contains
   end subroutine ed_print_impG0
 
 
+
+  !+------------------------------------------------------------------+
+  !                         PRINT D (phonon Green's function)
+  !+------------------------------------------------------------------+  
+  subroutine ed_print_impD
+    !
+    call allocate_grids()
+    !
+    !Print the impurity functions:
+    call splot("impDph_iw.ed"   ,vm,impDmats_ph(:))
+    call splot("impDph_realw.ed",vr,impDreal_ph(:))
+    !
+    call deallocate_grids()
+    !
+  end subroutine ed_print_impD
 
 
 

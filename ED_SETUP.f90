@@ -262,6 +262,11 @@ contains
     impG0mats=zero
     impG0real=zero
     !
+    allocate(impDmats_ph(0:Lmats))
+    allocate(impDreal_ph(Lreal))
+    impDmats_ph=zero
+    impDreal_ph=zero
+    !
     !allocate observables
     allocate(ed_dens(Norb),ed_docc(Norb),ed_dens_up(Norb),ed_dens_dw(Norb))
     ed_dens=0d0

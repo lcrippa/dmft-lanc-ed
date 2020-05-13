@@ -1,6 +1,7 @@
 MODULE ED_GREENS_FUNCTIONS
   USE ED_GF_SHARED
   USE ED_GF_NORMAL
+  USE ED_GF_PHONON
   USE ED_GF_CHISPIN
   USE ED_GF_CHIDENS
   ! USE ED_CHI_PAIR
@@ -31,14 +32,20 @@ contains
     impG0mats=zero
     impG0real=zero
     !
+    impDmats_ph=zero
+    impDreal_ph=zero
     !
     write(LOGfile,"(A)")"Get impurity Greens functions:"
     call build_gf_normal()
+    if(DimPh>1) call build_gf_phonon()
     call build_sigma_normal()
     !
     if(MPIMASTER)then
        if(ed_print_Sigma)call ed_print_impSigma()
-       if(ed_print_G)call ed_print_impG()
+       if(ed_print_G) then
+          call ed_print_impG()
+          if(DimPh>1)call ed_print_impD()
+       endif
        if(ed_print_G0)call ed_print_impG0()
     endif
     !

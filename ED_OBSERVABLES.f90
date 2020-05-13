@@ -32,6 +32,7 @@ MODULE ED_OBSERVABLES
   real(8),dimension(:),allocatable   :: Prob
   real(8),dimension(:),allocatable   :: prob_ph
   real(8),dimension(:),allocatable   :: pdf_ph
+  real(8)                            :: w_ph
   !
   integer                            :: iorb,jorb,iorb1,jorb1
   integer                            :: ispin,jspin
@@ -120,6 +121,7 @@ contains
     prob_ph = 0.d0
     dens_ph = 0.d0
     pdf_ph  = 0.d0
+    w_ph    = w0_ph
     !
     do istate=1,state_list%size
        isector = es_return_sector(state_list,istate)
@@ -318,6 +320,7 @@ contains
     !
     if(MPIMASTER)then
        call get_szr
+       if(DimPh>1) w_ph = sqrt(-2.d0*w0_ph/impDmats_ph(0)) !renormalized phonon frequency
        if(iolegend)call write_legend
        call write_observables()
        write(LOGfile,"(A,10f18.12,f18.12,A)")&
@@ -648,6 +651,7 @@ contains
     allocate(magz(Norb),sz2(Norb,Norb),n2(Norb,Norb))
     allocate(simp(Norb,Nspin),zimp(Norb,Nspin))
     allocate(Prob(3**Norb))
+    allocate(prob_ph(DimPh))
     allocate(pdf_ph(Lpos))
     !
     egs     = gs_energy
@@ -660,8 +664,10 @@ contains
     n2      = 0.d0
     s2tot   = 0.d0
     Prob    = 0.d0
+    prob_ph = 0.d0
     dens_ph = 0.d0
     pdf_ph  = 0.d0
+    w_ph    = w0_ph
     !
     beta_ = beta
     if(.not.finiteT)beta_=1000d0
@@ -731,7 +737,7 @@ contains
                 enddo
              enddo
              s2tot = s2tot  + (sum(sz))**2*weight
-             prob_ph(iph) = prob_ph(iph) + gs_weight
+             prob_ph(iph) = prob_ph(iph) + weight
              dens_ph = dens_ph + (iph-1)*weight
           enddo
           !
@@ -744,6 +750,7 @@ contains
     enddo
     !
     call get_szr
+    if(DimPh>1) w_ph = sqrt(-2.d0*w0_ph/impDmats_ph(0))
     if(iolegend)call write_legend
     call write_observables()
     if(DimPh>1)call write_pdf()
@@ -1008,7 +1015,7 @@ contains
          ((reg(txtfy((5+Norb)*Norb+2+(iorb-1)*Norb+jorb))//"n2_"//reg(txtfy(iorb))//reg(txtfy(jorb)),jorb=1,Norb),iorb=1,Norb),&
          ((reg(txtfy((5+2*Norb)*Norb+2+(ispin-1)*Nspin+iorb))//"z_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
          ((reg(txtfy((6+2*Norb)*Norb+2+Nspin+(ispin-1)*Nspin+iorb))//"sig_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
-         reg(txtfy((6+2*Norb)*Norb+3+Nspin+(Nspin-1)*Nspin+Norb))//"nph"
+         reg(txtfy((6+2*Norb)*Norb+3+Nspin+(Nspin-1)*Nspin+Norb))//"nph",reg(txtfy((6+2*Norb)*Norb+4+Nspin+(Nspin-1)*Nspin+Norb))//"w_ph"
 
     close(unit)
     !
@@ -1062,7 +1069,7 @@ contains
          ((n2(iorb,jorb),jorb=1,Norb),iorb=1,Norb),&
          ((zimp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
          ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
-         dens_ph
+         dens_ph,w_ph
     close(unit)    
     !
     unit = free_unit()
@@ -1083,7 +1090,7 @@ contains
          ((n2(iorb,jorb),jorb=1,Norb),iorb=1,Norb),&
          ((zimp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
          ((simp(iorb,ispin),iorb=1,Norb),ispin=1,Nspin),&
-         dens_ph
+         dens_ph,w_ph
     close(unit)         
     !
     unit = free_unit()
@@ -1118,6 +1125,8 @@ contains
     enddo
     close(unit)
   end subroutine write_pdf
+
+
 
   !+-------------------------------------------------------------------+
   !PURPOSE  : subroutines useful for the phonons
@@ -1172,6 +1181,7 @@ contains
        psi(i)=2*x*psi(i-1)/sqrt(dble(2*i))-psi(i-2)*sqrt(dble(i-1)/dble(i))
     enddo
   end subroutine Hermite
+
 
 end MODULE ED_OBSERVABLES
 

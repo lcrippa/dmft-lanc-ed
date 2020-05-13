@@ -180,7 +180,10 @@ MODULE ED_VARS_GLOBAL
   complex(8),dimension(:,:,:,:,:,:),allocatable,save :: G0matsii,G0realii          ![Nlat][Nspin][Nspin][Norb][Norb][L]
   complex(8),dimension(:,:,:,:,:)  ,allocatable,save :: imp_density_matrix_ii    ![Nlat][Nspin][Nspin][Norb][Norb]
 
-
+  !Impurity Green's function for phonons
+  !=========================================================
+  complex(8),allocatable,dimension(:)                :: impDmats_ph
+  complex(8),allocatable,dimension(:)                :: impDreal_ph
 
   !Spin Susceptibilities
   !=========================================================
