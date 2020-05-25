@@ -1014,8 +1014,8 @@ contains
          ((reg(txtfy(5*Norb+2+(iorb-1)*Norb+jorb))//"sz2_"//reg(txtfy(iorb))//reg(txtfy(jorb)),jorb=1,Norb),iorb=1,Norb),&
          ((reg(txtfy((5+Norb)*Norb+2+(iorb-1)*Norb+jorb))//"n2_"//reg(txtfy(iorb))//reg(txtfy(jorb)),jorb=1,Norb),iorb=1,Norb),&
          ((reg(txtfy((5+2*Norb)*Norb+2+(ispin-1)*Nspin+iorb))//"z_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
-         ((reg(txtfy((6+2*Norb)*Norb+2+Nspin+(ispin-1)*Nspin+iorb))//"sig_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
-         reg(txtfy((6+2*Norb)*Norb+3+Nspin+(Nspin-1)*Nspin+Norb))//"nph",reg(txtfy((6+2*Norb)*Norb+4+Nspin+(Nspin-1)*Nspin+Norb))//"w_ph"
+         ((reg(txtfy((5+2*Norb)*Norb+2+Norb*Nspin+(ispin-1)*Nspin+iorb))//"sig_"//reg(txtfy(iorb))//"s"//reg(txtfy(ispin)),iorb=1,Norb),ispin=1,Nspin),&
+         reg(txtfy((5+2*Norb)*Norb+3+Norb*Nspin+(Nspin-1)*Nspin+Norb))//"nph",reg(txtfy((5+2*Norb)*Norb+4+Norb*Nspin+(Nspin-1)*Nspin+Norb))//"w_ph"
 
     close(unit)
     !

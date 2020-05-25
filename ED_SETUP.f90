@@ -73,8 +73,6 @@ contains
        ! lanc_dim_threshold=2
     endif
     !
-    if(ed_finite_temp .AND. Nph>0)stop "ED ERROR: ed_finite_temp=T is currently not supported with Nph>0"
-    !
     if(Nspin>1.AND.ed_twin.eqv..true.)then
        write(LOGfile,"(A)")"WARNING: using twin_sector with Nspin>1"
        call sleep(1)
@@ -869,15 +867,15 @@ contains
     !
     call build_sector(isector,H)
     do i=1,Dim
-       iph = (i-1)/(DimUp*DimDw)		!find number of phonons
+       iph = (i-1)/(DimUp*DimDw) + 1		!find number of phonons
        i_el = mod(i-1,DimUp*DimDw) + 1		!electronic index
        call state2indices(i_el,[DimUps,DimDws],Indices)
        forall(iud=1:2*Ns_Ud)Istates(iud) = H(iud)%map(Indices(iud))
-       Order(i) = flip_state( Istates ) + iph*DimUp*DimDw	!flipped electronic state + phononic contribution
+       Order(i) = flip_state( Istates ) + (iph-1)*2**(2*Ns)	!flipped electronic state (GLOBAL state number {1:2^2Ns}) + phononic contribution
     enddo
     call delete_sector(isector,H)
     !
-    call sort_array(Order)
+    call sort_array(Order)	!sorted and changed the values from the global state numbers to the ones of the sector {1:DimUp*DimDw*DimPh}
     !
   end subroutine twin_sector_order
 
