@@ -240,7 +240,7 @@ contains
           !
        endif
        !
-       if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
+       if(ed_verbose>=3.AND.MPIMASTER)call stop_timer(unit=LOGfile)
        !
        if(ed_verbose>=4)then
           write(LOGfile,*)"EigValues: ",eig_values(:Neigen)
@@ -278,7 +278,7 @@ contains
        if(allocated(eig_basis))deallocate(eig_basis)
        !
     enddo sector
-    if(MPIMASTER)call stop_timer(LOGfile)
+    if(MPIMASTER)call stop_timer(unit=LOGfile)
   end subroutine ed_diag_d
 
 
@@ -340,7 +340,7 @@ contains
        if(MpiMaster)call eigh(espace(isector)%M, espace(isector)%e)
        if(dim==1)espace(isector)%M=1d0
        call delete_Hv_sector()
-       if(ed_verbose>=3.AND.MPIMASTER)call stop_timer()
+       if(ed_verbose>=3.AND.MPIMASTER)call stop_timer(unit=LOGfile)
        !
        if(ed_verbose>=4)then
           write(LOGfile,*)"EigValues: ",espace(isector)%e(:Nprint)
@@ -369,7 +369,7 @@ contains
        !
     enddo sector
     !
-    if(MPIMASTER)call stop_timer(LOGfile)
+    if(MPIMASTER)call stop_timer(unit=LOGfile)
     !
     !Get the ground state energy and rescale energies
     egs=minval(e0)

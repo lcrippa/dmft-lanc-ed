@@ -32,6 +32,9 @@ contains
   subroutine allocate_h_basis(N)
     integer              :: N,isym
     !
+    if(allocated(H_basis))deallocate(H_basis)
+    if(allocated(lambda_impHloc))deallocate(lambda_impHloc)
+    !
     allocate(H_basis(N))
     allocate(lambda_impHloc(N))
     do isym=1,N
@@ -124,7 +127,7 @@ contains
     complex(8),dimension(Nspin,Nspin,Norb,Norb) :: Hloc
     logical(8),dimension(Nspin,Nspin,Norb,Norb) :: Hmask
     !
-    allocate(impHloc(Nspin,Nspin,Norb,Norb))
+    if(.not.allocated(impHloc))allocate(impHloc(Nspin,Nspin,Norb,Norb))
     impHloc=zero
     !
     impHloc=Hloc
