@@ -87,11 +87,7 @@ contains
        call get_Nup(isector,nups)
        call get_Ndw(isector,ndws)
        Tflag    = twin_mask(isector).AND.ed_twin
-       bool=.true.
-       do i=1,Ns_ud
-          Bool=Bool.AND.(nups(i)/=ndws(i))
-       enddo
-       Tflag=Tflag.AND.Bool
+       Tflag=Tflag.AND.(any(nups/=ndws))
        !
        Dim      = getdim(isector)
        !
