@@ -131,7 +131,7 @@ program ed_bhz
      !Solve the EFFECTIVE IMPURITY PROBLEM (first w/ a guess for the bath)
      call ed_solve(comm,bath)
      call ed_get_sigma_matsubara(Smats)
-     call ed_get_sigma_real(Sreal)
+     call ed_get_sigma_realaxis(Sreal)
      call ed_get_dens(dens)
 
      call dmft_gloc_matsubara(comm,Hk,Wtk,Gmats,Smats)
@@ -148,17 +148,18 @@ program ed_bhz
      call Bcast_MPI(comm,Delta)
 
      !Fit the new bath, starting from the old bath + the supplied delta
+
+     call ed_chi2_fitgf(comm,delta,bath,ispin=1)
+     if(.not.spinsym)then
+        call ed_chi2_fitgf(comm,delta,bath,ispin=2)
+     else
+        call spin_symmetrize_bath(bath,save=.true.)
+     endif
+     !MIXING:
+     if(iloop>1)Bath = wmixing*Bath + (1.d0-wmixing)*Bath_
+     Bath_=Bath
+     !
      if(master)then
-        call ed_chi2_fitgf(delta(1,1,:,:,:),bath,ispin=1)
-        if(.not.spinsym)then
-           call ed_chi2_fitgf(delta(2,2,:,:,:),bath,ispin=2)
-        else
-           call spin_symmetrize_bath(bath,save=.true.)
-        endif
-        !MIXING:
-        if(iloop>1)Bath = wmixing*Bath + (1.d0-wmixing)*Bath_
-        Bath_=Bath
-        !
         converged = check_convergence(delta(1,1,1,1,:),dmft_error,nsuccess,nloop)
         if(nread/=0.d0)call search_chemical_potential(xmu,sum(dens),converged)
      endif
@@ -216,10 +217,10 @@ contains
     call TB_build_model(Hk,hk_bhz,Nso,[Nk,Nk])
     wtk = 1d0/Lk
     if(master.AND.present(file))then
-       call TB_write_hk(Hk,trim(file),Nso,&
-            Nd=Norb,&
-            Np=1,   &
-            Nineq=1,&
+       call TB_write_hk(Hk,trim(file),&
+            Nlat=1,&
+            Nspin=1,&
+            Norb=Norb,&
             Nkvec=[Nk,Nk])
     endif
     allocate(bhzHloc(Nso,Nso))
@@ -302,13 +303,13 @@ contains
     complex(8),dimension(Nso,Nso),optional :: sigma(Nso,Nso)
     sigmaBHZ = zero;if(present(sigma))sigmaBHZ=sigma
   end subroutine set_SigmaBHZ
-  
+
 
   !--------------------------------------------------------------------!
   !PURPOSE: Solve the topological Hamiltonian
   !--------------------------------------------------------------------!
-  
-  
+
+
   subroutine solve_hk_topological(sigma)
     integer                                :: i,j
     integer                                :: Npts
@@ -320,27 +321,27 @@ contains
     !
     call set_sigmaBHZ()
     !
-     Npts = 8
-     Lk=(Npts-1)*Nkpath
-     allocate(kpath(Npts,3))
-     kpath(1,:)=kpoint_m1
-     kpath(2,:)=kpoint_x2
-     kpath(3,:)=kpoint_gamma
-     kpath(4,:)=kpoint_x1
-     kpath(5,:)=kpoint_m2
-     kpath(6,:)=kpoint_r
-     kpath(7,:)=kpoint_x3
-     kpath(8,:)=kpoint_gamma
-   call set_sigmaBHZ(sigma)
-   call TB_solve_model(hk_bhz,Nso,kpath,Nkpath,&
+    Npts = 8
+    Lk=(Npts-1)*Nkpath
+    allocate(kpath(Npts,3))
+    kpath(1,:)=kpoint_m1
+    kpath(2,:)=kpoint_x2
+    kpath(3,:)=kpoint_gamma
+    kpath(4,:)=kpoint_x1
+    kpath(5,:)=kpoint_m2
+    kpath(6,:)=kpoint_r
+    kpath(7,:)=kpoint_x3
+    kpath(8,:)=kpoint_gamma
+    call set_sigmaBHZ(sigma)
+    call TB_solve_model(hk_bhz,Nso,kpath,Nkpath,&
          colors_name=[red1,blue1,red1,blue1],&
          points_name=[character(len=20) :: "M","X","G","X1","A","R","Z","G"],&
          file="Eig_Htop.ed")
     if (usez) then
-      write(*,*) "Z11=",Zmats(1,1)
-      write(*,*) "Z22=",Zmats(2,2)
-      write(*,*) "Z33=",Zmats(3,3)
-      write(*,*) "Z44=",Zmats(4,4)
+       write(*,*) "Z11=",Zmats(1,1)
+       write(*,*) "Z22=",Zmats(2,2)
+       write(*,*) "Z33=",Zmats(3,3)
+       write(*,*) "Z44=",Zmats(4,4)
     endif
   end subroutine solve_hk_topological
 
@@ -790,12 +791,12 @@ contains
     Hk = Hk + dreal(SigmaBHZ)
     !
     if (usez) then
-      Zmats=zero
-      do ii=1,Nso
-        Zmats(ii,ii)  = 1.d0/abs( 1.d0 +  abs(dimag(sigmaBHZ(ii,ii))/(pi/beta)) )
-      end do
-      Hk = matmul(Zmats,Hk)
-    endif 
+       Zmats=zero
+       do ii=1,Nso
+          Zmats(ii,ii)  = 1.d0/abs( 1.d0 +  abs(dimag(sigmaBHZ(ii,ii))/(pi/beta)) )
+       end do
+       Hk = matmul(Zmats,Hk)
+    endif
   end function hk_bhz
 
   function hk_bhz2x2(kx,ky) result(hk)
