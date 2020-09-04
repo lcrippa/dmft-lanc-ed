@@ -32,6 +32,7 @@ MODULE ED_OBSERVABLES
   real(8),dimension(:),allocatable   :: Prob
   real(8),dimension(:),allocatable   :: prob_ph
   real(8),dimension(:),allocatable   :: pdf_ph
+  real(8),dimension(:,:),allocatable   :: pdf_part
   real(8)                            :: w_ph
   !
   integer                            :: iorb,jorb,iorb1,jorb1
@@ -92,7 +93,7 @@ contains
   !PURPOSE  : Lanc method
   !+-------------------------------------------------------------------+
   subroutine lanc_observables()
-    integer                             :: iprob,istate,Nud(2,Ns),iud(2),jud(2)
+    integer                             :: iprob,istate,Nud(2,Ns),iud(2),jud(2),val
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
     integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
@@ -107,6 +108,7 @@ contains
     allocate(Prob(3**Norb))
     allocate(prob_ph(DimPh))
     allocate(pdf_ph(Lpos))
+    allocate(pdf_part(Lpos,3))
     !
     Egs     = state_list%emin
     dens    = 0.d0
@@ -121,6 +123,7 @@ contains
     prob_ph = 0.d0
     dens_ph = 0.d0
     pdf_ph  = 0.d0
+    pdf_part= 0.d0
     w_ph    = w0_ph
     !
     do istate=1,state_list%size
@@ -199,10 +202,16 @@ contains
              s2tot = s2tot  + (sum(sz))**2*gs_weight
              prob_ph(iph) = prob_ph(iph) + gs_weight
              dens_ph = dens_ph + (iph-1)*gs_weight
+             !
+             !compute the lattice probability distribution function
+             if(Dimph>1 .and. iph.eq.1) then
+                val = 1
+                do iorb=1,Norb
+                   val = val + abs(nint(sign((nt(iorb) - 1.d0),g_ph(iorb))))
+                enddo
+                call prob_distr_ph(state_cvec,val)
+             end if
           enddo
-          !
-          !compute the lattice probability distribution function
-          if(Dimph>1)call prob_distr_ph(state_cvec)
           !
           call delete_sector(isector,HI)
        endif
@@ -350,7 +359,7 @@ contains
 #endif
     !
     deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2,Prob)
-    deallocate(simp,zimp,prob_ph,pdf_ph)
+    deallocate(simp,zimp,prob_ph,pdf_ph,pdf_part)
   end subroutine lanc_observables
 
 
@@ -628,7 +637,7 @@ contains
     integer                             :: idim,jdim
     integer                             :: iorb,jorb,ispin,jspin,isite,jsite
     integer                             :: numstates
-    integer                             :: r,m,k
+    integer                             :: r,m,k,val
     real(8)                             :: sgn,sgn1,sgn2
     real(8)                             :: boltzman_weight
     real(8)                             :: state_weight
@@ -653,6 +662,7 @@ contains
     allocate(Prob(3**Norb))
     allocate(prob_ph(DimPh))
     allocate(pdf_ph(Lpos))
+    allocate(pdf_part(Lpos,3))
     !
     egs     = gs_energy
     dens    = 0.d0
@@ -667,6 +677,7 @@ contains
     prob_ph = 0.d0
     dens_ph = 0.d0
     pdf_ph  = 0.d0
+    pdf_part= 0.d0
     w_ph    = w0_ph
     !
     beta_ = beta
@@ -739,10 +750,16 @@ contains
              s2tot = s2tot  + (sum(sz))**2*weight
              prob_ph(iph) = prob_ph(iph) + weight
              dens_ph = dens_ph + (iph-1)*weight
+             !
+             !compute the lattice probability distribution function
+             if(Dimph>1 .and. iph.eq.1) then
+                val = 1
+                do iorb=1,Norb
+                   val = val + nint(sign((nt(iorb) - 1.d0),g_ph(iorb)))
+                enddo
+                call prob_distr_ph(state_cvec,val)
+             end if
           enddo
-          !
-          !compute the lattice probability distribution function
-          if(Dimph>1)call prob_distr_ph(evec)
           !
        enddo
        call delete_sector(isector,HI)
@@ -767,7 +784,7 @@ contains
     enddo
     !
     deallocate(dens,docc,dens_up,dens_dw,magz,sz2,n2,Prob)
-    deallocate(simp,zimp,prob_ph,pdf_ph)    
+    deallocate(simp,zimp,prob_ph,pdf_ph,pdf_part)    
   end subroutine full_observables
 
 
@@ -1120,7 +1137,7 @@ contains
     dx = (xmax-xmin)/dble(Lpos)
     x = xmin
     do i=1,Lpos
-       write(unit,"(2F15.9)") x,pdf_ph(i)
+       write(unit,"(5F15.9)") x,pdf_ph(i),pdf_part(i,:)
        x = x + dx
     enddo
     close(unit)
@@ -1134,32 +1151,32 @@ contains
 
   !Compute the local lattice probability distribution function (PDF), i.e. the local probability of displacement
   !as a function of the displacement itself
-  subroutine prob_distr_ph(vec)
+  subroutine prob_distr_ph(vec,val)
     implicit none
     real(8),dimension(:),pointer          :: vec
     real(8)                               :: psi(0:DimPh-1)
     real(8)                               :: x,dx
-    integer                               :: i,j,i_ph,j_ph
+    integer                               :: i,j,i_ph,j_ph,val
     integer                               :: istart,jstart,iend,jend
     !
     dx = (xmax-xmin)/dble(Lpos)
     !
-    do i_ph=1,DimPh
-       istart = 1 + (i_ph-1)*iDimUp*iDimDw
-       iend = i_ph*iDimUp*iDimDw
+    x = xmin
+    do i=1,Lpos
+       call Hermite(x,psi)
        !
-       do j_ph=1,DimPh
-          jstart = 1 + (j_ph-1)*iDimUp*iDimDw
-          jend = j_ph*iDimUp*iDimDw
+       do i_ph=1,DimPh
+          istart = i_el + (i_ph-1)*iDimUp*iDimDw
           !
-          x = xmin
-          do i=1,Lpos
-             call Hermite(x,psi)
-             pdf_ph(i) = pdf_ph(i) + peso*psi(i_ph-1)*psi(j_ph-1)*dot_product(vec(istart:iend),vec(jstart:jend))
+          do j_ph=1,DimPh
+             jstart = i_el + (j_ph-1)*iDimUp*iDimDw
              !
-             x = x + dx
+             pdf_ph(i) = pdf_ph(i) + peso*psi(i_ph-1)*psi(j_ph-1)*vec(istart)*vec(jstart)
+             pdf_part(i,val) = pdf_part(i,val) + peso*psi(i_ph-1)*psi(j_ph-1)*vec(istart)*vec(jstart)
           enddo
        enddo
+       !
+       x = x + dx
     enddo
   end subroutine prob_distr_ph
 
