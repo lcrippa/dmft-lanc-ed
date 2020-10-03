@@ -138,11 +138,7 @@ program ed_bhz
      if(master)call dmft_print_gf_matsubara(Gmats,"Gloc",iprint=1)
 
      if(master)then
-        if(cg_scheme=='weiss')then
-           call dmft_weiss(Gmats,Smats,Delta,Hloc=j2so(bhzHloc))
-        else
-           call dmft_delta(Gmats,Smats,Delta,Hloc=j2so(bhzHloc))
-        endif
+        call dmft_self_consistency(Gmats,Smats,Delta,j2so(bhzHloc),cg_scheme)
         call dmft_print_gf_matsubara(Delta,"Weiss",iprint=1)
      endif
      call Bcast_MPI(comm,Delta)
@@ -170,11 +166,12 @@ program ed_bhz
      if(master)call end_loop
   enddo
 
-  !call dmft_gloc_realaxis(comm,Hk,Wtk,Greal,Sreal)
-  !if(master)call dmft_print_gf_realaxis(Greal,"Gloc",iprint=1)
+  call dmft_gloc_realaxis(comm,Hk,Wtk,Greal,Sreal)
+  if(master)call dmft_print_gf_realaxis(Greal,"Gloc",iprint=1)
 
 
-  !call dmft_kinetic_energy(comm,Hk,Wtk,Smats)
+  call dmft_kinetic_energy(comm,Hk,Wtk,Smats)
+
   call solve_hk_topological(so2j(Smats(:,:,:,:,1),Nso))
 
   call finalize_MPI()
@@ -200,9 +197,7 @@ contains
     complex(8),dimension(Nso,Nso,Lreal) :: Greal
     real(8)                             :: wm(Lmats),wr(Lreal),dw
     !
-    call set_sigmaBHZ()
-    !
-    call build_hk_GXMG()
+    call TB_set_bk(bkx=[pi2,0d0],bky=[0d0,pi2])
     !
     if(master)write(LOGfile,*)"Build H(k) for BHZ:"
     Lk=Nk**2
@@ -212,8 +207,7 @@ contains
     if(allocated(wtk))deallocate(wtk)
     allocate(Hk(Nso,Nso,Lk))
     allocate(wtk(Lk))
-
-    call TB_set_bk(bkx=[pi2,0d0],bky=[0d0,pi2])
+    !
     call TB_build_model(Hk,hk_bhz,Nso,[Nk,Nk])
     wtk = 1d0/Lk
     if(master.AND.present(file))then
@@ -227,26 +221,6 @@ contains
     bhzHloc = sum(Hk(:,:,:),dim=3)/Lk
     where(abs(dreal(bhzHloc))<1.d-9)bhzHloc=0d0
     if(master)  call TB_write_Hloc(bhzHloc)
-
-
-
-    ! !Build the local GF:
-    ! wm = pi/beta*real(2*arange(1,Lmats)-1,8)
-    ! wr = linspace(wini,wfin,Lreal,mesh=dw)
-    ! do ik=1,Lk
-    !    do i=1,Lmats
-    !       Gmats(:,:,i)=Gmats(:,:,i) + inverse_g0k( xi*wm(i)+xmu,Hk(:,:,ik))/Lk
-    !    enddo
-    !    do i=1,Lreal
-    !       Greal(:,:,i)=Greal(:,:,i) + inverse_g0k(dcmplx(wr(i),eps)+xmu,Hk(:,:,ik))/Lk
-    !    enddo
-    ! enddo
-    ! do iorb=1,Nso
-    !    call splot("G0loc_l"//reg(txtfy(iorb))//"m"//reg(txtfy(iorb))//"_iw.ed",wm,Gmats(iorb,iorb,:))
-    !    call splot("G0loc_l"//reg(txtfy(iorb))//"m"//reg(txtfy(iorb))//"_realw.ed",wr,&
-    !         -dimag(Greal(iorb,iorb,:))/pi,dreal(Greal(iorb,iorb,:)))
-    ! enddo
-    !
   end subroutine build_hk
 
 
@@ -308,8 +282,6 @@ contains
   !--------------------------------------------------------------------!
   !PURPOSE: Solve the topological Hamiltonian
   !--------------------------------------------------------------------!
-
-
   subroutine solve_hk_topological(sigma)
     integer                                :: i,j
     integer                                :: Npts
@@ -971,7 +943,7 @@ contains
   end function j2so
 
 
-end program ed_bhz
+end program
 
 
 

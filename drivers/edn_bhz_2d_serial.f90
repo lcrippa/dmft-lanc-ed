@@ -151,8 +151,8 @@ contains
     complex(8),dimension(Nso,Nso,Lreal) :: Greal
     real(8)                             :: wm(Lmats),wr(Lreal),dw
 
-    call build_hk_GXMG()
-
+    call TB_set_bk(bkx=[pi2,0d0],bky=[0d0,pi2])
+    !
     write(LOGfile,*)"Build H(k) for BHZ:"
     Lk=Nk**2
     write(*,*)"# of k-points     :",Lk
@@ -161,8 +161,7 @@ contains
     if(allocated(wtk))deallocate(wtk)
     allocate(Hk(Nso,Nso,Lk))
     allocate(wtk(Lk))
-
-    call TB_set_bk(bkx=[pi2,0d0],bky=[0d0,pi2])
+    !
     call TB_build_model(Hk,hk_bhz,Nso,[Nk,Nk])
     wtk = 1d0/Lk
     if(present(file))then
@@ -224,6 +223,43 @@ contains
 
 
 
+  !--------------------------------------------------------------------!
+  !PURPOSE: Solve the topological Hamiltonian
+  !--------------------------------------------------------------------!
+  subroutine solve_hk_topological(sigma)
+    integer                                :: i,j
+    integer                                :: Npts
+    complex(8),dimension(Nso,Nso)          :: sigma(Nso,Nso)
+    real(8),dimension(:,:),allocatable     :: kpath
+    !
+    !This routine build the H(k) along the GXMG path in BZ, Hk(k) is constructed along this path.
+    write(LOGfile,*)"Build H_TOP(k) BHZ along path:"
+    !
+    call set_sigmaBHZ()
+    !
+    Npts = 8
+    Lk=(Npts-1)*Nkpath
+    allocate(kpath(Npts,3))
+    kpath(1,:)=kpoint_m1
+    kpath(2,:)=kpoint_x2
+    kpath(3,:)=kpoint_gamma
+    kpath(4,:)=kpoint_x1
+    kpath(5,:)=kpoint_m2
+    kpath(6,:)=kpoint_r
+    kpath(7,:)=kpoint_x3
+    kpath(8,:)=kpoint_gamma
+    call set_sigmaBHZ(sigma)
+    call TB_solve_model(hk_bhz,Nso,kpath,Nkpath,&
+         colors_name=[red1,blue1,red1,blue1],&
+         points_name=[character(len=20) :: "M","X","G","X1","A","R","Z","G"],&
+         file="Eig_Htop.ed")
+    if (usez) then
+       write(*,*) "Z11=",Zmats(1,1)
+       write(*,*) "Z22=",Zmats(2,2)
+       write(*,*) "Z33=",Zmats(3,3)
+       write(*,*) "Z44=",Zmats(4,4)
+    endif
+  end subroutine solve_hk_topological
 
 
 
