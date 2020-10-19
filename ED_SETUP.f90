@@ -19,7 +19,7 @@ MODULE ED_SETUP
   public :: delete_sector
   !
   public :: get_Sector
-  public :: get_Indices
+  public :: get_QuantumNumbers
   public :: get_Nup
   public :: get_Ndw
   public :: get_DimUp
@@ -72,7 +72,6 @@ contains
        ! !<ACTHUNG:
        ! lanc_dim_threshold=2
     endif
-    !
     !
     if(Nspin>1.AND.ed_twin.eqv..true.)then
        write(LOGfile,"(A)")"WARNING: using twin_sector with Nspin>1"
@@ -131,6 +130,7 @@ contains
        Ns_Ud  = Norb
     end select
     !
+    DimPh = Nph+1
     Nsectors = ((Ns_Orb+1)*(Ns_Orb+1))**Ns_Ud
   end subroutine ed_setup_dimensions
 
@@ -166,11 +166,12 @@ contains
        write(LOGfile,"(A,I15)")'# of impurities       = ',Norb
        write(LOGfile,"(A,I15)")'# of bath/impurity    = ',Nbath
        write(LOGfile,"(A,I15)")'# of Bath levels/spin = ',Ns-Norb
-       write(LOGfile,"(A,I15)")'Number of sectors     = ',Nsectors
+       write(LOGfile,"(A,I15)")'# of  sectors         = ',Nsectors
        write(LOGfile,"(A,I15)")'Ns_Orb                = ',Ns_Orb
        write(LOGfile,"(A,I15)")'Ns_Ud                 = ',Ns_Ud
-       write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I20)")&
-            'Largest Sector(s)     = ',DimUps,DimDws,product(DimUps)*product(DimDws)
+       write(LOGfile,"(A,I15)")'Nph                   = ',Nph
+       write(LOGfile,"(A,"//str(Ns_Ud)//"I8,2X,"//str(Ns_Ud)//"I8,I8,I20)")&
+            'Largest Sector(s)     = ',DimUps,DimDws,DimPh,product(DimUps)*product(DimDws)*DimPh
        write(LOGfile,"(A)")"--------------------------------------------"
     endif
     call sleep(1)
@@ -184,8 +185,6 @@ contains
     !Allocate indexing arrays
     allocate(getCsector(Ns_Ud,2,Nsectors))  ;getCsector  =0
     allocate(getCDGsector(Ns_Ud,2,Nsectors));getCDGsector=0
-    !
-    allocate(impIndex(Norb,2));impIndex=0
     !
     allocate(getDim(Nsectors));getDim=0
     !
@@ -223,7 +222,7 @@ contains
        else
           ed_diag_type='lanc'
           lanc_nstates_total=1
-          lanc_dim_threshold=product(DimUps)*product(DimDws)
+          lanc_dim_threshold=product(DimUps)*product(DimDws)*Dimph
           write(LOGfile,"(A)")"Full ED T=0 calculation. Set LANC_DIM_THRESHOLD to "//str(lanc_dim_threshold)
           if(lanc_dim_threshold>2**13)stop "Full ED T=0: LANC_DIM_THRESHOLD > 2**13=8192!"
           call sleep(1)
@@ -260,6 +259,11 @@ contains
     allocate(impG0real(Nspin,Nspin,Norb,Norb,Lreal))
     impG0mats=zero
     impG0real=zero
+    !
+    allocate(impDmats_ph(0:Lmats))
+    allocate(impDreal_ph(Lreal))
+    impDmats_ph=zero
+    impDreal_ph=zero
     !
     !allocate observables
     allocate(ed_dens(Norb),ed_docc(Norb),ed_dens_up(Norb),ed_dens_dw(Norb))
@@ -308,7 +312,7 @@ contains
        call get_DimDw(isector,DimDws)
        DimUp = product(DimUps)
        DimDw = product(DimDws)       
-       getDim(isector)  = DimUp*DimDw
+       getDim(isector)  = DimUp*DimDw*DimPh
     enddo
     !
     !
@@ -350,11 +354,6 @@ contains
        write(LOGfile,"(A,I6,A,I9)")"Looking into ",count(twin_mask)," sectors out of ",Nsectors
        call sleep(1)
     endif
-    !
-    do iorb=1,Norb
-       impIndex(iorb,1)=iorb
-       impIndex(iorb,2)=iorb+Ns
-    enddo
     !
     select case(bath_type)
     case default
@@ -444,35 +443,35 @@ contains
   end function get_sector_dimension
 
 
-  subroutine get_Sector(indices,N,isector)
-    integer,dimension(:) :: indices
+  subroutine get_Sector(QN,N,isector)
+    integer,dimension(:) :: QN
     integer              :: N
     integer              :: isector
     integer              :: i,Nind,factor
-    Nind = size(indices)
+    Nind = size(QN)
     Factor = N+1
     isector = 1
     do i=Nind,1,-1
-       isector = isector + indices(i)*(Factor)**(Nind-i)
+       isector = isector + QN(i)*(Factor)**(Nind-i)
     enddo
   end subroutine get_Sector
 
 
-  subroutine get_Indices(isector,N,indices)
+  subroutine get_QuantumNumbers(isector,N,QN)
     integer                          :: isector,N
-    integer,dimension(:)             :: indices
+    integer,dimension(:)             :: QN
     integer                          :: i,count,Dim
-    integer,dimension(size(indices)) :: indices_
+    integer,dimension(size(QN)) :: QN_
     !
-    Dim = size(indices)
-    if(mod(Dim,2)/=0)stop "get_Indices_main error: Dim%2 != 0"
+    Dim = size(QN)
+    if(mod(Dim,2)/=0)stop "get_QuantumNumbers error: Dim%2 != 0"
     count=isector-1
     do i=1,Dim
-       indices_(i) = mod(count,N+1)
+       QN_(i) = mod(count,N+1)
        count      = count/(N+1)
     enddo
-    indices = indices_(Dim:1:-1)
-  end subroutine get_Indices
+    QN = QN_(Dim:1:-1)
+  end subroutine get_QuantumNumbers
 
 
   subroutine get_Nup(isector,Nup)
@@ -559,10 +558,7 @@ contains
     integer :: idw
     idw = (i-1)/DimUp+1
   end function idw_index
-
-
-
-
+ 
 
 #ifdef _MPI
   !! Scatter V into the arrays Vloc on each thread: sum_threads(size(Vloc)) must be equal to size(v)
@@ -570,7 +566,8 @@ contains
     integer                          :: MpiComm
     real(8),dimension(:)             :: v    !size[N]
     real(8),dimension(:)             :: vloc !size[Nloc]
-    integer                          :: i,irank,Nloc,N
+    integer                          :: i,iph,irank,Nloc,N
+    integer			     :: v_start,v_end,vloc_start,vloc_end
     integer,dimension(:),allocatable :: Counts,Offset
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
@@ -590,7 +587,7 @@ contains
     allocate(Offset(0:MpiSize-1)) ; Offset=0
     !
     !Get Counts;
-    call MPI_AllGather(Nloc,1,MPI_INTEGER,Counts,1,MPI_INTEGER,MpiComm,MpiIerr)
+    call MPI_AllGather(Nloc/Dimph,1,MPI_INTEGER,Counts,1,MPI_INTEGER,MpiComm,MpiIerr)
     !
     !Get Offset:
     Offset(0)=0
@@ -599,7 +596,19 @@ contains
     enddo
     !
     Vloc=0d0
-    call MPI_Scatterv(V,Counts,Offset,MPI_DOUBLE_PRECISION,Vloc,Nloc,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
+    do iph=1,Dimph
+       if(MpiMaster)then
+          v_start = 1 + (iph-1)*(N/Dimph)
+          v_end = iph*(N/Dimph)
+       else
+          v_start = 1
+          v_end = 1
+       endif
+       vloc_start = 1 + (iph-1)*(Nloc/Dimph)
+       vloc_end = iph*(Nloc/Dimph)
+       call MPI_Scatterv(V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,&
+                         Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
+    enddo
     !
     return
   end subroutine scatter_vector_MPI
@@ -628,7 +637,8 @@ contains
     integer                          :: MpiComm
     real(8),dimension(:)             :: vloc !size[Nloc]
     real(8),dimension(:)             :: v    !size[N]
-    integer                          :: i,irank,Nloc,N
+    integer                          :: i,iph,irank,Nloc,N
+    integer			     :: v_start,v_end,vloc_start,vloc_end
     integer,dimension(:),allocatable :: Counts,Offset
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
@@ -648,7 +658,7 @@ contains
     allocate(Offset(0:MpiSize-1)) ; Offset=0
     !
     !Get Counts;
-    call MPI_AllGather(Nloc,1,MPI_INTEGER,Counts,1,MPI_INTEGER,MpiComm,MpiIerr)
+    call MPI_AllGather(Nloc/Dimph,1,MPI_INTEGER,Counts,1,MPI_INTEGER,MpiComm,MpiIerr)
     !
     !Get Offset:
     Offset(0)=0
@@ -656,7 +666,20 @@ contains
        Offset(i) = Offset(i-1) + Counts(i-1)
     enddo
     !
-    call MPI_Gatherv(Vloc,Nloc,MPI_DOUBLE_PRECISION,V,Counts,Offset,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
+    do iph=1,Dimph
+       if(MpiMaster)then
+          v_start = 1 + (iph-1)*(N/Dimph)
+          v_end = iph*(N/Dimph)
+       else
+          v_start = 1
+          v_end = 1
+       endif
+       vloc_start = 1 + (iph-1)*(Nloc/Dimph)
+       vloc_end = iph*(Nloc/Dimph)
+       !
+       call MPI_Gatherv(Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,&
+                        V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
+    enddo
     !
     return
   end subroutine gather_vector_MPI
@@ -667,7 +690,8 @@ contains
     integer                          :: MpiComm
     real(8),dimension(:)             :: vloc !size[Nloc]
     real(8),dimension(:)             :: v    !size[N]
-    integer                          :: i,irank,Nloc,N
+    integer                          :: i,iph,irank,Nloc,N
+    integer			     :: v_start,v_end,vloc_start,vloc_end
     integer,dimension(:),allocatable :: Counts,Offset
     integer                          :: MpiSize,MpiIerr
     logical                          :: MpiMaster
@@ -687,7 +711,7 @@ contains
     allocate(Offset(0:MpiSize-1)) ; Offset=0
     !
     !Get Counts;
-    call MPI_AllGather(Nloc,1,MPI_INTEGER,Counts,1,MPI_INTEGER,MpiComm,MpiIerr)
+    call MPI_AllGather(Nloc/Dimph,1,MPI_INTEGER,Counts,1,MPI_INTEGER,MpiComm,MpiIerr)
     !
     !Get Offset:
     Offset(0)=0
@@ -696,7 +720,14 @@ contains
     enddo
     !
     V = 0d0
-    call MPI_AllGatherv(Vloc,Nloc,MPI_DOUBLE_PRECISION,V,Counts,Offset,MPI_DOUBLE_PRECISION,MpiComm,MpiIerr)
+    do iph=1,Dimph
+       v_start = 1 + (iph-1)*(N/Dimph)
+       v_end = iph*(N/Dimph)
+       vloc_start = 1 + (iph-1)*(Nloc/Dimph)
+       vloc_end = iph*(Nloc/Dimph)
+       call MPI_AllGatherv(Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,&
+                           V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,MpiComm,MpiIerr)
+    enddo
     !
     return
   end subroutine Allgather_vector_MPI
@@ -710,6 +741,7 @@ contains
   !BUILD SECTORS
   !##################################################################
   !##################################################################
+  !Here the electronic sector is built without contribution from phonons
   subroutine build_sector(isector,H)
     integer                             :: isector
     type(sector_map),dimension(2*Ns_Ud) :: H
@@ -823,23 +855,27 @@ contains
     type(sector_map),dimension(2*Ns_Ud) :: H
     integer,dimension(2*Ns_Ud)          :: Indices,Istates
     integer,dimension(Ns_Ud)            :: DimUps,DimDws
-    integer                             :: Dim
-    integer                             :: i,iud
+    integer                             :: Dim,DimUp,DimDw
+    integer                             :: i,iud,iph,i_el
     !
     Dim = GetDim(isector)
     if(size(Order)/=Dim)stop "twin_sector_order error: wrong dimensions of *order* array"
     call get_DimUp(isector,DimUps)
     call get_DimDw(isector,DimDws)
+    DimUp = product(DimUps)
+    DimDw = product(DimDws)
     !
     call build_sector(isector,H)
     do i=1,Dim
-       call state2indices(i,[DimUps,DimDws],Indices)
+       iph = (i-1)/(DimUp*DimDw) + 1		!find number of phonons
+       i_el = mod(i-1,DimUp*DimDw) + 1		!electronic index
+       call state2indices(i_el,[DimUps,DimDws],Indices)
        forall(iud=1:2*Ns_Ud)Istates(iud) = H(iud)%map(Indices(iud))
-       Order(i) = flip_state( Istates )
+       Order(i) = flip_state( Istates ) + (iph-1)*2**(2*Ns)	!flipped electronic state (GLOBAL state number {1:2^2Ns}) + phononic contribution
     enddo
     call delete_sector(isector,H)
     !
-    call sort_array(Order)
+    call sort_array(Order)	!sorted and changed the values from the global state numbers to the ones of the sector {1:DimUp*DimDw*DimPh}
     !
   end subroutine twin_sector_order
 

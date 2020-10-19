@@ -19,6 +19,7 @@ MODULE ED_GF_CHIDENS
   integer             :: i,iup,idw
   integer             :: j,jup,jdw  
   integer             :: m,mup,mdw
+  integer             :: iph,i_el
   real(8)             :: sgn,norm2,norm0
   integer             :: Nitermax,Nlanc,vecDim
 
@@ -153,7 +154,10 @@ contains
           !
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              iud(1)   = HI(ialfa)%map(Indices(ialfa))
              iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
              nud(1,:) = Bdecomp(iud(1),Ns_Orb)
@@ -168,7 +172,7 @@ contains
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
        else
-          allocate(vvinit(0))
+          allocate(vvinit(1));vvinit=0.d0
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -219,10 +223,8 @@ contains
     type(sector_map)            :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
     !
     if(ed_total_ud)then
-       ialfa = 1
-       iorb1 = iorb
+       iorb1 = Norb
     else
-       ialfa = iorb
        iorb1 = 1
     endif
     !
@@ -256,13 +258,22 @@ contains
           !
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
-             iud(1)   = HI(ialfa)%map(Indices(ialfa))
-             iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
              !
-             sgn = sum(nud(1,1:Norb)) + sum(nud(2,1:Norb))
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             !
+             sgn = 0.d0
+             do j=1,Ns_ud
+                iud(1)   = HI(j)%map(Indices(j))
+                iud(2)   = HI(j+Ns_Ud)%map(Indices(j+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                !
+                do ialfa=1,iorb1
+                   sgn = sgn + nud(1,ialfa) + nud(2,ialfa)
+                enddo
+             enddo
              !
              vvinit(i) = sgn*state_cvec(i)
           enddo
@@ -270,7 +281,7 @@ contains
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
        else
-          allocate(vvinit(0))
+          allocate(vvinit(1));vvinit=0.d0
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -358,7 +369,10 @@ contains
           !
           call build_sector(isector,HI)
           do i=1,iDim
-             call state2indices(i,[iDimUps,iDimDws],Indices)
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
              !
              iud(1)   = HI(ialfa)%map(Indices(ialfa))
              iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
@@ -379,7 +393,7 @@ contains
           norm2=dot_product(vvinit,vvinit)
           vvinit=vvinit/sqrt(norm2)
        else
-          allocate(vvinit(0))
+          allocate(vvinit(1));vvinit=0.d0
        endif
        !
        nlanc=min(idim,lanc_nGFiter)
@@ -532,7 +546,10 @@ contains
              expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(isector)%e(j))
              if(expterm<cutoff)cycle
              do ll=1,idim
-                call state2indices(ll,[iDimUps,iDimDws],Indices)
+                iph = (ll-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(ll-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
                 iud(1)   = HI(ialfa)%map(Indices(ialfa))
                 iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
                 nud(1,:) = Bdecomp(iud(1),Ns_Orb)

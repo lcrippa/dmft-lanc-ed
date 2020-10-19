@@ -112,6 +112,7 @@ MODULE ED_VARS_GLOBAL
   integer,save                                       :: Nsectors !Number of sectors
   integer,save                                       :: Ns_orb
   integer,save                                       :: Ns_ud
+  integer,save                                       :: DimPh    !Number of phonon states
 
   !local part of the Hamiltonian
   !INTERNAL USE (accessed thru functions)
@@ -141,6 +142,8 @@ MODULE ED_VARS_GLOBAL
   type(sparse_matrix_csr)                            :: spH0d !diagonal part
   type(sparse_matrix_csr)                            :: spH0nd !non-diagonal part
   type(sparse_matrix_csr),dimension(:),allocatable   :: spH0ups,spH0dws !reduced UP and DW parts
+  type(sparse_matrix_csr)			     :: spH0_ph !Hamiltonian for phonons
+  type(sparse_matrix_csr)			     :: spH0e_eph, spH0ph_eph !electron-phonon interaction
   !
   procedure(dd_sparse_HxV),pointer                   :: spHtimesV_p=>null()
 
@@ -177,7 +180,10 @@ MODULE ED_VARS_GLOBAL
   complex(8),dimension(:,:,:,:,:,:),allocatable,save :: G0matsii,G0realii          ![Nlat][Nspin][Nspin][Norb][Norb][L]
   complex(8),dimension(:,:,:,:,:)  ,allocatable,save :: imp_density_matrix_ii    ![Nlat][Nspin][Nspin][Norb][Norb]
 
-
+  !Impurity Green's function for phonons
+  !=========================================================
+  complex(8),allocatable,dimension(:)                :: impDmats_ph
+  complex(8),allocatable,dimension(:)                :: impDreal_ph
 
   !Spin Susceptibilities
   !=========================================================

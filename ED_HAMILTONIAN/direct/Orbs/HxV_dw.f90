@@ -1,5 +1,8 @@
-  do j=1,Dim
-     call state2indices(j,[DimUps,DimDws],Jndices)
+  do j=1,Nloc
+     i_el = mod(j-1,DimUp*DimDw) + 1	!electronic index
+     iph = (j-1)/(DimUp*DimDw) + 1
+     !
+     call state2indices(i_el,[DimUps,DimDws],Jndices)
      !
      !>H_hyb: hopping terms for a given spin (imp <--> bath)
      do iorb=1,Ns_Ud
@@ -17,6 +20,7 @@
               call indices2state(Indices,[DimUps,DimDws],i)
               htmp  = diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
+              i = i + (iph-1)*DimUp*DimDw
               Hv(i) = Hv(i) + htmp*Vin(j)
               !
            endif
@@ -30,6 +34,7 @@
               call indices2state(Indices,[DimUps,DimDws],i)
               htmp  = diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
+              i = i + (iph-1)*DimUp*DimDw
               Hv(i) = Hv(i) + htmp*Vin(j)
               !
            endif

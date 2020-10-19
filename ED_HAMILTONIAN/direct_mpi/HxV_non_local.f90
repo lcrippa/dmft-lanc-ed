@@ -1,6 +1,9 @@
   do j=1,Nloc
-     jup = iup_index(j+mpiIshift,DimUp)
-     jdw = idw_index(j+mpiIshift,DimUp)
+     i_el = mod(j-1,DimUp*MpiQdw) + 1	!electronic index
+     iph = (j-1)/(DimUp*MpiQdw) + 1       !phononic index
+     !
+     jup = iup_index(i_el+mpiIshift,DimUp)
+     jdw = idw_index(i_el+mpiIshift,DimUp)
      !
      mup = Hs(1)%map(jup)
      mdw = Hs(2)%map(jdw)
@@ -28,9 +31,9 @@
                  call cdg(iorb,k3,k4,sg4) !UP
                  iup=binary_search(Hs(1)%map,k4)
                  htmp = Jx*sg1*sg2*sg3*sg4
-                 i = iup + (idw-1)*dimup
+                 i = iup + (idw-1)*dimup + (iph-1)*DimUp*MpiQdw
                  !
-                 Hv(i) = Hv(i) + htmp*vt(j)
+                 Hv(j) = Hv(j) + htmp*vt(i)
                  !
               endif
            enddo
@@ -56,9 +59,9 @@
                  call cdg(iorb,k3,k4,sg4)      !c^+_iorb_up
                  iup = binary_search(Hs(1)%map,k4)
                  htmp = Jp*sg1*sg2*sg3*sg4
-                 i = iup + (idw-1)*dimup
+                 i = iup + (idw-1)*dimup + (iph-1)*DimUp*MpiQdw
                  !
-                 Hv(i) = Hv(i) + htmp*vt(j)
+                 Hv(j) = Hv(j) + htmp*vt(i)
                  !
               endif
            enddo

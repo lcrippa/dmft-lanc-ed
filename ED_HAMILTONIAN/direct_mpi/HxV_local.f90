@@ -1,6 +1,8 @@
   do i=1,Nloc
-     iup = iup_index(i+mpiIshift,DimUp)
-     idw = idw_index(i+mpiIshift,DimUp)
+     i_el = mod(i-1,DimUp*MpiQdw) + 1	!electronic index
+     !
+     iup = iup_index(i_el+mpiIshift,DimUp)
+     idw = idw_index(i_el+mpiIshift,DimUp)
      !
      mup = Hs(1)%map(iup)
      mdw = Hs(2)%map(idw)

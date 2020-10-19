@@ -1,5 +1,7 @@
   do i=1,Nloc
-     call state2indices(i+mpiIshift,[DimUps,DimDws],Indices)
+     i_el = mod(i-1,DimUp*MpiQdw) + 1
+     !
+     call state2indices(i_el+mpiIshift,[DimUps,DimDws],Indices)
      do iud=1,Ns_Ud
         mup = Hs(iud)%map(Indices(iud))
         mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
@@ -72,7 +74,6 @@
      enddo
      !
      hv(i) = hv(i) + htmp*vin(i)
-     !
      !
   enddo
 
