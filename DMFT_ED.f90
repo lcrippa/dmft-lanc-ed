@@ -2,7 +2,7 @@ MODULE DMFT_ED
   USE ED_INPUT_VARS
 
   USE ED_HLOC_DECOMPOSITION, only: set_Hloc
-  
+
   USE ED_AUX_FUNX, only:                        &
        lso2nnn_reshape                        , &
        nnn2lso_reshape                        , &
@@ -62,7 +62,7 @@ MODULE DMFT_ED
        ed_solve
 
 
-  USE ED_FIT_CHI2,  only: ed_chi2_fitgf
+  USE ED_BATH_FIT,  only: ed_chi2_fitgf
 
 
 END MODULE DMFT_ED

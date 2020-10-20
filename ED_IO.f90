@@ -436,7 +436,7 @@ contains
   subroutine ed_print_impChi
     call print_chi_spin
     call print_chi_dens
-    ! call print_chi_pair
+    call print_chi_pair
   end subroutine ed_print_impChi
 
   !                         SPIN-SPIN
@@ -475,16 +475,16 @@ contains
     endif
     call deallocate_grids()
   end subroutine print_chi_dens
-
-
   !                     PAIR-PAIR
   subroutine print_chi_pair
-    integer                               :: i,iorb
+    integer                               :: i,j,iorb,jorb
     call allocate_grids()
     do iorb=1,Norb
-       call splot("pairChi_orb"//str(iorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,pairChi_tau(iorb,0:))
-       call splot("pairChi_orb"//str(iorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,pairChi_w(iorb,:))
-       call splot("pairChi_orb"//str(iorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,pairChi_iv(iorb,:))
+       do jorb=1,Norb
+          call splot("pairChi_l"//str(iorb)//str(jorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,pairChi_tau(iorb,jorb,0:))
+          call splot("pairChi_l"//str(iorb)//str(jorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,pairChi_w(iorb,jorb,:))
+          call splot("pairChi_l"//str(iorb)//str(jorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,pairChi_iv(iorb,jorb,:))
+       enddo
     enddo
     call deallocate_grids()
   end subroutine print_chi_pair

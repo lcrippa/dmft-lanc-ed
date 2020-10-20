@@ -40,10 +40,10 @@ program hm_Nbands_bethe
 
 
   call parse_cmd_variable(finput,"FINPUT",default='inputED.in')
-  call parse_input_variable(Le,"LE",finput,default=500)
-  call parse_input_variable(Wbethe,"WBETHE",finput,default=[1d0,1d0,1d0,1d0,1d0])
-  call parse_input_variable(Dbethe,"DBETHE",finput,default=[0d0,0d0,0d0,0d0,0d0])
-  call parse_input_variable(wmixing,"WMIXING",finput,default=0.5d0)
+  call parse_input_variable(Le,"LE",finput,default=500,comment="Discretization of the Bethe DOS")
+  call parse_input_variable(Wbethe,"WBETHE",finput,default=[1d0,1d0,1d0,1d0,1d0],comment="Band widths")
+  call parse_input_variable(Dbethe,"DBETHE",finput,default=[0d0,0d0,0d0,0d0,0d0],comment="Band centers")
+  call parse_input_variable(wmixing,"WMIXING",finput,default=0.5d0,comment="Solution mixing weight")
   call parse_input_variable(betheSC,"BETHESC",finput,default=.false.)
   call parse_input_variable(wGimp,"wGimp",finput,default=.false.)
   call parse_input_variable(mixG0,"mixG0",finput,default=.false.)

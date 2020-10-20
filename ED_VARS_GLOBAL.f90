@@ -7,7 +7,7 @@ MODULE ED_VARS_GLOBAL
 #endif
   implicit none
 
-  
+
   !-------------------- H EXPANSION STRUCTURE ----------------------!
   type H_operator
      real(8),dimension(:,:,:,:),allocatable                  :: O          !Replica hamilt
@@ -198,17 +198,17 @@ MODULE ED_VARS_GLOBAL
   complex(8),allocatable,dimension(:,:,:)            :: densChi_w
   complex(8),allocatable,dimension(:,:,:)            :: densChi_iv
 
-  ! !Mixed inter-orbital charge-charge Susceptibilities
-  ! !=========================================================
-  ! real(8),allocatable,dimension(:,:,:)               :: densChi_mix_tau
-  ! complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_w
-  ! complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_iv
+  !Mixed inter-orbital charge-charge Susceptibilities
+  !=========================================================
+  real(8),allocatable,dimension(:,:,:)               :: densChi_mix_tau
+  complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_w
+  complex(8),allocatable,dimension(:,:,:)            :: densChi_mix_iv
 
   !Pair-Pair Susceptibilities
   !=========================================================
-  real(8),allocatable,dimension(:,:)                 :: pairChi_tau
-  complex(8),allocatable,dimension(:,:)              :: pairChi_w
-  complex(8),allocatable,dimension(:,:)              :: pairChi_iv
+  real(8),allocatable,dimension(:,:,:)                 :: pairChi_tau
+  complex(8),allocatable,dimension(:,:,:)              :: pairChi_w
+  complex(8),allocatable,dimension(:,:,:)              :: pairChi_iv
 
 
   !Density and double occupancy

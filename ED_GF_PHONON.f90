@@ -1,19 +1,36 @@
 MODULE ED_GF_PHONON
-  USE ED_GF_SHARED
+  USE SF_CONSTANTS, only:one,xi,zero,pi
+  USE SF_TIMER  
+  USE SF_IOTOOLS, only: str,free_unit,reg,free_units,txtfy
+  USE SF_LINALG,  only: inv,eigh,eye
+  USE SF_SP_LINALG, only: sp_lanc_tridiag
+  USE ED_INPUT_VARS
+  USE ED_VARS_GLOBAL
+  USE ED_IO                     !< this contains the routine to print GF,Sigma and G0
+  USE ED_EIGENSPACE
+  USE ED_BATH
+  USE ED_BATH_FUNCTIONS
+  USE ED_SETUP
+  USE ED_HAMILTONIAN
+  USE ED_AUX_FUNX
   implicit none
   private
 
   public :: build_gf_phonon
 
-  integer             :: istate
-  integer             :: isector
-  integer             :: idim,idimUP,idimDW
-  real(8),allocatable :: vvinit(:),vvloc(:)
-  real(8),allocatable :: alfa_(:),beta_(:)
-  integer             :: i,j,m
-  integer             :: iph,i_el
-  real(8)             :: norm2
-  integer             :: Nlanc,vecDim
+  integer                               :: istate
+  integer                               :: isector
+  integer                               :: idim,idimUP,idimDW
+  real(8),allocatable                   :: vvinit(:),vvloc(:)
+  real(8),allocatable                   :: alfa_(:),beta_(:)
+  integer                               :: i,j,m
+  integer                               :: iph,i_el
+  real(8)                               :: norm2
+  integer                               :: Nlanc,vecDim
+  real(8),dimension(:),pointer          :: state_cvec
+  real(8)                               :: state_e
+  complex(8),allocatable,dimension(:,:) :: auxGmats,auxGreal
+
 
 contains
 
@@ -29,10 +46,10 @@ contains
     write(LOGfile,"(A)")"Get phonon Green function:"
     if(MPIMASTER)call start_timer()
     select case(ed_diag_type)
-       case default
-          call lanc_build_gf_phonon_main()
-       case ("full")
-          call full_build_gf_phonon_main()
+    case default
+       call lanc_build_gf_phonon_main()
+    case ("full")
+       call full_build_gf_phonon_main()
     end select
     if(MPIMASTER)call stop_timer(unit=LOGfile)
     !
@@ -47,6 +64,8 @@ contains
 
   subroutine lanc_build_gf_phonon_main()
     integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer                     :: Nups(Ns_Ud)
+    integer                     :: Ndws(Ns_Ud)
     !
     do istate=1,state_list%size
        isector    =  es_return_sector(state_list,istate)
@@ -61,6 +80,9 @@ contains
        state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       if(MpiMaster.AND.ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")'From sector:',isector,Nups,Ndws
        !
        idim = getdim(isector)
        call get_DimUp(isector,iDimUps)

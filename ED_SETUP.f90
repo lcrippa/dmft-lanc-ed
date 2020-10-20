@@ -280,9 +280,9 @@ contains
     allocate(densChi_w(Norb+1,Norb+1,Lreal))
     allocate(densChi_iv(Norb+1,Norb+1,0:Lmats))
     !
-    ! allocate(pairChi_tau(Norb,0:Ltau))
-    ! allocate(pairChi_w(Norb,Lreal))
-    ! allocate(pairChi_iv(Norb,0:Lmats))
+    allocate(pairChi_tau(Norb+1,Norb+1,0:Ltau))
+    allocate(pairChi_w(Norb+1,Norb+1,Lreal))
+    allocate(pairChi_iv(Norb+1,Norb+1,0:Lmats))
     !
   end subroutine init_ed_structure
 
