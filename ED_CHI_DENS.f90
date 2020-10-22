@@ -1,0 +1,543 @@
+MODULE ED_CHI_DENS
+  USE SF_CONSTANTS, only:one,xi,zero,pi
+  USE SF_TIMER  
+  USE SF_IOTOOLS, only: str,free_unit,reg,free_units,txtfy
+  USE SF_LINALG,  only: inv,eigh,eye
+  USE SF_SP_LINALG, only: sp_lanc_tridiag
+  USE ED_INPUT_VARS
+  USE ED_VARS_GLOBAL
+  USE ED_IO                     !< this contains the routine to print GF,Sigma and G0
+  USE ED_EIGENSPACE
+  USE ED_BATH
+  USE ED_BATH_FUNCTIONS
+  USE ED_SETUP
+  USE ED_HAMILTONIAN
+  USE ED_AUX_FUNX
+
+  implicit none
+  private
+
+
+  public :: build_chi_dens
+
+  integer             :: istate,iorb,jorb,ispin,jspin
+  integer             :: isector,jsector
+  integer             :: idim,idimUP,idimDW
+  integer             :: jdim,jdimUP,jdimDW
+  real(8),allocatable :: vvinit(:),vvloc(:)
+  real(8),allocatable :: alfa_(:),beta_(:)
+  integer             :: ialfa
+  integer             :: jalfa
+  integer             :: iorb1,jorb1
+  integer             :: r
+  integer             :: i,iup,idw
+  integer             :: j,jup,jdw  
+  integer             :: m,mup,mdw
+  integer             :: iph,i_el
+  real(8)             :: sgn,norm2,norm0
+  integer             :: Nitermax,Nlanc,vecDim
+
+  real(8),dimension(:),pointer                :: state_cvec
+  real(8)                                     :: state_e
+  complex(8),allocatable,dimension(:,:)       :: auxGmats,auxGreal
+
+
+contains
+
+
+  !+------------------------------------------------------------------+
+  !                            DENS
+  !PURPOSE  : Evaluate the Dens susceptibility \Chi_dens for a 
+  ! \chi_ab = <n_a(\tau)n_b(0)>
+  !+------------------------------------------------------------------+
+  subroutine build_chi_dens()
+    write(LOGfile,"(A)")"Get impurity dens Chi:"
+    do iorb=1,Norb
+       write(LOGfile,"(A)")"Get Chi_dens_l"//reg(txtfy(iorb))
+       if(MPIMASTER)call start_timer()
+       select case(ed_diag_type)
+       case default
+          call lanc_ed_build_densChi_diag(iorb)
+       case ("full")
+          call full_ed_build_densChi_main(iorb,iorb)
+       end select
+       if(MPIMASTER)call stop_timer(unit=LOGfile)
+    enddo
+    !
+    if(Norb>1)then
+       do iorb=1,Norb
+          do jorb=iorb+1,Norb
+             write(LOGfile,"(A)")"Get Chi_dens_mix_l"//reg(txtfy(iorb))//reg(txtfy(jorb))
+             if(MPIMASTER)call start_timer()
+             select case(ed_diag_type)
+             case default
+                call lanc_ed_build_densChi_mix(iorb,jorb)
+             case ("full")
+                call full_ed_build_densChi_main(iorb,jorb)
+             end select
+             if(MPIMASTER)call stop_timer(unit=LOGfile)
+          end do
+       end do
+       !
+       !
+       do iorb=1,Norb
+          do jorb=iorb+1,Norb
+             select case(ed_diag_type)
+             case default
+                densChi_w(iorb,jorb,:)   = 0.5d0*(densChi_w(iorb,jorb,:) - densChi_w(iorb,iorb,:) - densChi_w(jorb,jorb,:))
+                densChi_tau(iorb,jorb,:) = 0.5d0*(densChi_tau(iorb,jorb,:) - densChi_tau(iorb,iorb,:) - densChi_tau(jorb,jorb,:))
+                densChi_iv(iorb,jorb,:)  = 0.5d0*(densChi_iv(iorb,jorb,:) - densChi_iv(iorb,iorb,:) - densChi_iv(jorb,jorb,:))
+                !
+             case ("full")
+                ! The previous calculation is not needed in the FULL ED case
+             end select
+             !
+             densChi_w(jorb,iorb,:)   = densChi_w(iorb,jorb,:)
+             densChi_tau(jorb,iorb,:) = densChi_tau(iorb,jorb,:)
+             densChi_iv(jorb,iorb,:)  = densChi_iv(iorb,jorb,:)
+          enddo
+       enddo
+    endif
+    !
+  end subroutine build_chi_dens
+
+
+
+
+
+
+  !################################################################
+  !################################################################
+  !################################################################
+  !################################################################
+
+
+
+
+
+
+  subroutine lanc_ed_build_densChi_diag(iorb)
+    integer                     :: iorb
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
+    integer                     :: Nups(Ns_Ud)
+    integer                     :: Ndws(Ns_Ud)
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       iorb1 = iorb
+    else
+       ialfa = iorb
+       iorb1 = 1
+    endif
+    !
+    do istate=1,state_list%size
+       isector    =  es_return_sector(state_list,istate)
+       state_e    =  es_return_energy(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          state_cvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       state_cvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       if(MpiMaster.AND.ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")'From sector:',isector,Nups,Ndws
+       !
+       idim = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       !
+       if(MpiMaster)then
+          call build_sector(isector,HI)
+          if(ed_verbose==3)write(LOGfile,"(A,I12)")'Apply N:',isector
+          allocate(vvinit(idim));vvinit=0.d0
+          do i=1,iDim
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             iud(1)   = HI(ialfa)%map(Indices(ialfa))
+             iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+             !
+             sgn = nud(1,iorb1)+nud(2,iorb1)
+             vvinit(i) = sgn*state_cvec(i)
+          enddo
+          call delete_sector(isector,HI)
+          !
+          norm2=dot_product(vvinit,vvinit)
+          vvinit=vvinit/sqrt(norm2)
+       else
+          allocate(vvinit(1));vvinit=0.d0
+       endif
+       !
+       nlanc=min(idim,lanc_nGFiter)
+       allocate(alfa_(nlanc),beta_(nlanc))
+       !
+       call build_Hv_sector(isector)
+#ifdef _MPI
+       if(MpiStatus)then
+          call Bcast_MPI(MpiComm,norm2)
+          vecDim = vecDim_Hv_sector(isector)
+          allocate(vvloc(vecDim))
+          call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+          call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
+       else
+          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
+       endif
+#else
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
+#endif
+       call delete_Hv_sector()
+       !
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,iorb,iorb)
+       !
+       deallocate(alfa_,beta_)
+       if(allocated(vvinit))deallocate(vvinit)
+       if(allocated(vvloc))deallocate(vvloc)
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
+       !
+    enddo
+    return
+  end subroutine lanc_ed_build_densChi_diag
+
+
+
+  !################################################################
+
+
+
+  subroutine lanc_ed_build_densChi_mix(iorb,jorb)
+    integer                     :: iorb,jorb
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    real(8)                     :: Siorb,Sjorb
+    type(sector_map)            :: HI(2*Ns_Ud)    !map of the Sector S to Hilbert space H
+    integer                     :: Nups(Ns_Ud)
+    integer                     :: Ndws(Ns_Ud)
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       jalfa = 1
+       iorb1 = iorb
+       jorb1 = jorb
+    else
+       ialfa = iorb
+       jalfa = jorb
+       iorb1 = 1
+       jorb1 = 1
+    endif
+    !
+    do istate=1,state_list%size
+       isector    =  es_return_sector(state_list,istate)
+       state_e    =  es_return_energy(state_list,istate)
+#ifdef _MPI
+       if(MpiStatus)then
+          state_cvec => es_return_cvector(MpiComm,state_list,istate)
+       else
+          state_cvec => es_return_cvector(state_list,istate)
+       endif
+#else
+       state_cvec => es_return_cvector(state_list,istate)
+#endif
+       !
+       call get_Nup(isector,Nups)
+       call get_Ndw(isector,Ndws)
+       if(MpiMaster.AND.ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")'From sector:',isector,Nups,Ndws
+       !
+       idim  = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       !
+       !EVALUATE (N_jorb + N_iorb)|gs> = N_jorb|gs> + N_iorb|gs>
+       if(MpiMaster)then
+          call build_sector(isector,HI)
+          if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply Na+Nb:',isector
+          allocate(vvinit(idim));vvinit=0.d0
+          do i=1,iDim
+             iph = (i-1)/(iDimUp*iDimDw) + 1
+             i_el = mod(i-1,iDimUp*iDimDw) + 1
+             !
+             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             iud(1)   = HI(ialfa)%map(Indices(ialfa))
+             iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+             Siorb    = nud(1,iorb1) + nud(2,iorb1)
+             !
+             iud(1)   = HI(jalfa)%map(Indices(jalfa))
+             iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
+             nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+             nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+             Sjorb    = nud(1,jorb1) + nud(2,jorb1)
+             !
+             sgn       = Siorb + Sjorb
+             vvinit(i) = sgn*state_cvec(i)
+          enddo
+          call delete_sector(isector,HI)
+          !
+          norm2=dot_product(vvinit,vvinit)
+          vvinit=vvinit/sqrt(norm2)
+       else
+          allocate(vvinit(1));vvinit=0.d0
+       endif
+       !
+       nlanc=min(idim,lanc_nGFiter)
+       allocate(alfa_(nlanc),beta_(nlanc))
+       !
+       call build_Hv_sector(isector)
+#ifdef _MPI
+       if(MpiStatus)then
+          call Bcast_MPI(MpiComm,norm2)
+          vecDim = vecDim_Hv_sector(isector)
+          allocate(vvloc(vecDim))
+          call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+          call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
+       else
+          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
+       endif
+#else
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
+#endif
+       call delete_Hv_sector()
+       call add_to_lanczos_densChi(norm2,state_e,alfa_,beta_,iorb,jorb)
+       !
+       deallocate(alfa_,beta_)
+       if(allocated(vvinit))deallocate(vvinit)
+       if(allocated(vvloc))deallocate(vvloc)
+       !
+#ifdef _MPI
+       if(MpiStatus)then
+          if(associated(state_cvec))deallocate(state_cvec)
+       else
+          if(associated(state_cvec))nullify(state_cvec)
+       endif
+#else
+       if(associated(state_cvec))nullify(state_cvec)
+#endif
+       !
+    enddo
+    return
+  end subroutine lanc_ed_build_densChi_mix
+
+
+
+
+  !################################################################
+
+
+
+
+  subroutine add_to_lanczos_densChi(vnorm2,Ei,alanc,blanc,iorb,jorb)
+    integer                                    :: iorb,jorb
+    real(8)                                    :: pesoF,pesoAB,pesoBZ,peso,vnorm2  
+    real(8)                                    :: Ei,Ej,Egs,de
+    integer                                    :: nlanc
+    real(8),dimension(:)                       :: alanc
+    real(8),dimension(size(alanc))             :: blanc 
+    real(8),dimension(size(alanc),size(alanc)) :: Z
+    real(8),dimension(size(alanc))             :: diag,subdiag
+    integer                                    :: i,j,ierr
+    complex(8)                                 :: iw,chisp
+    !
+    Egs = state_list%emin       !get the gs energy
+    !
+    Nlanc = size(alanc)
+    !
+    pesoF  = vnorm2/zeta_function 
+    pesoBZ = 1d0
+    if(finiteT)pesoBZ = exp(-beta*(Ei-Egs))
+    !
+#ifdef _MPI
+    if(MpiStatus)then
+       call Bcast_MPI(MpiComm,alanc)
+       call Bcast_MPI(MpiComm,blanc)
+    endif
+#endif
+    diag(1:Nlanc)    = alanc(1:Nlanc)
+    subdiag(2:Nlanc) = blanc(2:Nlanc)
+    call eigh(diag(1:Nlanc),subdiag(2:Nlanc),Ev=Z(:Nlanc,:Nlanc))
+    !
+    do j=1,nlanc
+       Ej     = diag(j)
+       dE     = Ej-Ei
+       pesoAB = Z(1,j)*Z(1,j)
+       peso   = pesoF*pesoAB*pesoBZ
+       ! the correct behavior for beta*dE << 1 is recovered only by assuming that v_n is still finite
+       ! beta*dE << v_n for v_n--> 0 slower. First limit beta*dE--> 0 and only then v_n -->0.
+       ! This ensures that the correct null contribution is obtained.
+       ! So we impose that: if (beta*dE is larger than a small qty) we sum up the contribution, else
+       ! we do not include the contribution (because we are in the situation described above).
+       ! For the real-axis case this problem is circumvented by the usual i*0+ = xi*eps
+       if(beta*dE > 1d-3)densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*(1d0-exp(-beta*dE))/dE 
+       do i=1,Lmats
+          densChi_iv(iorb,jorb,i)=densChi_iv(iorb,jorb,i) + peso*(1d0-exp(-beta*dE))*2d0*dE/(vm(i)**2+dE**2)
+       enddo
+       do i=0,Ltau
+          densChi_tau(iorb,jorb,i)=densChi_tau(iorb,jorb,i) + exp(-tau(i)*dE)*peso
+       enddo
+       do i=1,Lreal
+          densChi_w(iorb,jorb,i)=densChi_w(iorb,jorb,i) - &
+               peso*(1d0-exp(-beta*dE))*(1d0/(dcmplx(vr(i),eps) - dE) - 1d0/(dcmplx(vr(i),eps) + dE))
+       enddo
+    enddo
+    !
+  end subroutine add_to_lanczos_densChi
+
+
+
+
+
+  !################################################################
+  !################################################################
+  !################################################################
+  !################################################################
+
+
+
+  subroutine full_ed_build_densChi_main(iorb,jorb)
+    integer                     :: iorb,jorb
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
+    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
+    integer,dimension(2,Ns_Orb) :: Nud
+    integer                     :: Iud(2)
+    type(sector_map)            :: HI(2*Ns_Ud)
+    real(8)                     :: Chiorb,Chjorb,Niorb,Njorb
+    integer                     :: i,j,ll,isector
+    integer                     :: idim,ia
+    real(8)                     :: Ei,Ej,cc,peso,pesotot
+    real(8)                     :: expterm,de,w0,it
+    complex(8)                  :: iw 
+    !
+    !
+    !Dens susceptibility \X(tau).
+    !
+    if(ed_total_ud)then
+       ialfa = 1
+       jalfa = 1
+       iorb1 = iorb
+       jorb1 = jorb
+    else
+       ialfa = iorb
+       jalfa = jorb
+       iorb1 = 1
+       jorb1 = 1
+    endif
+    !
+    do isector=1,Nsectors !loop over <i| total particle number
+       call eta(isector,Nsectors,LOGfile)
+       idim = getdim(isector)
+       call get_DimUp(isector,iDimUps)
+       call get_DimDw(isector,iDimDws)
+       iDimUp = product(iDimUps)
+       iDimDw = product(iDimDws)
+       call build_sector(isector,HI)
+       !
+       do i=1,idim 
+          do j=1,idim
+             Chiorb=0d0
+             Chjorb=0d0
+             expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(isector)%e(j))
+             if(expterm<cutoff)cycle
+             do ll=1,idim
+                iph = (ll-1)/(iDimUp*iDimDw) + 1
+                i_el = mod(ll-1,iDimUp*iDimDw) + 1
+                !
+                call state2indices(i_el,[iDimUps,iDimDws],Indices)
+                iud(1)   = HI(ialfa)%map(Indices(ialfa))
+                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                Niorb    = nud(1,iorb1) + nud(2,iorb1)
+                Chiorb   = Chiorb + espace(isector)%M(ll,i)*Niorb*espace(isector)%M(ll,j)
+                !
+                iud(1)   = HI(jalfa)%map(Indices(jalfa))
+                iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
+                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+                Njorb    = nud(1,jorb1) + nud(2,jorb1)
+                Chjorb   = Chjorb + espace(isector)%M(ll,i)*Njorb*espace(isector)%M(ll,j)
+             enddo
+             Ei=espace(isector)%e(i)
+             Ej=espace(isector)%e(j)
+             de=Ei-Ej
+             peso = Chiorb*Chjorb/zeta_function
+             !
+             !Matsubara (bosonic) frequency
+             if(beta*dE > 1d-3)densChi_iv(iorb,jorb,0)=densChi_iv(iorb,jorb,0) + peso*2*exp(-beta*Ej)*(1d0-exp(-beta*dE))/dE
+             do m=1,Lmats
+                densChi_iv(iorb,jorb,m)=densChi_iv(iorb,jorb,m)+ peso*exp(-beta*Ej)*2*dE/(vm(m)**2 + de**2)
+             enddo
+             !
+             !Imaginary time: V
+             do m=0,Ltau 
+                it=tau(m)
+                densChi_tau(iorb,jorb,m)=densChi_tau(iorb,jorb,m) + exp(-it*Ei)*exp(-(beta-it)*Ej)*peso
+             enddo
+             !
+             !Real-frequency: Retarded = Commutator = response function
+             do m=1,Lreal
+                iw=dcmplx(vr(m),eps)
+                densChi_w(iorb,jorb,m)=densChi_w(iorb,jorb,m)-peso*(exp(-beta*Ei) - exp(-beta*Ej))/(iw+de)
+             enddo
+             !
+          enddo
+       enddo
+    enddo
+  end subroutine full_ed_build_densChi_main
+
+
+END MODULE ED_CHI_DENS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

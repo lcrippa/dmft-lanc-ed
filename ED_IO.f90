@@ -437,6 +437,7 @@ contains
     call print_chi_spin
     call print_chi_dens
     call print_chi_pair
+    ! call print_chi_exct
   end subroutine ed_print_impChi
 
   !                         SPIN-SPIN
@@ -450,11 +451,6 @@ contains
           call splot("spinChi_l"//str(iorb)//str(jorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(iorb,jorb,:))
        enddo
     enddo
-    if(Norb>1)then
-       call splot("spinChi_tot_tau"//reg(ed_file_suffix)//".ed",tau,spinChi_tau(Norb+1,Norb+1,0:))
-       call splot("spinChi_tot_realw"//reg(ed_file_suffix)//".ed",vr,spinChi_w(Norb+1,Norb+1,:))
-       call splot("spinChi_tot_iw"//reg(ed_file_suffix)//".ed",vm,spinChi_iv(Norb+1,Norb+1,:))
-    endif
     call deallocate_grids()
   end subroutine print_chi_spin
   !                     DENSITY-DENSITY
@@ -468,11 +464,6 @@ contains
           call splot("densChi_l"//str(iorb)//str(jorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,densChi_iv(iorb,jorb,:))
        enddo
     enddo
-    if(Norb>1)then
-       call splot("densChi_tot_tau"//reg(ed_file_suffix)//".ed",tau,densChi_tau(Norb+1,Norb+1,0:))
-       call splot("densChi_tot_realw"//reg(ed_file_suffix)//".ed",vr,densChi_w(Norb+1,Norb+1,:))
-       call splot("densChi_tot_iw"//reg(ed_file_suffix)//".ed",vm,densChi_iv(Norb+1,Norb+1,:))
-    endif
     call deallocate_grids()
   end subroutine print_chi_dens
   !                     PAIR-PAIR
@@ -488,6 +479,19 @@ contains
     enddo
     call deallocate_grids()
   end subroutine print_chi_pair
+  !                     EXCITON
+  ! subroutine print_chi_exct
+  !   integer                               :: i,j,iorb,jorb
+  !   call allocate_grids()
+  !   do iorb=1,Norb
+  !      do jorb=1,Norb
+  !         call splot("exctChi_l"//str(iorb)//str(jorb)//"_tau"//reg(ed_file_suffix)//".ed",tau,exctChi_tau(0,0:))
+  !         call splot("exctChi_l"//str(iorb)//str(jorb)//"_realw"//reg(ed_file_suffix)//".ed",vr,exctChi_w(iorb,jorb,:))
+  !         call splot("exctChi_l"//str(iorb)//str(jorb)//"_iw"//reg(ed_file_suffix)//".ed",vm,exctChi_iv(iorb,jorb,:))
+  !      enddo
+  !   enddo
+  !   call deallocate_grids()
+  ! end subroutine print_chi_exct
 
 
 

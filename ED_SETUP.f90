@@ -16,8 +16,13 @@ MODULE ED_SETUP
   public :: setup_global
   !
   public :: build_sector
+  public :: build_sector_
   public :: delete_sector
+  public :: delete_sector_
   !
+  public :: apply_op_C
+  public :: apply_op_CDG
+
   public :: get_Sector
   public :: get_QuantumNumbers
   public :: get_Nup
@@ -272,17 +277,21 @@ contains
     ed_dens_up=0d0
     ed_dens_dw=0d0
     !
-    allocate(spinChi_tau(Norb+1,Norb+1,0:Ltau))
-    allocate(spinChi_w(Norb+1,Norb+1,Lreal))
-    allocate(spinChi_iv(Norb+1,Norb+1,0:Lmats))
+    allocate(spinChi_tau(Norb,Norb,0:Ltau))
+    allocate(spinChi_w(Norb,Norb,Lreal))
+    allocate(spinChi_iv(Norb,Norb,0:Lmats))
     !
-    allocate(densChi_tau(Norb+1,Norb+1,0:Ltau))
-    allocate(densChi_w(Norb+1,Norb+1,Lreal))
-    allocate(densChi_iv(Norb+1,Norb+1,0:Lmats))
+    allocate(densChi_tau(Norb,Norb,0:Ltau))
+    allocate(densChi_w(Norb,Norb,Lreal))
+    allocate(densChi_iv(Norb,Norb,0:Lmats))
     !
-    allocate(pairChi_tau(Norb+1,Norb+1,0:Ltau))
-    allocate(pairChi_w(Norb+1,Norb+1,Lreal))
-    allocate(pairChi_iv(Norb+1,Norb+1,0:Lmats))
+    allocate(pairChi_tau(Norb,Norb,0:Ltau))
+    allocate(pairChi_w(Norb,Norb,Lreal))
+    allocate(pairChi_iv(Norb,Norb,0:Lmats))
+    !
+    allocate(exctChi_tau(0:4,Norb,Norb,0:Ltau))
+    allocate(exctChi_w(0:4,Norb,Norb,Lreal))
+    allocate(exctChi_iv(0:4,Norb,Norb,0:Lmats))
     !
   end subroutine init_ed_structure
 
@@ -558,7 +567,7 @@ contains
     integer :: idw
     idw = (i-1)/DimUp+1
   end function idw_index
- 
+
 
 #ifdef _MPI
   !! Scatter V into the arrays Vloc on each thread: sum_threads(size(Vloc)) must be equal to size(v)
@@ -607,7 +616,7 @@ contains
        vloc_start = 1 + (iph-1)*(Nloc/Dimph)
        vloc_end = iph*(Nloc/Dimph)
        call MPI_Scatterv(V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,&
-                         Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
+            Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
     enddo
     !
     return
@@ -678,7 +687,7 @@ contains
        vloc_end = iph*(Nloc/Dimph)
        !
        call MPI_Gatherv(Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,&
-                        V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
+            V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,0,MpiComm,MpiIerr)
     enddo
     !
     return
@@ -726,7 +735,7 @@ contains
        vloc_start = 1 + (iph-1)*(Nloc/Dimph)
        vloc_end = iph*(Nloc/Dimph)
        call MPI_AllGatherv(Vloc(vloc_start:vloc_end),Nloc/DimPh,MPI_DOUBLE_PRECISION,&
-                           V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,MpiComm,MpiIerr)
+            V(v_start:v_end),Counts,Offset,MPI_DOUBLE_PRECISION,MpiComm,MpiIerr)
     enddo
     !
     return
@@ -787,6 +796,131 @@ contains
 
 
 
+  subroutine build_sector_(isector,self)
+    integer,intent(in)                  :: isector
+    type(sector)                        :: self
+    integer                             :: iup,idw
+    integer                             :: nup_,ndw_
+    integer                             :: dim,iud
+    !
+    if(self%status)call delete_sector_(isector,self)
+    !
+    allocate(self%H(2*Ns_Ud))
+    allocate(self%DimUps(Ns_Ud))
+    allocate(self%DimDws(Ns_Ud))
+    allocate(self%Nups(Ns_Ud))
+    allocate(self%Ndws(Ns_Ud))
+    !
+    call get_Nup(isector,self%Nups);self%Nup=sum(self%Nups)
+    call get_Ndw(isector,self%Ndws);self%Ndw=sum(self%Ndws)
+    call get_DimUp(isector,self%DimUps);self%DimUp=product(self%DimUps)
+    call get_DimDw(isector,self%DimDws);self%DimDw=product(self%DimDws)
+    self%Dim=self%DimUp*self%DimDw
+    !
+    call map_allocate(self%H,[self%DimUps,self%DimDws])
+    do iud=1,Ns_Ud
+       !UP    
+       dim=0
+       do iup=0,2**Ns_Orb-1
+          nup_ = popcnt(iup)
+          if(nup_ /= self%Nups(iud))cycle
+          dim  = dim+1
+          self%H(iud)%map(dim) = iup
+       enddo
+       !DW
+       dim=0
+       do idw=0,2**Ns_Orb-1
+          ndw_= popcnt(idw)
+          if(ndw_ /= self%Ndws(iud))cycle
+          dim = dim+1
+          self%H(iud+Ns_Ud)%map(dim) = idw
+       enddo
+    enddo
+    !
+  end subroutine build_sector_
+
+
+  subroutine delete_sector_(isector,self)
+    integer      :: isector
+    type(sector) :: self
+    call map_deallocate(self%H)
+    if(allocated(self%H))deallocate(self%H)
+    if(allocated(self%DimUps))deallocate(self%DimUps)
+    if(allocated(self%DimDws))deallocate(self%DimDws)
+    if(allocated(self%Nups))deallocate(self%Nups)
+    if(allocated(self%Ndws))deallocate(self%Ndws)
+  end subroutine delete_sector_
+
+
+
+  subroutine apply_op_C(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ) 
+    integer, intent(in)         :: i,ipos,ialfa,ispin
+    type(sector),intent(in)     :: sectorI,sectorJ
+    integer,intent(out)         :: j
+    real(8),intent(out)         :: sgn
+    integer                     :: ibeta
+    integer                     :: r
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    j=0
+    sgn=0d0
+    !
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    iph = (i-1)/(sectorI%Dim) + 1
+    i_el = mod(i-1,sectorI%Dim) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    if(Nud(ispin,ipos)/=1)return
+    call c(ipos,iud(ispin),r,sgn)
+    Jndices        = Indices
+    Jndices(ibeta) = binary_search(sectorJ%H(ibeta)%map,r)
+    call indices2state(Jndices,[sectorJ%DimUps,sectorJ%DimDws],j)
+    !
+    j = j + (iph-1)*sectorJ%Dim
+  end subroutine apply_op_C
+
+
+  subroutine apply_op_CDG(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ) 
+    integer, intent(in)         :: i,ipos,ialfa,ispin
+    type(sector),intent(in)     :: sectorI,sectorJ
+    integer,intent(out)         :: j
+    real(8),intent(out)         :: sgn
+    integer                     :: ibeta
+    integer                     :: r
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    j=0
+    sgn=0d0
+    !
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    iph = (i-1)/(sectorI%Dim) + 1
+    i_el = mod(i-1,sectorI%Dim) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    if(Nud(ispin,ipos)/=0)return
+    call cdg(ipos,iud(ispin),r,sgn)
+    Jndices        = Indices
+    Jndices(ibeta) = binary_search(sectorJ%H(ibeta)%map,r)
+    call indices2state(Jndices,[sectorJ%DimUps,sectorJ%DimDws],j)
+    !
+    j = j + (iph-1)*sectorJ%Dim
+  end subroutine apply_op_CDG
 
 
 
