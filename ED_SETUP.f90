@@ -22,6 +22,8 @@ MODULE ED_SETUP
   !
   public :: apply_op_C
   public :: apply_op_CDG
+  public :: apply_op_Sz
+  public :: apply_op_N
 
   public :: get_Sector
   public :: get_QuantumNumbers
@@ -805,6 +807,8 @@ contains
     !
     if(self%status)call delete_sector_(isector,self)
     !
+    self%index = isector
+    !
     allocate(self%H(2*Ns_Ud))
     allocate(self%DimUps(Ns_Ud))
     allocate(self%DimDws(Ns_Ud))
@@ -837,6 +841,7 @@ contains
        enddo
     enddo
     !
+    self%Nlanc = min(self%Dim,lanc_nGFiter)
   end subroutine build_sector_
 
 
@@ -923,6 +928,56 @@ contains
   end subroutine apply_op_CDG
 
 
+  subroutine apply_op_Sz(i,sgn,ipos,ialfa,sectorI) 
+    integer, intent(in)         :: i,ipos,ialfa
+    type(sector),intent(in)     :: sectorI
+    real(8),intent(out)         :: sgn
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    sgn=0d0
+    !
+    iph = (i-1)/(sectorI%Dim) + 1
+    i_el = mod(i-1,sectorI%Dim) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    !
+    sgn = dble(nud(1,ipos))-dble(nud(2,ipos))
+    sgn = sgn/2d0
+  end subroutine apply_op_Sz
+
+
+
+  subroutine apply_op_N(i,sgn,ipos,ialfa,sectorI) 
+    integer, intent(in)         :: i,ipos,ialfa
+    type(sector),intent(in)     :: sectorI
+    real(8),intent(out)         :: sgn
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    sgn=0d0
+    !
+    iph = (i-1)/(sectorI%Dim) + 1
+    i_el = mod(i-1,sectorI%Dim) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    !
+    sgn = dble(nud(1,ipos))+dble(nud(2,ipos))
+  end subroutine apply_op_N
 
 
 

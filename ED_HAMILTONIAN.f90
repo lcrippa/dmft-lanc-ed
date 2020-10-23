@@ -12,6 +12,9 @@ MODULE ED_HAMILTONIAN
   public  :: delete_Hv_sector
   public  :: vecDim_Hv_sector
 
+  !> Tridiag sparse Hamiltonian of the sector
+  public  :: tridiag_Hv_sector
+
   !>Sparse Mat-Vec product using stored sparse matrix
   public  :: spMatVec_main
   public  :: spMatVec_orbs
@@ -214,7 +217,15 @@ contains
        MpiComm = MpiComm_Global
        MpiSize = get_Size_MPI(MpiComm_Global)
        MpiRank = get_Rank_MPI(MpiComm_Global)
-       !call Mpi_Comm_Dup(MpiComm_Global,MpiComm,ierr)
+       mpiQup=0
+       mpiRup=0
+       mpiQdw=0
+       mpiRdw=0
+       mpiQ=0
+       mpiR=0
+       mpiIstart=0
+       mpiIend=0
+       mpiIshift=0
     endif
 #endif
     iter=0
@@ -225,7 +236,7 @@ contains
 
 
 
-  
+
   function vecDim_Hv_sector(isector) result(vecDim)
     integer :: isector
     integer :: vecDim
@@ -254,5 +265,39 @@ contains
 
 
 
+
+
+
+
+  subroutine tridiag_Hv_sector(jsector,vvinit,alanc,blanc,norm2)
+    integer,intent(in)                 :: jsector
+    real(8),dimension(:)               :: vvinit
+    real(8),dimension(:)               :: alanc
+    real(8),dimension(:)               :: blanc
+    real(8)                            :: norm2
+    !
+    real(8),dimension(:),allocatable   :: vvloc
+    integer                            :: vecDim
+    !
+    if(MpiMaster)then
+       norm2=dot_product(vvinit,vvinit)
+       vvinit=vvinit/sqrt(norm2)
+    endif
+    call build_Hv_sector(jsector)
+#ifdef _MPI
+    if(MpiStatus)then
+       call bcast_MPI(MpiComm,norm2)
+       vecDim = vecDim_Hv_sector(jsector)
+       allocate(vvloc(vecDim))
+       call scatter_vector_MPI(MpiComm,vvinit,vvloc)
+       call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alanc,blanc)
+    else
+       call sp_lanc_tridiag(spHtimesV_p,vvinit,alanc,blanc)
+    endif
+#else
+    call sp_lanc_tridiag(spHtimesV_p,vvinit,alanc,blanc)
+#endif
+    call delete_Hv_sector()
+  end subroutine tridiag_Hv_sector
 
 end MODULE ED_HAMILTONIAN

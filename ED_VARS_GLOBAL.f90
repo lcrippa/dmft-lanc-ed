@@ -71,6 +71,7 @@ MODULE ED_VARS_GLOBAL
      integer,dimension(:),allocatable          :: Ndws
      integer                                   :: Nup
      integer                                   :: Ndw
+     integer                                   :: Nlanc
      logical                                   :: status=.false.
   end type sector
 

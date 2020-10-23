@@ -1,6 +1,7 @@
 MODULE ED_HAMILTONIAN_COMMON
   USE SF_MISC,    only: assert_shape
   USE SF_LINALG,  only: kronecker_product,eye
+  USE SF_SP_LINALG, only: sp_lanc_tridiag
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
   USE ED_BATH

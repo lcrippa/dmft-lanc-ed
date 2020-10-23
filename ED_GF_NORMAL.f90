@@ -1,12 +1,10 @@
 MODULE ED_GF_NORMAL
   USE SF_CONSTANTS, only:one,xi,zero,pi
   USE SF_TIMER  
-  USE SF_IOTOOLS, only: str,free_unit,reg,free_units,txtfy
+  USE SF_IOTOOLS, only: str,reg,txtfy
   USE SF_LINALG,  only: inv,eigh,eye
-  USE SF_SP_LINALG, only: sp_lanc_tridiag
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
-  USE ED_IO                     !< this contains the routine to print GF,Sigma and G0
   USE ED_EIGENSPACE
   USE ED_BATH
   USE ED_BATH_FUNCTIONS
@@ -23,27 +21,15 @@ MODULE ED_GF_NORMAL
 
   integer                               :: istate
   integer                               :: isector,jsector
-  integer                               :: idim,idimUP,idimDW
-  integer                               :: jdim,jdimUP,jdimDW
-  real(8),allocatable                   :: vvinit(:),vvloc(:)
+  real(8),allocatable                   :: vvinit(:)
   real(8),allocatable                   :: alfa_(:),beta_(:)
-  integer                               :: ialfa,ibeta
-  integer                               :: jalfa,jbeta
-  integer                               :: iorb1,jorb1
-  integer                               :: r
-  integer                               :: i,iup,idw
-  integer                               :: j,jup,jdw  
-  integer                               :: m,mup,mdw
+  integer                               :: ialfa,jalfa
+  integer                               :: ipos,jpos
+  integer                               :: i,j
   integer                               :: iph,i_el
-  real(8)                               :: sgn,norm2,norm0
-  integer                               :: Nitermax,Nlanc,vecDim
-
+  real(8)                               :: sgn,norm2
   real(8),dimension(:),pointer          :: state_cvec
   real(8)                               :: state_e
-
-
-  complex(8),allocatable,dimension(:,:) :: auxGmats,auxGreal
-
 
 
 contains
@@ -65,7 +51,7 @@ contains
           if(MPIMASTER)call start_timer
           select case(ed_diag_type)
           case default
-             call lanc_build_gf_normal_diag_(iorb,ispin)
+             call lanc_build_gf_normal_diag(iorb,ispin)
           case ("full")
              call full_build_gf_normal_diag(iorb,ispin)
           end select
@@ -140,27 +126,17 @@ contains
 
 
 
-
   subroutine lanc_build_gf_normal_diag(iorb,ispin)
     integer,intent(in)          :: iorb,ispin
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
-    integer,dimension(2,Ns_Orb) :: Nud
-    integer,dimension(2)        :: Iud,Jud
-    type(sector_map)          :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
-    integer                   :: Nups(Ns_Ud)
-    integer                   :: Ndws(Ns_Ud)
+    type(sector)                :: sectorI,sectorJ
     !
     if(ed_total_ud)then
        ialfa = 1
-       iorb1 = iorb
+       ipos  = iorb
     else
        ialfa = iorb
-       iorb1 = 1
+       ipos  = 1
     endif
-    ibeta  = ialfa + (ispin-1)*Ns_Ud
     !
     !
     do istate=1,state_list%size
@@ -176,163 +152,63 @@ contains
        state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
-       call get_Nup(isector,Nups)
-       call get_Ndw(isector,Ndws)
-       if(MpiMaster.AND.ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
-            'From sector:',isector,Nups,Ndws
-
-       idim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
+       if(MpiMaster)then
+          call build_sector_(isector,sectorI)
+          if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
+               'From sector  :',isector,sectorI%Nups,sectorI%Ndws
+       endif
        !
        !ADD ONE PARTICLE:
        jsector = getCDGsector(ialfa,ispin,isector)
-       jdim   = getdim(jsector)
-       call get_Nup(jsector,nups)
-       call get_Ndw(jsector,ndws)
-       call get_DimUp(jsector,jDimUps)
-       call get_DImDw(jsector,jDimDws)
-       jDimUp = product(jDimUps)
-       jDimDw = product(jDimDws)
-       !
        if(jsector/=0)then 
           if(MpiMaster)then
-             call build_sector(isector,HI)
-             call build_sector(jsector,HJ)
+             call build_sector_(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
-                  ' add particle:',jsector,Nups,Ndws
-             !
-             allocate(vvinit(jdim)) ; vvinit=zero
-             do i=1,iDim
-                !
-                iph = (i-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(i-1,iDimUp*iDimDw) + 1
-                !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(ialfa)%map(Indices(ialfa))
-                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(Nud(ispin,iorb1)/=0)cycle
-                call cdg(iorb1,iud(ispin),r,sgn)
-                Jndices        = Indices
-                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
-                call indices2state(Jndices,[jDimUps,jDimDws],j)
-                j = j + (iph-1)*jDimUp*jDimDw
-                !
+                  ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
+             allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
+             do i=1,sectorI%Dim
+                call apply_op_CDG(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = sgn*state_cvec(i)
              enddo
-             call delete_sector(isector,HI)
-             call delete_sector(jsector,HJ)
-             !
-             norm2=dot_product(vvinit,vvinit)
-             vvinit=vvinit/sqrt(norm2)
+             call delete_sector_(jsector,sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          nlanc=min(jdim,lanc_nGFiter)
-          allocate(alfa_(nlanc),beta_(nlanc))
-          alfa_=0.d0
-          beta_=0.d0
-          !
-          call build_Hv_sector(jsector)
-#ifdef _MPI
-          if(MpiStatus)then
-             call bcast_MPI(MpiComm,norm2)
-             vecDim = vecDim_Hv_sector(jsector)
-             allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-             call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-          else
-             call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-          endif
-#else
-          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-#endif
-          call delete_Hv_sector()
-          !
+          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
+          call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,iorb,ispin)
-          !
           deallocate(alfa_,beta_)
-          if(allocated(vvinit))deallocate(vvinit)          
-          if(allocated(vvloc))deallocate(vvloc)
+          if(allocated(vvinit))deallocate(vvinit)
        endif
        !
        !REMOVE ONE PARTICLE:
        jsector = getCsector(ialfa,ispin,isector)
-       jdim   = getdim(jsector)
-       call get_Nup(jsector,nups)
-       call get_Ndw(jsector,ndws)
-       call get_DimUp(jsector,jDimUps)
-       call get_DImDw(jsector,jDimDws)
-       jDimUp = product(jDimUps)
-       jDimDw = product(jDimDws)
-       !
        if(jsector/=0)then
           if(MpiMaster)then
-             call build_sector(isector,HI)
-             call build_sector(jsector,HJ)
-             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")' del particle:',jsector,Nups,Ndws
-             allocate(vvinit(jdim)) ; vvinit=zero
-             do i=1,iDim
-                iph = (i-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(i-1,iDimUp*iDimDw) + 1
-                !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(ialfa)%map(Indices(ialfa))
-                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,iorb1)/=1)cycle
-                call c(iorb1,iud(ispin),r,sgn)
-                Jndices        = Indices
-                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
-                call indices2state(Jndices,[jDimUps,jDimDws],j)
-                j = j + (iph-1)*jDimUp*jDimDw
-                !
+             call build_sector_(jsector,sectorJ)
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
+                  ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
+             allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
+             do i=1,sectorI%Dim
+                call apply_op_C(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = sgn*state_cvec(i)
              enddo
-             call delete_sector(isector,HI)
-             call delete_sector(jsector,HJ)
-             !
-             norm2=dot_product(vvinit,vvinit)
-             vvinit=vvinit/sqrt(norm2)
+             call delete_sector_(jsector,sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          nlanc=min(jdim,lanc_nGFiter)
-          allocate(alfa_(nlanc),beta_(nlanc))
-          alfa_=0.d0
-          beta_=0.d0
-          !
-          call build_Hv_sector(jsector)
-#ifdef _MPI
-          if(MpiStatus)then
-             call bcast_MPI(MpiComm,norm2)
-             vecDim = vecDim_Hv_sector(jsector)
-             allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-             call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-          else
-             call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-          endif
-#else
-          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-#endif
-          call delete_Hv_sector()
-          !
+          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
+          call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,iorb,ispin)
-          !
           deallocate(alfa_,beta_)
-          if(allocated(vvinit))deallocate(vvinit)          
-          if(allocated(vvloc))deallocate(vvloc)
+          if(allocated(vvinit))deallocate(vvinit)
        endif
        !
-       !
+       if(MpiMaster)call delete_sector_(isector,sectorI)
 #ifdef _MPI
        if(MpiStatus)then
           if(associated(state_cvec))deallocate(state_cvec)
@@ -349,159 +225,6 @@ contains
 
 
 
-  subroutine lanc_build_gf_normal_diag_(iorb,ispin)
-    integer,intent(in)          :: iorb,ispin
-    type(sector)                :: sectorI,sectorJ
-    !
-    print*,"GF: diag_"
-    if(ed_total_ud)then
-       ialfa = 1
-       iorb1 = iorb
-    else
-       ialfa = iorb
-       iorb1 = 1
-    endif
-    !
-    !
-    do istate=1,state_list%size
-       isector    =  es_return_sector(state_list,istate)
-       state_e    =  es_return_energy(state_list,istate)
-#ifdef _MPI
-       if(MpiStatus)then
-          state_cvec => es_return_cvector(MpiComm,state_list,istate) 
-       else
-          state_cvec => es_return_cvector(state_list,istate)
-       endif
-#else
-       state_cvec => es_return_cvector(state_list,istate)
-#endif
-       if(MpiMaster)then
-          call build_sector_(isector,sectorI)
-          if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
-               'From sector  :',isector,sectorI%Nups,sectorI%Ndws
-          iDim = sectorI%Dim
-       endif
-       !
-       !ADD ONE PARTICLE:
-       jsector = getCDGsector(ialfa,ispin,isector)
-       if(jsector/=0)then 
-          if(MpiMaster)then
-             call build_sector_(jsector,sectorJ)
-             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
-                  ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
-             !
-             jdim = sectorJ%Dim
-             allocate(vvinit(jdim)) ; vvinit=zero
-             do i=1,iDim
-                call apply_op_CDG(i,j,sgn,iorb1,ialfa,ispin,sectorI,sectorJ)
-                if(sgn==0d0.OR.j==0)cycle
-                vvinit(j) = sgn*state_cvec(i)
-             enddo
-             call delete_sector_(jsector,sectorJ)
-             !
-             norm2=dot_product(vvinit,vvinit)
-             vvinit=vvinit/sqrt(norm2)
-          else
-             allocate(vvinit(1));vvinit=0.d0
-          endif
-          !
-          nlanc=min(jdim,lanc_nGFiter)
-          allocate(alfa_(nlanc),beta_(nlanc))
-          alfa_=0.d0
-          beta_=0.d0
-          !
-          call build_Hv_sector(jsector)
-#ifdef _MPI
-          if(MpiStatus)then
-             call bcast_MPI(MpiComm,norm2)
-             vecDim = vecDim_Hv_sector(jsector)
-             allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-             call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-          else
-             call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-          endif
-#else
-          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-#endif
-          call delete_Hv_sector()
-          !
-          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,iorb,ispin)
-          !
-          deallocate(alfa_,beta_)
-          if(allocated(vvinit))deallocate(vvinit)          
-          if(allocated(vvloc))deallocate(vvloc)
-       endif
-       !
-       !REMOVE ONE PARTICLE:
-       jsector = getCsector(ialfa,ispin,isector)
-       if(jsector/=0)then
-          if(MpiMaster)then
-             call build_sector_(jsector,sectorJ)
-             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
-                  ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
-             !
-             jDim = sectorJ%Dim
-             allocate(vvinit(jDim)) ; vvinit=zero
-             do i=1,iDim
-                call apply_op_C(i,j,sgn,iorb1,ialfa,ispin,sectorI,sectorJ)
-                if(sgn==0d0.OR.j==0)cycle
-                vvinit(j) = sgn*state_cvec(i)
-             enddo
-             call delete_sector_(jsector,sectorJ)
-             !
-             norm2=dot_product(vvinit,vvinit)
-             vvinit=vvinit/sqrt(norm2)
-          else
-             allocate(vvinit(1));vvinit=0.d0
-          endif
-          !
-          nlanc=min(jDim,lanc_nGFiter)
-          allocate(alfa_(nlanc),beta_(nlanc))
-          alfa_=0.d0
-          beta_=0.d0
-          !
-          call build_Hv_sector(jsector)
-#ifdef _MPI
-          if(MpiStatus)then
-             call bcast_MPI(MpiComm,norm2)
-             vecDim = vecDim_Hv_sector(jsector)
-             allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-             call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-          else
-             call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-          endif
-#else
-          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-#endif
-          call delete_Hv_sector()
-          !
-          call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,iorb,ispin)
-          !
-          deallocate(alfa_,beta_)
-          if(allocated(vvinit))deallocate(vvinit)          
-          if(allocated(vvloc))deallocate(vvloc)
-       endif
-       !
-       call delete_sector_(isector,sectorI)
-       !
-#ifdef _MPI
-       if(MpiStatus)then
-          if(associated(state_cvec))deallocate(state_cvec)
-       else
-          if(associated(state_cvec))nullify(state_cvec)
-       endif
-#else
-       if(associated(state_cvec))nullify(state_cvec)
-#endif
-       !
-    enddo
-    return
-  end subroutine lanc_build_gf_normal_diag_
-
-
-
 
   !################################################################
 
@@ -511,30 +234,18 @@ contains
 
 
   subroutine lanc_build_gf_normal_mix(iorb,jorb,ispin)
-    integer                     :: iorb,jorb,ispin,istate
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
-    integer,dimension(2,Ns_Orb) :: Nud
-    integer,dimension(2)        :: iud,jud
-    integer                     :: Nups(Ns_Ud)
-    integer                     :: Ndws(Ns_Ud)
-    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
-    !
+    integer                     :: iorb,jorb,ispin
+    type(sector)                :: sectorI,sectorJ
     !
     if(ed_total_ud)then
        ialfa = 1
        jalfa = ialfa               !this is the condition to evaluate G_ab: ialfa=jalfa
-       iorb1 = iorb
-       jorb1 = jorb
+       ipos  = iorb
+       jpos  = jorb
     else
-       ! ialfa = iorb; jalfa = jorb; iorb1 = 1; jorb1 = 1
        write(LOGfile,"(A)")"ED_GF_NORMAL warning: can not evaluate GF_ab with ed_total_ud=F"
        return
     endif
-    ibeta  = ialfa + (ispin-1)*Ns_Ud
-    jbeta  = jalfa + (ispin-1)*Ns_Ud
     !
     do istate=1,state_list%size
        isector    =  es_return_sector(state_list,istate)
@@ -549,192 +260,77 @@ contains
        state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
-       call get_Nup(isector,Nups)
-       call get_Ndw(isector,Ndws)
-       if(MpiMaster.AND.ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")'From sector:',isector,Nups,Ndws
-       !
-       idim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
+       if(MpiMaster)then
+          call build_sector_(isector,sectorI)
+          if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
+               'From sector  :',isector,sectorI%Nups,sectorI%Ndws
+       endif
        !
        !EVALUATE (c^+_iorb + c^+_jorb)|gs>
        jsector = getCDGsector(ialfa,ispin,isector)
-       jdim   = getdim(jsector)
-       call get_Nup(jsector,Nups)
-       call get_Ndw(jsector,Ndws)
-       call get_DimUp(jsector,jDimUps)
-       call get_DImDw(jsector,jDimDws)
-       jDimUp = product(jDimUps)
-       jDimDw = product(jDimDws)
-       !
        if(jsector/=0)then
           if(MpiMaster)then
-             call build_sector(isector,HI)
-             call build_sector(jsector,HJ)
-             if(ed_verbose>=3)write(LOGfile,"(A,I15,20I4)")' add particle:',jsector,Nups,Ndws
-             allocate(vvinit(jdim)) ; vvinit=zero
-             do i=1,iDim
-                iph = (i-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(i-1,iDimUp*iDimDw) + 1
-                !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(ialfa)%map(Indices(ialfa))
-                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,iorb1)/=0)cycle
-                call cdg(iorb1,iud(ispin),r,sgn)
-                Jndices        = Indices
-                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
-                call indices2state(Jndices,[jDimUps,jDimDws],j)
-                j = j + (iph-1)*jDimUp*jDimDw
-                !
+             call build_sector_(jsector,sectorJ)
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
+                  ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
+             allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
+             !c^+_iorb|gs>
+             do i=1,sectorI%Dim
+                call apply_op_CDG(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = sgn*state_cvec(i)
              enddo
-             !
-             do i=1,iDim
-                iph = (i-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(i-1,iDimUp*iDimDw) + 1
-                !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(jalfa)%map(Indices(jalfa))
-                iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,jorb1)/=0)cycle
-                call cdg(jorb1,iud(ispin),r,sgn)
-                Jndices        = Indices
-                Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
-                call indices2state(Jndices,[jDimUps,jDimDws],j)
-                j = j + (iph-1)*jDimUp*jDimDw
-                !
+             !+c^+_jorb|gs>
+             do i=1,sectorI%Dim
+                call apply_op_CDG(i,j,sgn,jpos,jalfa,ispin,sectorI,sectorJ)
+                if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
-             call delete_sector(isector,HI)
-             call delete_sector(jsector,HJ)
-             !
-             norm2=dot_product(vvinit,vvinit)
-             vvinit=vvinit/sqrt(norm2)
+             call delete_sector_(jsector,sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          nlanc=min(jdim,lanc_nGFiter)
-          allocate(alfa_(nlanc),beta_(nlanc))
-          alfa_=0.d0
-          beta_=0.d0
-          !           
-          call build_Hv_sector(jsector)
-#ifdef _MPI
-          if(MpiStatus)then
-             call bcast_MPI(MpiComm,norm2)
-             vecDim = vecDim_Hv_sector(jsector)
-             allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-             call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-          else
-             call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-          endif
-#else
-          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-#endif
-          call delete_Hv_sector()
-          !
+          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
+          call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,jorb,ispin)
-          !
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
-          if(allocated(vvloc))deallocate(vvloc)
        endif
        !
        !EVALUATE (c_iorb + c_jorb)|gs>
        jsector = getCsector(ialfa,ispin,isector)
-       jdim   = getdim(jsector)
-       call get_Nup(jsector,Nups)
-       call get_Ndw(jsector,Ndws)
-       call get_DimUp(jsector,jDimUps)
-       call get_DImDw(jsector,jDimDws)
-       jDimUp = product(jDimUps)
-       jDimDw = product(jDimDws)
-       !
        if(jsector/=0)then
           if(MpiMaster)then
-             call build_sector(isector,HI)
-             call build_sector(jsector,HJ)
-             if(ed_verbose>=3)write(LOGfile,"(A,I15,20I4)")' del particle:',jsector,Nups,Ndws
-             allocate(vvinit(jdim)) ; vvinit=zero
-             do i=1,iDim
-                iph = (i-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(i-1,iDimUp*iDimDw) + 1
-                !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(ialfa)%map(Indices(ialfa))
-                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,iorb1)/=1)cycle
-                call c(iorb1,iud(ispin),r,sgn)
-                Jndices        = Indices
-                Jndices(ibeta) = binary_search(HJ(ibeta)%map,r)
-                call indices2state(Jndices,[jDimUps,jDimDws],j)
-                j = j + (iph-1)*jDimUp*jDimDw
-                !
+             call build_sector_(jsector,sectorJ)
+             if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
+                  ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
+             allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
+             !c_iorb|gs>
+             do i=1,sectorI%Dim
+                call apply_op_C(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = sgn*state_cvec(i)
              enddo
-             !
-             do i=1,iDim
-                iph = (i-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(i-1,iDimUp*iDimDw) + 1
-                call state2indices(i,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(jalfa)%map(Indices(jalfa))
-                iud(2)   = HI(jalfa+Ns_Ud)%map(Indices(jalfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,jorb1)/=1)cycle
-                call c(jorb1,iud(ispin),r,sgn)
-                Jndices        = Indices
-                Jndices(jbeta) = binary_search(HJ(jbeta)%map,r)
-                call indices2state(Jndices,[jDimUps,jDimDws],j)
-                j = j + (iph-1)*jDimUp*jDimDw
+             !+c_jorb|gs>
+             do i=1,sectorI%Dim
+                call apply_op_C(i,j,sgn,jpos,jalfa,ispin,sectorI,sectorJ)
+                if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
-             call delete_sector(isector,HI)
-             call delete_sector(jsector,HJ)
-             !
-             norm2=dot_product(vvinit,vvinit)
-             vvinit=vvinit/sqrt(norm2)
+             call delete_sector_(jsector,sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          nlanc=min(jdim,lanc_nGFiter)
-          allocate(alfa_(nlanc),beta_(nlanc))
-          alfa_=0.d0
-          beta_=0.d0
-          !
-          call build_Hv_sector(jsector)
-#ifdef _MPI
-          if(MpiStatus)then
-             call bcast_MPI(MpiComm,norm2)
-             vecDim = vecDim_Hv_sector(jsector)
-             allocate(vvloc(vecDim))
-             call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-             call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-          else
-             call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-          endif
-#else
-          call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-#endif
-          call delete_Hv_sector()
-          !
+          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
+          call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,jorb,ispin)
-          !
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
-          if(allocated(vvloc))deallocate(vvloc)
        endif
        !
+       if(MpiMaster)call delete_sector_(isector,sectorI)
 #ifdef _MPI
        if(MpiStatus)then
           if(associated(state_cvec))deallocate(state_cvec)
@@ -834,17 +430,11 @@ contains
 
   subroutine full_build_gf_normal_diag(iorb,ispin)
     integer                     :: iorb,ispin
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
-    integer,dimension(2,Ns_Orb) :: Nud
-    integer,dimension(2)        :: Iud,Jud
-    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
+    type(sector)                :: sectorI,sectorJ
     real(8)                     :: op_mat(2)
     real(8)                     :: spectral_weight
     real(8)                     :: sgn_cdg,sgn_c
-    integer                     :: m,i,j,r,k,p,li,rj
+    integer                     :: m,i,j,li,rj
     real(8)                     :: Ei,Ej
     real(8)                     :: expterm,peso,de,w0
     complex(8)                  :: iw
@@ -852,80 +442,38 @@ contains
     !
     if(ed_total_ud)then
        ialfa = 1
-       iorb1 = iorb
+       ipos  = iorb
     else
        ialfa = iorb
-       iorb1 = 1
+       ipos  = 1
     endif
-    ibeta  = ialfa + (ispin-1)*Ns_Ud
     !
     do isector=1,Nsectors
        jsector=getCDGsector(ialfa,ispin,isector)
        if(jsector==0)cycle
        !
-       idim=getdim(isector)     !i-th sector dimension
-
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
-       call build_sector(isector,HI)
+       call build_sector_(isector,sectorI)
+       call build_sector_(jsector,sectorJ)
        !
-       jdim=getdim(jsector)     !j-th sector dimension
-       call get_DimUp(jsector,jDimUps)
-       call get_DImDw(jsector,jDimDws)
-       jDimUp = product(jDimUps)
-       jDimDw = product(jDimDws)
-       call build_sector(jsector,HJ)
-       !
-       do i=1,iDim          !loop over the states in the i-th sect.
-          do j=1,jDim       !loop over the states in the j-th sect.
+       do i=1,sectorI%Dim          !loop over the states in the i-th sect.
+          do j=1,sectorJ%Dim       !loop over the states in the j-th sect.
              !
              expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(jsector)%e(j))
              if(expterm < cutoff)cycle
              !
              op_mat=0d0
              !
-             do li=1,idim              !loop over the component of |I> (IN state!)
-                iph = (li-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(li-1,iDimUp*iDimDw) + 1
+             do li=1,sectorI%Dim              !loop over the component of |I> (IN state!)
+                call apply_op_CDG(li,rj,sgn_cdg,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn_cdg==0d0.OR.rj==0)cycle
                 !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(ialfa)%map(Indices(ialfa))
-                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                !
-                if(Nud(ispin,iorb1)/=0)cycle
-                call cdg(iorb1,iud(ispin),k,sgn_cdg)
-                Jndices        = Indices
-                Jndices(ibeta) = binary_search(HJ(ibeta)%map,k)
-                call indices2state(Jndices,[jDimUps,jDimDws],rj)
-                !
-                rj = rj + (iph-1)*jDimUp*jDimDw
-                !
-                ! op_mat(1)=op_mat(1) + conjg(espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
                 op_mat(1)=op_mat(1) + (espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
              enddo
              !
-             do rj=1,jdim
-                iph = (rj-1)/(jDimUp*jDimDw) + 1
-                i_el = mod(rj-1,jDimUp*jDimDw) + 1
+             do rj=1,sectorJ%Dim
+                call apply_op_C(rj,li,sgn_c,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn_c==0d0.OR.li==0)cycle
                 !
-                call state2indices(i_el,[jDimUps,jDimDws],Jndices)
-                iud(1)   = HJ(ialfa)%map(Jndices(ialfa))
-                iud(2)   = HJ(ialfa+Ns_Ud)%map(Jndices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,iorb1)/=1)cycle
-                call c(iorb1,iud(ispin),k,sgn_c)
-                Indices        = Jndices
-                Indices(ibeta) = binary_search(HI(ibeta)%map,k)
-                call indices2state(Indices,[iDimUps,iDimDws],li)
-                !
-                li = li + (iph-1)*iDimUp*iDimDw
-                !
-                ! op_mat(2)=op_mat(2) + conjg(espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
                 op_mat(2)=op_mat(2) + (espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
              enddo
              !
@@ -947,8 +495,8 @@ contains
              !
           enddo
        enddo
-       call delete_sector(isector,HI)
-       call delete_sector(jsector,HJ)
+       call delete_sector_(isector,sectorI)
+       call delete_sector_(jsector,sectorJ)
     enddo
   end subroutine full_build_gf_normal_diag
 
@@ -958,18 +506,11 @@ contains
 
   subroutine full_build_gf_normal_mix(iorb,jorb,ispin)
     integer                     :: iorb,jorb,ispin
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(Ns_Ud)    :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud)    :: jDimUps,jDimDws
-    integer,dimension(2,Ns_Orb) :: Nud
-    integer,dimension(2)        :: Iud,Jud
-    type(sector_map)            :: HI(2*Ns_Ud),HJ(2*Ns_Ud)
+    type(sector)                :: sectorI,sectorJ
     complex(8)                  :: op_mat(2)
     complex(8)                  :: spectral_weight
     real(8)                     :: sgn_cdg,sgn_c
-    integer                     :: m,i,j,r,k,p,li,rj
-    integer :: i_iDim,j_jDim
+    integer                     :: m,i,j,li,rj
     real(8)                     :: Ei,Ej
     real(8)                     :: expterm,peso,de,w0
     complex(8)                  :: iw
@@ -977,83 +518,40 @@ contains
     if(ed_total_ud)then
        ialfa = 1
        jalfa = ialfa               !this is the condition to evaluate G_ab: ialfa=jalfa
-       iorb1 = iorb
-       jorb1 = jorb
+       ipos  = iorb
+       jpos  = jorb
     else
-       ! ialfa = iorb; jalfa = jorb; iorb1 = 1; jorb1 = 1
        write(LOGfile,"(A)")"ED_GF_NORMAL warning: can not evaluate GF_ab with ed_total_ud=F"
        return
     endif
-    ibeta  = ialfa + (ispin-1)*Ns_Ud
-    jbeta  = jalfa + (ispin-1)*Ns_Ud
     !
     do isector=1,Nsectors
        jsector=getCDGsector(ialfa,ispin,isector)
        if(jsector==0)cycle
        !
-       idim=getdim(isector)     !i-th sector dimension
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
-       call build_sector(isector,HI)
-       !
-       jdim=getdim(jsector)     !j-th sector dimension
-       call get_DimUp(jsector,jDimUps)
-       call get_DImDw(jsector,jDimDws)
-       jDimUp = product(jDimUps)
-       jDimDw = product(jDimDws)
-       call build_sector(jsector,HJ)
+       call build_sector_(isector,sectorI)
+       call build_sector_(jsector,sectorJ)
        !
        !
-       do i=1,iDim          !loop over the states in the i-th sect.
-          do j=1,jDim       !loop over the states in the j-th sect.
+       do i=1,sectorI%Dim          !loop over the states in the i-th sect.
+          do j=1,sectorJ%Dim       !loop over the states in the j-th sect.
              !
              expterm=exp(-beta*espace(isector)%e(i))+exp(-beta*espace(jsector)%e(j))
              if(expterm < cutoff)cycle
              !
              op_mat=0d0
              !
-             do li=1,idim              !loop over the component of |I> (IN state!)
-                iph = (li-1)/(iDimUp*iDimDw) + 1
-                i_el = mod(li-1,iDimUp*iDimDw) + 1
+             do li=1,sectorI%Dim              !loop over the component of |I> (IN state!)
+                call apply_op_CDG(li,rj,sgn_cdg,ipos,ialfa,ispin,sectorI,sectorJ)
+                if(sgn_cdg==0d0.OR.rj==0)cycle
                 !
-                call state2indices(i_el,[iDimUps,iDimDws],Indices)
-                iud(1)   = HI(ialfa)%map(Indices(ialfa))
-                iud(2)   = HI(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                !
-                if(Nud(ispin,iorb1)/=0)cycle
-                call cdg(iorb1,iud(ispin),k,sgn_cdg)
-                Jndices        = Indices
-                Jndices(ibeta) = binary_search(HJ(ibeta)%map,k)
-                call indices2state(Jndices,[jDimUps,jDimDws],rj)
-                !
-                rj = rj + (iph-1)*jDimUp*jDimDw
-                !
-                ! op_mat(1)=op_mat(1) + conjg(espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
                 op_mat(1)=op_mat(1) + (espace(jsector)%M(rj,j))*sgn_cdg*espace(isector)%M(li,i)
              enddo
              !
-             do rj=1,jdim
-                iph = (rj-1)/(jDimUp*jDimDw) + 1
-                i_el = mod(rj-1,jDimUp*jDimDw) + 1
+             do rj=1,sectorJ%Dim
+                call apply_op_C(rj,li,sgn_c,jpos,jalfa,ispin,sectorI,sectorJ)
+                if(sgn_c==0d0.OR.li==0)cycle
                 !
-                call state2indices(i_el,[jDimUps,jDimDws],Jndices)
-                iud(1)   = HJ(jalfa)%map(Jndices(jalfa))
-                iud(2)   = HJ(jalfa+Ns_Ud)%map(Jndices(jalfa+Ns_Ud))
-                nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-                nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-                if(nud(ispin,jorb1)/=1)cycle
-                call c(jorb1,iud(ispin),k,sgn_c)
-                Indices        = Jndices
-                Indices(jbeta) = binary_search(HI(jbeta)%map,k)
-                call indices2state(Indices,[iDimUps,iDimDws],li)
-                !
-                li = li + (iph-1)*iDimUp*iDimDw
-                !
-                ! op_mat(2)=op_mat(2) + conjg(espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
                 op_mat(2)=op_mat(2) + (espace(isector)%M(li,i))*sgn_c*espace(jsector)%M(rj,j)
              enddo
              !
@@ -1075,8 +573,8 @@ contains
              !
           enddo
        enddo
-       call delete_sector(isector,HI)
-       call delete_sector(jsector,HJ)
+       call delete_sector_(isector,sectorI)
+       call delete_sector_(jsector,sectorJ)
     enddo
   end subroutine full_build_gf_normal_mix
 
