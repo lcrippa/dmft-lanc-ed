@@ -1,5 +1,5 @@
   do jdw=1,DimDw
-     mdw  = Hs(2)%map(jdw)
+     mdw  = Hsector%H(2)%map(jdw)
      Ndw  = bdecomp(mdw,Ns)
      !
      !
@@ -13,7 +13,7 @@
            if (Jcondition) then
               call c(jorb,mdw,k1,sg1)
               call cdg(iorb,k1,k2,sg2)
-              idw = binary_search(Hs(2)%map,k2)
+              idw = binary_search(Hsector%H(2)%map,k2)
               htmp = impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2
               !
               call sp_insert_element(spH0dws(1),htmp,idw,jdw)
@@ -38,7 +38,7 @@
                  if (Jcondition)then
                     call c(ibeta,mdw,k1,sg1)
                     call cdg(ialfa,k1,k2,sg2)
-                    idw = binary_search(Hs(2)%map,k2)
+                    idw = binary_search(Hsector%H(2)%map,k2)
                     htmp = hbath_tmp(Nspin,Nspin,iorb,jorb,kp)*sg1*sg2
                     !
                     call sp_insert_element(spH0dws(1),htmp,idw,jdw)
@@ -60,7 +60,7 @@
                 .AND. (ndw(iorb)==1) .AND. (ndw(ialfa)==0) )then
               call c(iorb,mdw,k1,sg1)
               call cdg(ialfa,k1,k2,sg2)
-              idw=binary_search(Hs(2)%map,k2)
+              idw=binary_search(Hsector%H(2)%map,k2)
               htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
               call sp_insert_element(spH0dws(1),htmp,idw,jdw)
@@ -70,7 +70,7 @@
                 .AND. (ndw(iorb)==0) .AND. (ndw(ialfa)==1) )then
               call c(ialfa,mdw,k1,sg1)
               call cdg(iorb,k1,k2,sg2)
-              idw=binary_search(Hs(2)%map,k2)
+              idw=binary_search(Hsector%H(2)%map,k2)
               htmp=diag_hybr(Nspin,iorb,kp)*sg1*sg2
               !
               call sp_insert_element(spH0dws(1),htmp,idw,jdw)

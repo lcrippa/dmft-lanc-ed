@@ -1,4 +1,3 @@
-!
   do i=1,Nloc
      i_el = mod(i-1,DimUp*DimDw) + 1
      iph = (i-1)/(DimUp*DimDw) + 1
@@ -6,8 +5,8 @@
      iup = iup_index(i_el,DimUp)
      idw = idw_index(i_el,DimUp)
      !
-     mup = Hs(1)%map(iup)
-     mdw = Hs(2)%map(idw)
+     mup = Hsector%H(1)%map(iup)
+     mdw = Hsector%H(2)%map(idw)
      !
      nup = bdecomp(mup,Ns)
      ndw = bdecomp(mdw,Ns)

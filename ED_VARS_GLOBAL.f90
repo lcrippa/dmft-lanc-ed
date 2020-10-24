@@ -59,32 +59,22 @@ MODULE ED_VARS_GLOBAL
   end type sector_map
 
   type sector
-     integer                                   :: index       !
-     ! integer,dimension(:),allocatable        :: map
-     type(sector_map),dimension(:),allocatable :: H
-     integer,dimension(:),allocatable          :: DimUps
-     integer,dimension(:),allocatable          :: DimDws
-     integer                                   :: DimUp
-     integer                                   :: DimDw
-     integer                                   :: Dim
-     integer,dimension(:),allocatable          :: Nups
-     integer,dimension(:),allocatable          :: Ndws
-     integer                                   :: Nup
-     integer                                   :: Ndw
-     integer                                   :: Nlanc
-     logical                                   :: status=.false.
+     integer                                     :: index       !
+     type(sector_map),dimension(:),allocatable   :: H
+     integer,dimension(:),allocatable            :: DimUps
+     integer,dimension(:),allocatable            :: DimDws
+     integer                                     :: DimUp
+     integer                                     :: DimDw
+     integer                                     :: DimEl
+     integer                                     :: DimPh
+     integer                                     :: Dim
+     integer,dimension(:),allocatable            :: Nups
+     integer,dimension(:),allocatable            :: Ndws
+     integer                                     :: Nup
+     integer                                     :: Ndw
+     integer                                     :: Nlanc
+     logical                                     :: status=.false.
   end type sector
-
-
-  interface map_allocate
-     module procedure :: map_allocate_scalar
-     module procedure :: map_allocate_vector
-  end interface map_allocate
-
-  interface map_deallocate
-     module procedure :: map_deallocate_scalar
-     module procedure :: map_deallocate_vector
-  end interface map_deallocate
 
 
 
@@ -99,27 +89,6 @@ MODULE ED_VARS_GLOBAL
      end subroutine dd_sparse_HxV
   end interface
 
-
-  ! !-------------- GMATRIX FOR FAST EVALUATION OF GF ------------------!
-  ! !note that we use a single Qmatrix here which must be intended as
-  ! !component corresponding to the poles. 
-  ! type GFspectrum
-  !    complex(8),dimension(:),allocatable :: weight
-  !    complex(8),dimension(:),allocatable :: poles
-  ! end type GFspectrum
-  ! type GFchannel
-  !    type(GFspectrum),dimension(:),allocatable :: channel !N_channel = 2 (c,cdag), 4 (c,cdag,c pm cdag)
-  ! end type GFchannel
-  ! type GFmatrix
-  !    type(GFchannel),dimension(:),allocatable :: state !state_list%size = # of state in the spectrum 
-  ! end type GFmatrix
-
-
-  ! interface GFmatrix_allocate
-  !    module procedure :: allocate_GFmatrix_Nstate
-  !    module procedure :: allocate_GFmatrix_Nchan
-  !    module procedure :: allocate_GFmatrix_Nexc
-  ! end interface GFmatrix_allocate
 
 
 
@@ -225,9 +194,9 @@ MODULE ED_VARS_GLOBAL
 
   !Exciton Susceptibilities
   !=========================================================
-  real(8),allocatable,dimension(:,:,:,:)                 :: exctChi_tau ![0:4,:]
-  complex(8),allocatable,dimension(:,:,:,:)              :: exctChi_w
-  complex(8),allocatable,dimension(:,:,:,:)              :: exctChi_iv
+  real(8),allocatable,dimension(:,:,:,:)             :: exctChi_tau ![0:4,:]
+  complex(8),allocatable,dimension(:,:,:,:)          :: exctChi_w
+  complex(8),allocatable,dimension(:,:,:,:)          :: exctChi_iv
 
 
   !Density and double occupancy
@@ -306,43 +275,6 @@ MODULE ED_VARS_GLOBAL
 contains
 
 
-  !=========================================================
-  subroutine map_allocate_scalar(H,N)
-    type(sector_map) :: H
-    integer          :: N
-    if(H%status) call map_deallocate_scalar(H)
-    allocate(H%map(N))
-    H%status=.true.
-  end subroutine map_allocate_scalar
-  !
-  subroutine map_allocate_vector(H,N)
-    type(sector_map),dimension(:)       :: H
-    integer,dimension(size(H))          :: N
-    integer                             :: i
-    do i=1,size(H)
-       call map_allocate_scalar(H(i),N(i))
-    enddo
-  end subroutine map_allocate_vector
-
-
-  !=========================================================
-  subroutine map_deallocate_scalar(H)
-    type(sector_map) :: H
-    if(.not.H%status)then
-       write(*,*) "WARNING map_deallocate_scalar: H is not allocated"
-       return
-    endif
-    if(allocated(H%map))deallocate(H%map)
-    H%status=.false.
-  end subroutine map_deallocate_scalar
-  !
-  subroutine map_deallocate_vector(H)
-    type(sector_map),dimension(:) :: H
-    integer                       :: i
-    do i=1,size(H)
-       call map_deallocate_scalar(H(i))
-    enddo
-  end subroutine map_deallocate_vector
 
 
 
@@ -378,33 +310,6 @@ contains
   end subroutine ed_del_MpiComm
 
 
-
-
-  ! !Allocate the channels in GFmatrix structure
-  ! subroutine allocate_gfmatrix_Nstate(self,Nstate)
-  !   type(GFmatrix) :: self
-  !   integer        :: Nstate
-  !   if(allocated(self%state))deallocate(self%state)
-  !   allocate(self%state(Nstate))
-  ! end subroutine allocate_gfmatrix_Nstate
-
-  ! subroutine allocate_gfmatrix_Nchan(self,istate,Nchan)
-  !   type(GFmatrix) :: self
-  !   integer        :: istate,Nchan
-  !   if(allocated(self%state(istate)%channel))deallocate(self%state(istate)%channel)
-  !   allocate(self%state(istate)%channel(Nchan))
-  ! end subroutine allocate_gfmatrix_Nchan
-
-  ! !Allocate the Excitations spectrum at a given channel
-  ! subroutine allocate_gfmatrix_Nexc(self,istate,ichan,Nexc)
-  !   type(GFmatrix) :: self
-  !   integer        :: istate,ichan
-  !   integer        :: Nexc
-  !   if(allocated(self%state(istate)%channel(ichan)%weight))deallocate(self%state(istate)%channel(ichan)%weight)
-  !   if(allocated(self%state(istate)%channel(ichan)%poles))deallocate(self%state(istate)%channel(ichan)%poles)
-  !   allocate(self%state(istate)%channel(ichan)%weight(Nexc))
-  !   allocate(self%state(istate)%channel(ichan)%poles(Nexc))
-  ! end subroutine allocate_gfmatrix_Nexc
 
 
 END MODULE ED_VARS_GLOBAL

@@ -3,7 +3,6 @@ MODULE ED_GREENS_FUNCTIONS
   USE SF_TIMER  
   USE SF_IOTOOLS, only: str,free_unit,reg,free_units,txtfy
   USE SF_LINALG,  only: inv,eigh,eye
-  USE SF_SP_LINALG, only: sp_lanc_tridiag
   USE ED_INPUT_VARS
   USE ED_VARS_GLOBAL
   USE ED_IO                     !< this contains the routine to print GF,Sigma and G0

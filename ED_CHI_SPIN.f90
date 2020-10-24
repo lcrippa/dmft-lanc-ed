@@ -135,7 +135,7 @@ contains
 #endif
        !
        if(MpiMaster)then
-          call build_sector_(isector,sectorI)
+          call build_sector(isector,sectorI)
           if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                'Apply Sz  :',isector,sectorI%Nups,sectorI%Ndws
           allocate(vvinit(sectorI%Dim)) ; vvinit=zero
@@ -143,12 +143,11 @@ contains
              call apply_op_Sz(i,sgn,ipos,ialfa,sectorI)            
              vvinit(i) = sgn*state_cvec(i)
           enddo
-          call delete_sector_(isector,sectorI)
+          call delete_sector(sectorI)
        else
           allocate(vvinit(1));vvinit=0.d0
        endif
        !
-       allocate(alfa_(sectorI%Nlanc),beta_(sectorI%Nlanc))
        call tridiag_Hv_sector(isector,vvinit,alfa_,beta_,norm2)
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,iorb,iorb)
        deallocate(alfa_,beta_)
@@ -207,7 +206,7 @@ contains
        !
        !EVALUATE (Sz_jorb + Sz_iorb)|gs> = Sz_jorb|gs> + Sz_iorb|gs>
        if(MpiMaster)then
-          call build_sector_(isector,sectorI)
+          call build_sector(isector,sectorI)
           if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                'From sector  :',isector,sectorI%Nups,sectorI%Ndws
           if(ed_verbose==3)write(LOGfile,"(A,I15)")'Apply (Sz_jorb + Sz_iorb):',isector
@@ -218,12 +217,11 @@ contains
              sgn       = Siorb + Sjorb
              vvinit(i) = sgn*state_cvec(i)
           enddo
-          call delete_sector_(isector,sectorI)
+          call delete_sector(sectorI)
        else
           allocate(vvinit(1));vvinit=0.d0
        endif
        !
-       allocate(alfa_(sectorI%Nlanc),beta_(sectorI%Nlanc))
        call tridiag_Hv_sector(isector,vvinit,alfa_,beta_,norm2)
        call add_to_lanczos_spinChi(norm2,state_e,alfa_,beta_,iorb,iorb)
        deallocate(alfa_,beta_)
@@ -340,7 +338,7 @@ contains
     !
     do isector=1,Nsectors !loop over <i| total particle number
        call eta(isector,Nsectors,LOGfile)
-       call build_sector_(isector,sectorI)
+       call build_sector(isector,sectorI)
        !
        do i=1,sectorI%Dim 
           do j=1,sectorI%Dim
@@ -379,7 +377,7 @@ contains
              !
           enddo
        enddo
-       call delete_sector_(isector,sectorI)
+       call delete_sector(sectorI)
     enddo
   end subroutine full_ed_build_spinChi_main
 

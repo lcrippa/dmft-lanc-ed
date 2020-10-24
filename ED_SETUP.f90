@@ -11,14 +11,27 @@ MODULE ED_SETUP
   implicit none
   private
 
+  interface map_allocate
+     module procedure :: map_allocate_scalar
+     module procedure :: map_allocate_vector
+  end interface map_allocate
+
+  interface map_deallocate
+     module procedure :: map_deallocate_scalar
+     module procedure :: map_deallocate_vector
+  end interface map_deallocate
+
+
 
   public :: init_ed_structure
   public :: setup_global
   !
   public :: build_sector
-  public :: build_sector_
+  ! public :: build_sector_
   public :: delete_sector
-  public :: delete_sector_
+  ! public :: delete_sector_
+  ! public :: map_allocate
+  ! public :: map_deallocate
   !
   public :: apply_op_C
   public :: apply_op_CDG
@@ -322,7 +335,7 @@ contains
        call get_DimUp(isector,DimUps)
        call get_DimDw(isector,DimDws)
        DimUp = product(DimUps)
-       DimDw = product(DimDws)       
+       DimDw = product(DimDws)  
        getDim(isector)  = DimUp*DimDw*DimPh
     enddo
     !
@@ -447,6 +460,72 @@ contains
   !AUXILIARY PROCEDURES - Sectors,Nup,Ndw,DimUp,DimDw,...
   !##################################################################
   !##################################################################
+  !+------------------------------------------------------------------+
+  !PURPOSE  : input a state |i> and output a vector ivec(Nlevels)
+  !with its binary decomposition
+  !(corresponds to the decomposition of the number i-1)
+  !+------------------------------------------------------------------+
+  function bdecomp(i,Ntot) result(ivec)
+    integer :: Ntot,ivec(Ntot),l,i
+    logical :: busy
+    !this is the configuration vector |1,..,Ns,Ns+1,...,Ntot>
+    !obtained from binary decomposition of the state/number i\in 2^Ntot
+    do l=0,Ntot-1
+       busy=btest(i,l)
+       ivec(l+1)=0
+       if(busy)ivec(l+1)=1
+    enddo
+  end function bdecomp
+
+
+  !+------------------------------------------------------------------+
+  ! Reorder a binary decomposition so to have a state of the form:
+  ! default: |(1:Norb),([1:Nbath]_1, [1:Nbath]_2, ... ,[1:Nbath]_Norb)>_spin
+  ! hybrid:  |(1:Norb),([1:Nbath])_spin
+  ! replica: |(1:Norb),([1:Norb]_1, [1:Norb]_2, ...  , [1:Norb]_Nbath)>_spin
+  !
+  !> case (ed_total_ud):
+  !   (T): Ns_Ud=1, Ns_Orb=Ns.
+  !        bdecomp is already of the form above [1:Ns]
+  !   (F): Ns_Ud=Norb, Ns_Orb=Ns/Norb==1+Nbath
+  !        bdecomp is
+  !        |( [1:1+Nbath]_1,...,[1:1+Nbath]_Norb)>_spin
+  !+------------------------------------------------------------------+
+  function breorder(Nins) result(Ivec)
+    integer,intent(in),dimension(Ns_Ud,Ns_Orb) :: Nins ![1,Ns] - [Norb,1+Nbath]
+    integer,dimension(Ns)                      :: Ivec ![Ns]
+    integer                                    :: iud,ibath,indx
+    select case (ed_total_ud)
+    case (.true.)
+       Ivec = Nins(1,:)
+    case (.false.)
+       do iud=1,Ns_Ud           ![1:Norb]
+          Ivec(iud) = Nins(iud,1)
+          do ibath=1,Nbath
+             indx = getBathStride(iud,ibath) !take care of normal/
+             Ivec(indx) = Nins(iud,1+ibath)
+          enddo
+       enddo
+    end select
+  end function breorder
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : input a vector ib(Nlevels) with the binary sequence 
+  ! and output the corresponding state |i>
+  !(corresponds to the recomposition of the number i-1)
+  !+------------------------------------------------------------------+
+  function bjoin(ib,Ntot) result(i)
+    integer                 :: Ntot
+    integer,dimension(Ntot) :: ib
+    integer                 :: i,j
+    i=0
+    do j=0,Ntot-1
+       i=i+ib(j+1)*2**j
+    enddo
+  end function bjoin
+
+
   elemental function get_sector_dimension(n,np) result(dim)
     integer,intent(in) :: n,np
     integer            :: dim
@@ -571,6 +650,430 @@ contains
   end function idw_index
 
 
+
+
+
+  !##################################################################
+  !##################################################################
+  !BUILD SECTORS
+  !##################################################################
+  !##################################################################
+  !Here the electronic sector is built without contribution from phonons
+  ! subroutine build_sector(isector,H)
+  !   integer                             :: isector
+  !   type(sector_map),dimension(2*Ns_Ud) :: H
+  !   integer,dimension(Ns_Ud)            :: Nups,Ndws
+  !   integer,dimension(Ns_Ud)            :: DimUps,DimDws
+  !   integer                             :: iup,idw
+  !   integer                             :: nup_,ndw_
+  !   integer                             :: dim,iud
+  !   !
+  !   !
+  !   call get_Nup(isector,Nups)
+  !   call get_Ndw(isector,Ndws)
+  !   call get_DimUp(isector,DimUps)
+  !   call get_DimDw(isector,DimDws)
+  !   !
+  !   call map_allocate(H,[DimUps,DimDws])
+  !   do iud=1,Ns_Ud
+  !      !UP    
+  !      dim=0
+  !      do iup=0,2**Ns_Orb-1
+  !         nup_ = popcnt(iup)
+  !         if(nup_ /= Nups(iud))cycle
+  !         dim  = dim+1
+  !         H(iud)%map(dim) = iup
+  !      enddo
+  !      !DW
+  !      dim=0
+  !      do idw=0,2**Ns_Orb-1
+  !         ndw_= popcnt(idw)
+  !         if(ndw_ /= Ndws(iud))cycle
+  !         dim = dim+1
+  !         H(iud+Ns_Ud)%map(dim) = idw
+  !      enddo
+  !   enddo
+  !   !
+  ! end subroutine build_sector
+
+  ! subroutine delete_sector(isector,H)
+  !   integer                   :: isector
+  !   type(sector_map)          :: H(:)
+  !   call map_deallocate(H)
+  ! end subroutine delete_sector
+
+
+
+  subroutine build_sector(isector,self)
+    integer,intent(in)                  :: isector
+    type(sector)                        :: self
+    integer                             :: iup,idw
+    integer                             :: nup_,ndw_
+    integer                             :: dim,iud
+    !
+    if(self%status)call delete_sector(self)
+    !
+    self%index = isector
+    !
+    allocate(self%H(2*Ns_Ud))
+    allocate(self%DimUps(Ns_Ud))
+    allocate(self%DimDws(Ns_Ud))
+    allocate(self%Nups(Ns_Ud))
+    allocate(self%Ndws(Ns_Ud))
+    !
+    call get_Nup(isector,self%Nups);self%Nup=sum(self%Nups)
+    call get_Ndw(isector,self%Ndws);self%Ndw=sum(self%Ndws)
+    call get_DimUp(isector,self%DimUps);self%DimUp=product(self%DimUps)
+    call get_DimDw(isector,self%DimDws);self%DimDw=product(self%DimDws)
+    self%DimEl=self%DimUp*self%DimDw
+    self%DimPh=Nph+1
+    self%Dim=self%DimEl*self%DimPh
+    !
+    call map_allocate(self%H,[self%DimUps,self%DimDws])
+    do iud=1,Ns_Ud
+       !UP    
+       dim=0
+       do iup=0,2**Ns_Orb-1
+          nup_ = popcnt(iup)
+          if(nup_ /= self%Nups(iud))cycle
+          dim  = dim+1
+          self%H(iud)%map(dim) = iup
+       enddo
+       !DW
+       dim=0
+       do idw=0,2**Ns_Orb-1
+          ndw_= popcnt(idw)
+          if(ndw_ /= self%Ndws(iud))cycle
+          dim = dim+1
+          self%H(iud+Ns_Ud)%map(dim) = idw
+       enddo
+    enddo
+    !
+    self%Nlanc = min(self%Dim,lanc_nGFiter)
+    self%status=.true.
+  end subroutine build_sector
+
+
+  subroutine delete_sector(self)
+    type(sector) :: self
+    call map_deallocate(self%H)
+    if(allocated(self%H))deallocate(self%H)
+    if(allocated(self%DimUps))deallocate(self%DimUps)
+    if(allocated(self%DimDws))deallocate(self%DimDws)
+    if(allocated(self%Nups))deallocate(self%Nups)
+    if(allocated(self%Ndws))deallocate(self%Ndws)
+    self%index=0
+    self%DimUp=0
+    self%DimDw=0
+    self%Dim=0
+    self%Nup=0
+    self%Ndw=0
+    self%Nlanc=0
+    self%status=.false.
+  end subroutine delete_sector
+
+
+  subroutine map_allocate_scalar(H,N)
+    type(sector_map) :: H
+    integer          :: N
+    if(H%status) call map_deallocate_scalar(H)
+    allocate(H%map(N))
+    H%status=.true.
+  end subroutine map_allocate_scalar
+  !
+  subroutine map_allocate_vector(H,N)
+    type(sector_map),dimension(:)       :: H
+    integer,dimension(size(H))          :: N
+    integer                             :: i
+    do i=1,size(H)
+       call map_allocate_scalar(H(i),N(i))
+    enddo
+  end subroutine map_allocate_vector
+
+
+
+  subroutine map_deallocate_scalar(H)
+    type(sector_map) :: H
+    if(.not.H%status)then
+       write(*,*) "WARNING map_deallocate_scalar: H is not allocated"
+       return
+    endif
+    if(allocated(H%map))deallocate(H%map)
+    H%status=.false.
+  end subroutine map_deallocate_scalar
+  !
+  subroutine map_deallocate_vector(H)
+    type(sector_map),dimension(:) :: H
+    integer                       :: i
+    do i=1,size(H)
+       call map_deallocate_scalar(H(i))
+    enddo
+  end subroutine map_deallocate_vector
+
+
+
+  
+  subroutine apply_op_C(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ) 
+    integer, intent(in)         :: i,ipos,ialfa,ispin
+    type(sector),intent(in)     :: sectorI,sectorJ
+    integer,intent(out)         :: j
+    real(8),intent(out)         :: sgn
+    integer                     :: ibeta
+    integer                     :: r
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    j=0
+    sgn=0d0
+    !
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    iph = (i-1)/(sectorI%DimEl) + 1
+    i_el = mod(i-1,sectorI%DimEl) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    if(Nud(ispin,ipos)/=1)return
+    call c(ipos,iud(ispin),r,sgn)
+    Jndices        = Indices
+    Jndices(ibeta) = binary_search(sectorJ%H(ibeta)%map,r)
+    call indices2state(Jndices,[sectorJ%DimUps,sectorJ%DimDws],j)
+    !
+    j = j + (iph-1)*sectorJ%Dim
+  end subroutine apply_op_C
+
+
+  subroutine apply_op_CDG(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ) 
+    integer, intent(in)         :: i,ipos,ialfa,ispin
+    type(sector),intent(in)     :: sectorI,sectorJ
+    integer,intent(out)         :: j
+    real(8),intent(out)         :: sgn
+    integer                     :: ibeta
+    integer                     :: r
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    j=0
+    sgn=0d0
+    !
+    ibeta  = ialfa + (ispin-1)*Ns_Ud
+    iph = (i-1)/(sectorI%DimEl) + 1
+    i_el = mod(i-1,sectorI%DimEl) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    if(Nud(ispin,ipos)/=0)return
+    call cdg(ipos,iud(ispin),r,sgn)
+    Jndices        = Indices
+    Jndices(ibeta) = binary_search(sectorJ%H(ibeta)%map,r)
+    call indices2state(Jndices,[sectorJ%DimUps,sectorJ%DimDws],j)
+    !
+    j = j + (iph-1)*sectorJ%Dim
+  end subroutine apply_op_CDG
+
+
+  subroutine apply_op_Sz(i,sgn,ipos,ialfa,sectorI) 
+    integer, intent(in)         :: i,ipos,ialfa
+    type(sector),intent(in)     :: sectorI
+    real(8),intent(out)         :: sgn
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    sgn=0d0
+    !
+    iph = (i-1)/(sectorI%DimEl) + 1
+    i_el = mod(i-1,sectorI%DimEl) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    !
+    sgn = dble(nud(1,ipos))-dble(nud(2,ipos))
+    sgn = sgn/2d0
+  end subroutine apply_op_Sz
+
+
+
+  subroutine apply_op_N(i,sgn,ipos,ialfa,sectorI) 
+    integer, intent(in)         :: i,ipos,ialfa
+    type(sector),intent(in)     :: sectorI
+    real(8),intent(out)         :: sgn
+    integer                     :: iph,i_el
+    integer,dimension(2*Ns_Ud)  :: Indices
+    integer,dimension(2*Ns_Ud)  :: Jndices
+    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
+    integer,dimension(2)        :: Iud
+    !
+    sgn=0d0
+    !
+    iph = (i-1)/(sectorI%DimEl) + 1
+    i_el = mod(i-1,sectorI%DimEl) + 1
+    !
+    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
+    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
+    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
+    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
+    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
+    !
+    sgn = dble(nud(1,ipos))+dble(nud(2,ipos))
+  end subroutine apply_op_N
+
+
+
+  !##################################################################
+  !##################################################################
+  !CREATION / DESTRUCTION OPERATORS
+  !##################################################################
+  !##################################################################
+  !+-------------------------------------------------------------------+
+  !PURPOSE: input state |in> of the basis and calculates 
+  !   |out>=C_pos|in>  OR  |out>=C^+_pos|in> ; 
+  !   the sign of |out> has the phase convention, pos labels the sites
+  !+-------------------------------------------------------------------+
+  subroutine c(pos,in,out,fsgn)
+    integer,intent(in)    :: pos
+    integer,intent(in)    :: in
+    integer,intent(inout) :: out
+    real(8),intent(inout) :: fsgn    
+    integer               :: l
+    if(.not.btest(in,pos-1))stop "C error: C_i|...0_i...>"
+    fsgn=1d0
+    do l=1,pos-1
+       if(btest(in,l-1))fsgn=-fsgn
+    enddo
+    out = ibclr(in,pos-1)
+  end subroutine c
+
+  subroutine cdg(pos,in,out,fsgn)
+    integer,intent(in)    :: pos
+    integer,intent(in)    :: in
+    integer,intent(inout) :: out
+    real(8),intent(inout) :: fsgn    
+    integer               :: l
+    if(btest(in,pos-1))stop "C^+ error: C^+_i|...1_i...>"
+    fsgn=1d0
+    do l=1,pos-1
+       if(btest(in,l-1))fsgn=-fsgn
+    enddo
+    out = ibset(in,pos-1)
+  end subroutine cdg
+
+
+
+
+
+
+  !##################################################################
+  !##################################################################
+  !TWIN SECTORS ROUTINES:
+  !##################################################################
+  !##################################################################
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Build the re-ordering map to go from sector A(nup,ndw)
+  ! to its twin sector B(ndw,nup), with nup!=ndw.
+  !
+  !- build the map from the A-sector to \HHH
+  !- get the list of states in \HHH corresponding to sector B twin of A
+  !- return the ordering of B-states in \HHH with respect to those of A
+  !+------------------------------------------------------------------+
+  subroutine twin_sector_order(isector,order)
+    integer                             :: isector
+    integer,dimension(:)                :: order
+    type(sector)                        :: sectorH
+    type(sector_map),dimension(2*Ns_Ud) :: H
+    integer,dimension(2*Ns_Ud)          :: Indices,Istates
+    integer,dimension(Ns_Ud)            :: DimUps,DimDws
+    integer                             :: Dim,DimUp,DimDw
+    integer                             :: i,iud,iph,i_el
+    !
+    Dim = GetDim(isector)
+    if(size(Order)/=Dim)stop "twin_sector_order error: wrong dimensions of *order* array"
+    call get_DimUp(isector,DimUps)
+    call get_DimDw(isector,DimDws)
+    DimUp = product(DimUps)
+    DimDw = product(DimDws)
+    !
+    call build_sector(isector,sectorH)
+    do i=1,sectorH%Dim
+       iph = (i-1)/(sectorH%DimEl) + 1		!find number of phonons
+       i_el = mod(i-1,sectorH%DimEl) + 1		!electronic index
+       call state2indices(i_el,[sectorH%DimUps,sectorH%DimDws],Indices)
+       forall(iud=1:2*Ns_Ud)Istates(iud) = sectorH%H(iud)%map(Indices(iud))
+       Order(i) = flip_state( Istates ) + (iph-1)*2**(2*Ns)	!flipped electronic state (GLOBAL state number {1:2^2Ns}) + phononic contribution
+    enddo
+    call delete_sector(sectorH)
+    !
+    call sort_array(Order)	!sorted and changed the values from the global state numbers to the ones of the sector {1:DimUp*DimDw*DimPh}
+    !
+  end subroutine twin_sector_order
+
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : Flip an Hilbert space state m=|{up}>|{dw}> into:
+  !
+  ! normal: j=|{dw}>|{up}>  , nup --> ndw
+  !+------------------------------------------------------------------+
+  function flip_state(istate) result(j)
+    integer,dimension(2*Ns_Ud) :: istate
+    integer                    :: j
+    integer,dimension(Ns_Ud)   :: jups,jdws
+    integer,dimension(2*Ns_Ud) :: dims
+    !
+    jups = istate(Ns_Ud+1:2*Ns_Ud)
+    jdws = istate(1:Ns_Ud)
+    dims = 2**Ns_Orb
+    call indices2state([jups,jdws],Dims,j)
+    !
+  end function flip_state
+
+
+  !+------------------------------------------------------------------+
+  !PURPOSE  : get the twin of a given sector (the one with opposite 
+  ! quantum numbers): 
+  ! nup,ndw ==> ndw,nup (spin-exchange)
+  !+------------------------------------------------------------------+
+  function get_twin_sector(isector) result(jsector)
+    integer,intent(in)       :: isector
+    integer                  :: jsector
+    integer,dimension(Ns_Ud) :: Iups,Idws
+    call get_Nup(isector,iups)
+    call get_Ndw(isector,idws)
+    call get_Sector([idws,iups],Ns_Orb,jsector)
+  end function get_twin_sector
+
+
+
+
+
+
+
+
+
+
+
+  !##################################################################
+  !##################################################################
+  !AUXILIARY COMPUTATIONAL ROUTINES ARE HERE BELOW:
+  !##################################################################
+  !##################################################################
 #ifdef _MPI
   !! Scatter V into the arrays Vloc on each thread: sum_threads(size(Vloc)) must be equal to size(v)
   subroutine scatter_vector_MPI(MpiComm,v,vloc)
@@ -745,443 +1248,6 @@ contains
 #endif
 
 
-
-
-  !##################################################################
-  !##################################################################
-  !BUILD SECTORS
-  !##################################################################
-  !##################################################################
-  !Here the electronic sector is built without contribution from phonons
-  subroutine build_sector(isector,H)
-    integer                             :: isector
-    type(sector_map),dimension(2*Ns_Ud) :: H
-    integer,dimension(Ns_Ud)            :: Nups,Ndws
-    integer,dimension(Ns_Ud)            :: DimUps,DimDws
-    integer                             :: iup,idw
-    integer                             :: nup_,ndw_
-    integer                             :: dim,iud
-    !
-    !
-    call get_Nup(isector,Nups)
-    call get_Ndw(isector,Ndws)
-    call get_DimUp(isector,DimUps)
-    call get_DimDw(isector,DimDws)
-    !
-    call map_allocate(H,[DimUps,DimDws])
-    do iud=1,Ns_Ud
-       !UP    
-       dim=0
-       do iup=0,2**Ns_Orb-1
-          nup_ = popcnt(iup)
-          if(nup_ /= Nups(iud))cycle
-          dim  = dim+1
-          H(iud)%map(dim) = iup
-       enddo
-       !DW
-       dim=0
-       do idw=0,2**Ns_Orb-1
-          ndw_= popcnt(idw)
-          if(ndw_ /= Ndws(iud))cycle
-          dim = dim+1
-          H(iud+Ns_Ud)%map(dim) = idw
-       enddo
-    enddo
-    !
-  end subroutine build_sector
-
-  subroutine delete_sector(isector,H)
-    integer                   :: isector
-    type(sector_map)          :: H(:)
-    call map_deallocate(H)
-  end subroutine delete_sector
-
-
-
-  subroutine build_sector_(isector,self)
-    integer,intent(in)                  :: isector
-    type(sector)                        :: self
-    integer                             :: iup,idw
-    integer                             :: nup_,ndw_
-    integer                             :: dim,iud
-    !
-    if(self%status)call delete_sector_(isector,self)
-    !
-    self%index = isector
-    !
-    allocate(self%H(2*Ns_Ud))
-    allocate(self%DimUps(Ns_Ud))
-    allocate(self%DimDws(Ns_Ud))
-    allocate(self%Nups(Ns_Ud))
-    allocate(self%Ndws(Ns_Ud))
-    !
-    call get_Nup(isector,self%Nups);self%Nup=sum(self%Nups)
-    call get_Ndw(isector,self%Ndws);self%Ndw=sum(self%Ndws)
-    call get_DimUp(isector,self%DimUps);self%DimUp=product(self%DimUps)
-    call get_DimDw(isector,self%DimDws);self%DimDw=product(self%DimDws)
-    self%Dim=self%DimUp*self%DimDw
-    !
-    call map_allocate(self%H,[self%DimUps,self%DimDws])
-    do iud=1,Ns_Ud
-       !UP    
-       dim=0
-       do iup=0,2**Ns_Orb-1
-          nup_ = popcnt(iup)
-          if(nup_ /= self%Nups(iud))cycle
-          dim  = dim+1
-          self%H(iud)%map(dim) = iup
-       enddo
-       !DW
-       dim=0
-       do idw=0,2**Ns_Orb-1
-          ndw_= popcnt(idw)
-          if(ndw_ /= self%Ndws(iud))cycle
-          dim = dim+1
-          self%H(iud+Ns_Ud)%map(dim) = idw
-       enddo
-    enddo
-    !
-    self%Nlanc = min(self%Dim,lanc_nGFiter)
-  end subroutine build_sector_
-
-
-  subroutine delete_sector_(isector,self)
-    integer      :: isector
-    type(sector) :: self
-    call map_deallocate(self%H)
-    if(allocated(self%H))deallocate(self%H)
-    if(allocated(self%DimUps))deallocate(self%DimUps)
-    if(allocated(self%DimDws))deallocate(self%DimDws)
-    if(allocated(self%Nups))deallocate(self%Nups)
-    if(allocated(self%Ndws))deallocate(self%Ndws)
-  end subroutine delete_sector_
-
-
-
-  subroutine apply_op_C(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ) 
-    integer, intent(in)         :: i,ipos,ialfa,ispin
-    type(sector),intent(in)     :: sectorI,sectorJ
-    integer,intent(out)         :: j
-    real(8),intent(out)         :: sgn
-    integer                     :: ibeta
-    integer                     :: r
-    integer                     :: iph,i_el
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
-    integer,dimension(2)        :: Iud
-    !
-    j=0
-    sgn=0d0
-    !
-    ibeta  = ialfa + (ispin-1)*Ns_Ud
-    iph = (i-1)/(sectorI%Dim) + 1
-    i_el = mod(i-1,sectorI%Dim) + 1
-    !
-    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
-    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
-    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-    if(Nud(ispin,ipos)/=1)return
-    call c(ipos,iud(ispin),r,sgn)
-    Jndices        = Indices
-    Jndices(ibeta) = binary_search(sectorJ%H(ibeta)%map,r)
-    call indices2state(Jndices,[sectorJ%DimUps,sectorJ%DimDws],j)
-    !
-    j = j + (iph-1)*sectorJ%Dim
-  end subroutine apply_op_C
-
-
-  subroutine apply_op_CDG(i,j,sgn,ipos,ialfa,ispin,sectorI,sectorJ) 
-    integer, intent(in)         :: i,ipos,ialfa,ispin
-    type(sector),intent(in)     :: sectorI,sectorJ
-    integer,intent(out)         :: j
-    real(8),intent(out)         :: sgn
-    integer                     :: ibeta
-    integer                     :: r
-    integer                     :: iph,i_el
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
-    integer,dimension(2)        :: Iud
-    !
-    j=0
-    sgn=0d0
-    !
-    ibeta  = ialfa + (ispin-1)*Ns_Ud
-    iph = (i-1)/(sectorI%Dim) + 1
-    i_el = mod(i-1,sectorI%Dim) + 1
-    !
-    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
-    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
-    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-    if(Nud(ispin,ipos)/=0)return
-    call cdg(ipos,iud(ispin),r,sgn)
-    Jndices        = Indices
-    Jndices(ibeta) = binary_search(sectorJ%H(ibeta)%map,r)
-    call indices2state(Jndices,[sectorJ%DimUps,sectorJ%DimDws],j)
-    !
-    j = j + (iph-1)*sectorJ%Dim
-  end subroutine apply_op_CDG
-
-
-  subroutine apply_op_Sz(i,sgn,ipos,ialfa,sectorI) 
-    integer, intent(in)         :: i,ipos,ialfa
-    type(sector),intent(in)     :: sectorI
-    real(8),intent(out)         :: sgn
-    integer                     :: iph,i_el
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
-    integer,dimension(2)        :: Iud
-    !
-    sgn=0d0
-    !
-    iph = (i-1)/(sectorI%Dim) + 1
-    i_el = mod(i-1,sectorI%Dim) + 1
-    !
-    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
-    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
-    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-    !
-    sgn = dble(nud(1,ipos))-dble(nud(2,ipos))
-    sgn = sgn/2d0
-  end subroutine apply_op_Sz
-
-
-
-  subroutine apply_op_N(i,sgn,ipos,ialfa,sectorI) 
-    integer, intent(in)         :: i,ipos,ialfa
-    type(sector),intent(in)     :: sectorI
-    real(8),intent(out)         :: sgn
-    integer                     :: iph,i_el
-    integer,dimension(2*Ns_Ud)  :: Indices
-    integer,dimension(2*Ns_Ud)  :: Jndices
-    integer,dimension(2,Ns_Orb) :: Nud !Nbits(Ns_Orb)
-    integer,dimension(2)        :: Iud
-    !
-    sgn=0d0
-    !
-    iph = (i-1)/(sectorI%Dim) + 1
-    i_el = mod(i-1,sectorI%Dim) + 1
-    !
-    call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
-    iud(1)   = sectorI%H(ialfa)%map(Indices(ialfa))
-    iud(2)   = sectorI%H(ialfa+Ns_Ud)%map(Indices(ialfa+Ns_Ud))
-    nud(1,:) = Bdecomp(iud(1),Ns_Orb)
-    nud(2,:) = Bdecomp(iud(2),Ns_Orb)
-    !
-    sgn = dble(nud(1,ipos))+dble(nud(2,ipos))
-  end subroutine apply_op_N
-
-
-
-  !##################################################################
-  !##################################################################
-  !CREATION / DESTRUCTION OPERATORS
-  !##################################################################
-  !##################################################################
-  !+-------------------------------------------------------------------+
-  !PURPOSE: input state |in> of the basis and calculates 
-  !   |out>=C_pos|in>  OR  |out>=C^+_pos|in> ; 
-  !   the sign of |out> has the phase convention, pos labels the sites
-  !+-------------------------------------------------------------------+
-  subroutine c(pos,in,out,fsgn)
-    integer,intent(in)    :: pos
-    integer,intent(in)    :: in
-    integer,intent(inout) :: out
-    real(8),intent(inout) :: fsgn    
-    integer               :: l
-    if(.not.btest(in,pos-1))stop "C error: C_i|...0_i...>"
-    fsgn=1d0
-    do l=1,pos-1
-       if(btest(in,l-1))fsgn=-fsgn
-    enddo
-    out = ibclr(in,pos-1)
-  end subroutine c
-
-  subroutine cdg(pos,in,out,fsgn)
-    integer,intent(in)    :: pos
-    integer,intent(in)    :: in
-    integer,intent(inout) :: out
-    real(8),intent(inout) :: fsgn    
-    integer               :: l
-    if(btest(in,pos-1))stop "C^+ error: C^+_i|...1_i...>"
-    fsgn=1d0
-    do l=1,pos-1
-       if(btest(in,l-1))fsgn=-fsgn
-    enddo
-    out = ibset(in,pos-1)
-  end subroutine cdg
-
-
-
-
-
-
-  !##################################################################
-  !##################################################################
-  !TWIN SECTORS ROUTINES:
-  !##################################################################
-  !##################################################################
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : Build the re-ordering map to go from sector A(nup,ndw)
-  ! to its twin sector B(ndw,nup), with nup!=ndw.
-  !
-  !- build the map from the A-sector to \HHH
-  !- get the list of states in \HHH corresponding to sector B twin of A
-  !- return the ordering of B-states in \HHH with respect to those of A
-  !+------------------------------------------------------------------+
-  subroutine twin_sector_order(isector,order)
-    integer                             :: isector
-    integer,dimension(:)                :: order
-    type(sector_map),dimension(2*Ns_Ud) :: H
-    integer,dimension(2*Ns_Ud)          :: Indices,Istates
-    integer,dimension(Ns_Ud)            :: DimUps,DimDws
-    integer                             :: Dim,DimUp,DimDw
-    integer                             :: i,iud,iph,i_el
-    !
-    Dim = GetDim(isector)
-    if(size(Order)/=Dim)stop "twin_sector_order error: wrong dimensions of *order* array"
-    call get_DimUp(isector,DimUps)
-    call get_DimDw(isector,DimDws)
-    DimUp = product(DimUps)
-    DimDw = product(DimDws)
-    !
-    call build_sector(isector,H)
-    do i=1,Dim
-       iph = (i-1)/(DimUp*DimDw) + 1		!find number of phonons
-       i_el = mod(i-1,DimUp*DimDw) + 1		!electronic index
-       call state2indices(i_el,[DimUps,DimDws],Indices)
-       forall(iud=1:2*Ns_Ud)Istates(iud) = H(iud)%map(Indices(iud))
-       Order(i) = flip_state( Istates ) + (iph-1)*2**(2*Ns)	!flipped electronic state (GLOBAL state number {1:2^2Ns}) + phononic contribution
-    enddo
-    call delete_sector(isector,H)
-    !
-    call sort_array(Order)	!sorted and changed the values from the global state numbers to the ones of the sector {1:DimUp*DimDw*DimPh}
-    !
-  end subroutine twin_sector_order
-
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : Flip an Hilbert space state m=|{up}>|{dw}> into:
-  !
-  ! normal: j=|{dw}>|{up}>  , nup --> ndw
-  !+------------------------------------------------------------------+
-  function flip_state(istate) result(j)
-    integer,dimension(2*Ns_Ud) :: istate
-    integer                    :: j
-    integer,dimension(Ns_Ud)   :: jups,jdws
-    integer,dimension(2*Ns_Ud) :: dims
-    !
-    jups = istate(Ns_Ud+1:2*Ns_Ud)
-    jdws = istate(1:Ns_Ud)
-    dims = 2**Ns_Orb
-    call indices2state([jups,jdws],Dims,j)
-    !
-  end function flip_state
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : get the twin of a given sector (the one with opposite 
-  ! quantum numbers): 
-  ! nup,ndw ==> ndw,nup (spin-exchange)
-  !+------------------------------------------------------------------+
-  function get_twin_sector(isector) result(jsector)
-    integer,intent(in)       :: isector
-    integer                  :: jsector
-    integer,dimension(Ns_Ud) :: Iups,Idws
-    call get_Nup(isector,iups)
-    call get_Ndw(isector,idws)
-    call get_Sector([idws,iups],Ns_Orb,jsector)
-  end function get_twin_sector
-
-
-
-
-
-
-
-
-
-
-  !##################################################################
-  !##################################################################
-  !AUXILIARY COMPUTATIONAL ROUTINES ARE HERE BELOW:
-  !##################################################################
-  !##################################################################
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : input a state |i> and output a vector ivec(Nlevels)
-  !with its binary decomposition
-  !(corresponds to the decomposition of the number i-1)
-  !+------------------------------------------------------------------+
-  function bdecomp(i,Ntot) result(ivec)
-    integer :: Ntot,ivec(Ntot),l,i
-    logical :: busy
-    !this is the configuration vector |1,..,Ns,Ns+1,...,Ntot>
-    !obtained from binary decomposition of the state/number i\in 2^Ntot
-    do l=0,Ntot-1
-       busy=btest(i,l)
-       ivec(l+1)=0
-       if(busy)ivec(l+1)=1
-    enddo
-  end function bdecomp
-
-
-  !+------------------------------------------------------------------+
-  ! Reorder a binary decomposition so to have a state of the form:
-  ! default: |(1:Norb),([1:Nbath]_1, [1:Nbath]_2, ... ,[1:Nbath]_Norb)>_spin
-  ! hybrid:  |(1:Norb),([1:Nbath])_spin
-  ! replica: |(1:Norb),([1:Norb]_1, [1:Norb]_2, ...  , [1:Norb]_Nbath)>_spin
-  !
-  !> case (ed_total_ud):
-  !   (T): Ns_Ud=1, Ns_Orb=Ns.
-  !        bdecomp is already of the form above [1:Ns]
-  !   (F): Ns_Ud=Norb, Ns_Orb=Ns/Norb==1+Nbath
-  !        bdecomp is
-  !        |( [1:1+Nbath]_1,...,[1:1+Nbath]_Norb)>_spin
-  !+------------------------------------------------------------------+
-  function breorder(Nins) result(Ivec)
-    integer,intent(in),dimension(Ns_Ud,Ns_Orb) :: Nins ![1,Ns] - [Norb,1+Nbath]
-    integer,dimension(Ns)                      :: Ivec ![Ns]
-    integer                                    :: iud,ibath,indx
-    select case (ed_total_ud)
-    case (.true.)
-       Ivec = Nins(1,:)
-    case (.false.)
-       do iud=1,Ns_Ud           ![1:Norb]
-          Ivec(iud) = Nins(iud,1)
-          do ibath=1,Nbath
-             indx = getBathStride(iud,ibath) !take care of normal/
-             Ivec(indx) = Nins(iud,1+ibath)
-          enddo
-       enddo
-    end select
-  end function breorder
-
-
-  !+------------------------------------------------------------------+
-  !PURPOSE  : input a vector ib(Nlevels) with the binary sequence 
-  ! and output the corresponding state |i>
-  !(corresponds to the recomposition of the number i-1)
-  !+------------------------------------------------------------------+
-  function bjoin(ib,Ntot) result(i)
-    integer                 :: Ntot
-    integer,dimension(Ntot) :: ib
-    integer                 :: i,j
-    i=0
-    do j=0,Ntot-1
-       i=i+ib(j+1)*2**j
-    enddo
-  end function bjoin
 
 
 

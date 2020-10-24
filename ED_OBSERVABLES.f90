@@ -32,7 +32,7 @@ MODULE ED_OBSERVABLES
   real(8),dimension(:),allocatable   :: Prob
   real(8),dimension(:),allocatable   :: prob_ph
   real(8),dimension(:),allocatable   :: pdf_ph
-  real(8),dimension(:,:),allocatable   :: pdf_part
+  real(8),dimension(:,:),allocatable :: pdf_part
   real(8)                            :: w_ph
   !
   integer                            :: iorb,jorb,iorb1,jorb1
@@ -43,7 +43,7 @@ MODULE ED_OBSERVABLES
   integer                            :: iup,idw
   integer                            :: jup,jdw
   integer                            :: mup,mdw
-  integer                            :: iph,i_el
+  integer                            :: iph,i_el,isectorDim
   real(8)                            :: sgn,sgn1,sgn2,sg1,sg2,sg3,sg4
   real(8)                            :: gs_weight
   !
@@ -52,13 +52,12 @@ MODULE ED_OBSERVABLES
   !
   integer                            :: i,j,ii
   integer                            :: isector,jsector
-  integer                            :: idim,idimUP,idimDW
   !
 
   real(8),dimension(:),pointer       :: state_cvec
   logical                            :: Jcondition
   !
-
+  type(sector)                       :: sectorI
 
 
 contains 
@@ -93,13 +92,11 @@ contains
   !PURPOSE  : Lanc method
   !+-------------------------------------------------------------------+
   subroutine lanc_observables()
-    integer                             :: iprob,istate,Nud(2,Ns),iud(2),jud(2),val
-    integer,dimension(2*Ns_Ud)          :: Indices,Jndices
-    integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
-    integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
-    integer,dimension(Ns)               :: IbUp,IbDw  ![Ns]
-    real(8),dimension(Norb)             :: nup,ndw,Sz,nt
-    type(sector_map),dimension(2*Ns_Ud) :: HI
+    integer                         :: iprob,istate,Nud(2,Ns),iud(2),jud(2),val
+    integer,dimension(2*Ns_Ud)      :: Indices,Jndices
+    integer,dimension(Ns_Ud,Ns_Orb) :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
+    integer,dimension(Ns)           :: IbUp,IbDw  ![Ns]
+    real(8),dimension(Norb)         :: nup,ndw,Sz,nt    
     !
     allocate(dens(Norb),dens_up(Norb),dens_dw(Norb))
     allocate(docc(Norb))
@@ -144,22 +141,16 @@ contains
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
        !
-       iDim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
-       !
        if(MpiMaster)then
-          call build_sector(isector,HI)
-          do i = 1,iDim
-             iph = (i-1)/(iDimUp*iDimDw) + 1
-             i_el = mod(i-1,iDimUp*iDimDw) + 1
+          call build_sector(isector,sectorI)
+          do i = 1,sectorI%Dim
+             iph = (i-1)/(sectorI%DimEl) + 1
+             i_el = mod(i-1,sectorI%DimEl) + 1
              !
-             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
              do ii=1,Ns_Ud
-                mup = HI(ii)%map(Indices(ii))
-                mdw = HI(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
+                mup = sectorI%H(ii)%map(Indices(ii))
+                mdw = sectorI%H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
                 Nups(ii,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
                 Ndws(ii,:) = Bdecomp(mdw,Ns_Orb)
              enddo
@@ -213,7 +204,7 @@ contains
              end if
           enddo
           !
-          call delete_sector(isector,HI)
+          call delete_sector(sectorI)
        endif
        !
 #ifdef _MPI
@@ -249,22 +240,22 @@ contains
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
        !
-       idim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
+       ! idim  = getdim(isector)
+       ! call get_DimUp(isector,iDimUps)
+       ! call get_DimDw(isector,iDimDws)
+       ! iDimUp = product(iDimUps)
+       ! iDimDw = product(iDimDws)
        !
        if(MpiMaster)then
-          call build_sector(isector,HI)
-          do i=1,iDim
-             iph = (i-1)/(iDimUp*iDimDw) + 1
-             i_el = mod(i-1,iDimUp*iDimDw) + 1
+          call build_sector(isector,sectorI)
+          do i=1,sectorI%Dim
+             iph = (i-1)/(sectorI%DimEl) + 1
+             i_el = mod(i-1,sectorI%DimEl) + 1
              !
-             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
              do ii=1,Ns_Ud
-                mup = HI(ii)%map(Indices(ii))
-                mdw = HI(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
+                mup = sectorI%H(ii)%map(Indices(ii))
+                mdw = sectorI%H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
                 Nups(ii,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
                 Ndws(ii,:) = Bdecomp(mdw,Ns_Orb)
              enddo
@@ -287,16 +278,16 @@ contains
                       do jorb=1,Norb
                          !
                          if((Nud(ispin,jorb)==1).and.(Nud(ispin,iorb)==0))then
-                            iud(1) = HI(1)%map(Indices(1))
-                            iud(2) = HI(2)%map(Indices(2))
+                            iud(1) = sectorI%H(1)%map(Indices(1))
+                            iud(2) = sectorI%H(2)%map(Indices(2))
                             call c(jorb,iud(ispin),r,sgn1)
                             call cdg(iorb,r,k,sgn2)
                             Jndices = Indices
                             Jndices(1+(ispin-1)*Ns_Ud) = &
-                                 binary_search(HI(1+(ispin-1)*Ns_Ud)%map,k)
-                            call indices2state(Jndices,[iDimUps,iDimDws],j)
+                                 binary_search(sectorI%H(1+(ispin-1)*Ns_Ud)%map,k)
+                            call indices2state(Jndices,[sectorI%DimUps,sectorI%DimDws],j)
                             !
-                            j = j + (iph-1)*iDimUp*iDimDw
+                            j = j + (iph-1)*sectorI%Dim
                             !
                             imp_density_matrix(ispin,ispin,iorb,jorb) = &
                                  imp_density_matrix(ispin,ispin,iorb,jorb) + &
@@ -309,7 +300,7 @@ contains
              !
              !
           enddo
-          call delete_sector(isector,HI)         
+          call delete_sector(sectorI)         
        endif
        !
 #ifdef _MPI
@@ -372,10 +363,8 @@ contains
   subroutine lanc_local_energy()
     integer                             :: istate,iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
-    integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     real(8),dimension(Ns)               :: Nup,Ndw
-    type(sector_map),dimension(2*Ns_Ud) :: H
     !
     Egs     = state_list%emin
     ed_Ehartree= 0.d0
@@ -400,26 +389,26 @@ contains
        state_cvec => es_return_cvector(state_list,istate)
 #endif
        !
-       iDim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
+       ! iDim  = getdim(isector)
+       ! call get_DimUp(isector,iDimUps)
+       ! call get_DimDw(isector,iDimDws)
+       ! iDimUp = product(iDimUps)
+       ! iDimDw = product(iDimDws)
        !
        peso = 1.d0 ; if(finiteT)peso=exp(-beta*(Ei-Egs))
        peso = peso/zeta_function
        !
        !Master:
        if(MpiMaster)then
-          call build_sector(isector,H)
-          do i=1,iDim
-             iph = (i-1)/(iDimUp*iDimDw) + 1
-             i_el = mod(i-1,iDimUp*iDimDw) + 1
+          call build_sector(isector,sectorI)
+          do i=1,sectorI%Dim
+             iph = (i-1)/(sectorI%DimEl) + 1
+             i_el = mod(i-1,sectorI%DimEl) + 1
              !
-             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
              do ii=1,Ns_Ud
-                mup = H(ii)%map(Indices(ii))
-                mdw = H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
+                mup = sectorI%H(ii)%map(Indices(ii))
+                mdw = sectorI%H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
                 Nups(ii,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
                 Ndws(ii,:) = Bdecomp(mdw,Ns_Orb)
              enddo
@@ -435,8 +424,10 @@ contains
              enddo
              ! !> H_imp: Off-diagonal elements, i.e. non-local part. 
              if(ed_total_ud)then
-                iup = Indices(1)  ; idw = Indices(2)
-                mup = H(1)%map(iup) ; mdw = H(2)%map(idw)
+                iup = Indices(1)
+                idw = Indices(2)
+                mup = sectorI%H(1)%map(iup)
+                mdw = sectorI%H(2)%map(idw)
                 do iorb=1,Norb
                    do jorb=1,Norb
                       !UP
@@ -446,8 +437,8 @@ contains
                       if (Jcondition) then
                          call c(jorb,mup,k1,sg1)
                          call cdg(iorb,k1,k2,sg2)
-                         jup = binary_search(H(1)%map,k2)
-                         j   = jup + (idw-1)*iDimUp
+                         jup = binary_search(sectorI%H(1)%map,k2)
+                         j   = jup + (idw-1)*sectorI%DimUp
                          ed_Eknot = ed_Eknot + &
                               impHloc(1,1,iorb,jorb)*sg1*sg2*state_cvec(i)*(state_cvec(j))*peso
                       endif
@@ -459,32 +450,32 @@ contains
                       if (Jcondition) then
                          call c(jorb,mdw,k1,sg1)
                          call cdg(iorb,k1,k2,sg2)
-                         jdw = binary_search(H(2)%map,k2)
-                         j   = iup + (jdw-1)*iDimUp
+                         jdw = binary_search(sectorI%H(2)%map,k2)
+                         j   = iup + (jdw-1)*sectorI%DimUp
                          ed_Eknot = ed_Eknot + &
                               impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*state_cvec(i)*(state_cvec(j))*peso
                       endif
                    enddo
                 enddo
-             ! 
-             !SPIN-EXCHANGE Jx
+                ! 
+                !SPIN-EXCHANGE Jx
                 if(Jhflag.AND.Jx/=0d0)then
                    do iorb=1,Norb
                       do jorb=1,Norb
                          Jcondition=(&
-                               (iorb/=jorb).AND.&
-                               (nup(jorb)==1).AND.&
-                               (ndw(iorb)==1).AND.&
-                               (ndw(jorb)==0).AND.&
-                               (nup(iorb)==0))
+                              (iorb/=jorb).AND.&
+                              (nup(jorb)==1).AND.&
+                              (ndw(iorb)==1).AND.&
+                              (ndw(jorb)==0).AND.&
+                              (nup(iorb)==0))
                          if(Jcondition)then
                             call c(iorb,mdw,k1,sg1)  !DW
                             call cdg(jorb,k1,k2,sg2) !DW
-                            jdw=binary_search(H(2)%map,k2)
+                            jdw=binary_search(sectorI%H(2)%map,k2)
                             call c(jorb,mup,k3,sg3)  !UP
                             call cdg(iorb,k3,k4,sg4) !UP
-                            jup=binary_search(H(1)%map,k4)
-                            j = jup + (jdw-1)*iDimUp
+                            jup=binary_search(sectorI%H(1)%map,k4)
+                            j = jup + (jdw-1)*sectorI%DimUp
                             !
                             ed_Epot = ed_Epot + Jx*sg1*sg2*sg3*sg4*state_cvec(i)*state_cvec(j)*peso
                             ed_Dse = ed_Dse + sg1*sg2*sg3*sg4*state_cvec(i)*state_cvec(j)*peso
@@ -493,24 +484,24 @@ contains
                       enddo
                    enddo
                 endif
-             !
-             ! PAIR-HOPPING Jp
+                !
+                ! PAIR-HOPPING Jp
                 if(Jhflag.AND.Jp/=0d0)then
                    do iorb=1,Norb
                       do jorb=1,Norb
                          Jcondition=(&
-                               (nup(jorb)==1).AND.&
-                               (ndw(jorb)==1).AND.&
-                               (ndw(iorb)==0).AND.&
-                               (nup(iorb)==0))
+                              (nup(jorb)==1).AND.&
+                              (ndw(jorb)==1).AND.&
+                              (ndw(iorb)==0).AND.&
+                              (nup(iorb)==0))
                          if(Jcondition)then
                             call c(jorb,mdw,k1,sg1)       !c_jorb_dw
                             call cdg(iorb,k1,k2,sg2)      !c^+_iorb_dw
-                            jdw = binary_search(H(2)%map,k2)
+                            jdw = binary_search(sectorI%H(2)%map,k2)
                             call c(jorb,mup,k3,sg3)       !c_jorb_up
                             call cdg(iorb,k3,k4,sg4)      !c^+_iorb_up
-                            jup = binary_search(H(1)%map,k4)
-                            j = jup + (jdw-1)*iDimUp
+                            jup = binary_search(sectorI%H(1)%map,k4)
+                            j = jup + (jdw-1)*sectorI%DimUp
                             !
                             ed_Epot = ed_Epot + Jp*sg1*sg2*sg3*sg4*state_cvec(i)*state_cvec(j)*peso
                             ed_Dph = ed_Dph + sg1*sg2*sg3*sg4*state_cvec(i)*state_cvec(j)*peso
@@ -519,7 +510,7 @@ contains
                       enddo
                    enddo
                 endif
-             endif     
+             endif
              !
              !
              !DENSITY-DENSITY INTERACTION: SAME ORBITAL, OPPOSITE SPINS
@@ -570,7 +561,7 @@ contains
                 endif
              endif
           enddo
-          call delete_sector(isector,H)         
+          call delete_sector(sectorI)         
        endif
        !
 #ifdef _MPI
@@ -646,11 +637,9 @@ contains
     real(8)                             :: norm,beta_
     integer                             :: Nud(2,Ns),iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
-    integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)               :: IbUp,IbDw  ![Ns]
     real(8),dimension(Norb)             :: nup,ndw,Sz,nt
-    type(sector_map),dimension(2*Ns_Ud) :: HI
     real(8),dimension(:),pointer        :: evec
     !
     !
@@ -684,29 +673,23 @@ contains
     if(.not.finiteT)beta_=1000d0
     !
     do isector=1,Nsectors
-       iDim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
-       call build_sector(isector,HI)
+       call build_sector(isector,sectorI)
        !
-       do istate=1,iDim
+       do istate=1,sectorI%Dim
           Ei=espace(isector)%e(istate)
           boltzman_weight=exp(-beta_*Ei)/zeta_function
           if(boltzman_weight < cutoff)cycle
-          print*, boltzman_weight
           !
           evec => espace(isector)%M(:,istate)
           !
-          do i=1,iDim
-             iph = (i-1)/(iDimUp*iDimDw) + 1
-             i_el = mod(i-1,iDimUp*iDimDw) + 1
+          do i=1,sectorI%Dim
+             iph = (i-1)/(sectorI%DimEl) + 1
+             i_el = mod(i-1,sectorI%DimEl) + 1
              !
-             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
              do ii=1,Ns_Ud
-                mup = HI(ii)%map(Indices(ii))
-                mdw = HI(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
+                mup = sectorI%H(ii)%map(Indices(ii))
+                mdw = sectorI%H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
                 Nups(ii,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
                 Ndws(ii,:) = Bdecomp(mdw,Ns_Orb)
              enddo
@@ -752,7 +735,7 @@ contains
              dens_ph = dens_ph + (iph-1)*weight
              !
              !compute the lattice probability distribution function
-             if(Dimph>1 .and. iph.eq.1) then
+             if(DimPh>1 .AND. iph==1) then
                 val = 1
                 do iorb=1,Norb
                    val = val + nint(sign((nt(iorb) - 1.d0),g_ph(iorb)))
@@ -762,7 +745,7 @@ contains
           enddo
           !
        enddo
-       call delete_sector(isector,HI)
+       call delete_sector(sectorI)
        if(associated(evec))nullify(evec)
     enddo
     !
@@ -794,7 +777,6 @@ contains
     integer                             :: i,j
     integer                             :: izero,istate
     integer                             :: isector
-    integer                             :: idim
     integer                             :: iorb,jorb,ispin
     integer                             :: numstates
     integer                             :: m,k1,k2,k3,k4
@@ -808,10 +790,8 @@ contains
     real(8),dimension(:),pointer        :: evec
     integer                             :: iud(2),jud(2)
     integer,dimension(2*Ns_Ud)          :: Indices,Jndices
-    integer,dimension(Ns_Ud)            :: iDimUps,iDimDws
     integer,dimension(Ns_Ud,Ns_Orb)     :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
     real(8),dimension(Ns)               :: Nup,Ndw
-    type(sector_map),dimension(2*Ns_Ud) :: H
     logical                             :: Jcondition
     !
     !
@@ -834,28 +814,23 @@ contains
     if(.not.finiteT)beta_=1000d0
     !
     do isector=1,Nsectors
-       iDim  = getdim(isector)
-       call get_DimUp(isector,iDimUps)
-       call get_DimDw(isector,iDimDws)
-       iDimUp = product(iDimUps)
-       iDimDw = product(iDimDws)
-       call build_sector(isector,H)
+       call build_sector(isector,sectorI)
        !
-       do istate=1,idim
+       do istate=1,sectorI%Dim
           Ei=espace(isector)%e(istate)
           boltzman_weight=exp(-beta_*Ei)/zeta_function
           if(boltzman_weight < cutoff)cycle
           !
           evec => espace(isector)%M(:,istate)
           !
-          do i=1,idim
-             iph = (i-1)/(iDimUp*iDimDw) + 1
-             i_el = mod(i-1,iDimUp*iDimDw) + 1
+          do i=1,sectorI%Dim
+             iph = (i-1)/(sectorI%DimEl) + 1
+             i_el = mod(i-1,sectorI%DimEl) + 1
              !
-             call state2indices(i_el,[iDimUps,iDimDws],Indices)
+             call state2indices(i_el,[sectorI%DimUps,sectorI%DimDws],Indices)
              do ii=1,Ns_Ud
-                mup = H(ii)%map(Indices(ii))
-                mdw = H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
+                mup = sectorI%H(ii)%map(Indices(ii))
+                mdw = sectorI%H(ii+Ns_Ud)%map(Indices(ii+Ns_ud))
                 Nups(ii,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
                 Ndws(ii,:) = Bdecomp(mdw,Ns_Orb)
              enddo
@@ -873,7 +848,7 @@ contains
              !> H_imp: Off-diagonal elements, i.e. non-local part. 
              if(ed_total_ud)then
                 iup = Indices(1)  ; idw = Indices(2)
-                mup = H(1)%map(iup) ; mdw = H(2)%map(idw)
+                mup = sectorI%H(1)%map(iup) ; mdw = sectorI%H(2)%map(idw)
                 do iorb=1,Norb
                    do jorb=1,Norb
                       !UP
@@ -883,8 +858,8 @@ contains
                       if (Jcondition) then
                          call c(jorb,mup,k1,sg1)
                          call cdg(iorb,k1,k2,sg2)
-                         jup = binary_search(H(1)%map,k2)
-                         j   = jup + (idw-1)*iDimUp
+                         jup = binary_search(sectorI%H(1)%map,k2)
+                         j   = jup + (idw-1)*sectorI%DimUp
                          ed_Eknot = ed_Eknot + &
                               impHloc(1,1,iorb,jorb)*sg1*sg2*state_cvec(i)*(state_cvec(j))*boltzman_weight
                       endif
@@ -896,8 +871,8 @@ contains
                       if (Jcondition) then
                          call c(jorb,mdw,k1,sg1)
                          call cdg(iorb,k1,k2,sg2)
-                         jdw = binary_search(H(2)%map,k2)
-                         j   = iup + (jdw-1)*iDimUp
+                         jdw = binary_search(sectorI%H(2)%map,k2)
+                         j   = iup + (jdw-1)*sectorI%DimUp
                          ed_Eknot = ed_Eknot + &
                               impHloc(Nspin,Nspin,iorb,jorb)*sg1*sg2*state_cvec(i)*(state_cvec(j))*boltzman_weight
                       endif
@@ -954,7 +929,7 @@ contains
              endif
           enddo
        enddo
-       call delete_sector(isector,H)
+       call delete_sector(sectorI)
        if(associated(evec))nullify(evec)
     enddo
     ed_Epot = ed_Epot + ed_Ehartree
@@ -1166,10 +1141,10 @@ contains
        call Hermite(x,psi)
        !
        do i_ph=1,DimPh
-          istart = i_el + (i_ph-1)*iDimUp*iDimDw
+          istart = i_el + (i_ph-1)*sectorI%DimEl
           !
           do j_ph=1,DimPh
-             jstart = i_el + (j_ph-1)*iDimUp*iDimDw
+             jstart = i_el + (j_ph-1)*sectorI%DimEl
              !
              pdf_ph(i) = pdf_ph(i) + peso*psi(i_ph-1)*psi(j_ph-1)*vec(istart)*vec(jstart)
              pdf_part(i,val) = pdf_part(i,val) + peso*psi(i_ph-1)*psi(j_ph-1)*vec(istart)*vec(jstart)

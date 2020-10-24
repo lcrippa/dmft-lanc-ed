@@ -3,8 +3,8 @@
      !
      call state2indices(i_el,[DimUps,DimDws],Indices)
      do iud=1,Ns_Ud
-        mup = Hs(iud)%map(Indices(iud))
-        mdw = Hs(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
+        mup = Hsector%H(iud)%map(Indices(iud))
+        mdw = Hsector%H(iud+Ns_Ud)%map(Indices(iud+Ns_ud))
         Nups(iud,:) = Bdecomp(mup,Ns_Orb) ![Norb,1+Nbath]
         Ndws(iud,:) = Bdecomp(mdw,Ns_Orb)
      enddo

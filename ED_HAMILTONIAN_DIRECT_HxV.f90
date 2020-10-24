@@ -27,9 +27,9 @@ contains
     integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws       ![1,Ns]-[Norb,1+Nbath]
     integer,dimension(Ns)                          :: Nup,Ndw
     real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
-    !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
+
+    if(.not.Hsector%status)stop "directMatVec_cc ERROR: Hsector NOT allocated"
+    isector=Hsector%index
     !
     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
     !
@@ -108,8 +108,8 @@ contains
     integer,dimension(Ns)                          :: Nup,Ndw
     real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
+    if(.not.Hsector%status)stop "directMatVec_cc ERROR: Hsector NOT allocated"
+    isector=Hsector%index
     !
     if(Nloc/=getdim(isector))stop "directMatVec_cc ERROR: Nloc != dim(isector)"
     !
@@ -190,8 +190,8 @@ contains
     !
     integer                                        :: i_start,i_end
     !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
+    if(.not.Hsector%status)stop "directMatVec_cc ERROR: Hsector NOT allocated"
+    isector=Hsector%index
     !
     !Get diagonal hybridization, bath energy
     if(allocated(diag_hybr))deallocate(diag_hybr)
@@ -297,8 +297,8 @@ contains
     real(8),dimension(Nspin,Nspin,Norb,Norb,Nbath) :: Hbath_tmp
     integer                                        :: i_start,i_end
     !
-    if(.not.Hstatus)stop "directMatVec_cc ERROR: Hsector NOT set"
-    isector=Hsector
+    if(.not.Hsector%status)stop "directMatVec_cc ERROR: Hsector NOT allocated"
+    isector=Hsector%index
     !
     !Get diagonal hybridization, bath energy
     if(allocated(diag_hybr))deallocate(diag_hybr)

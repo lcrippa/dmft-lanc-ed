@@ -109,37 +109,14 @@ contains
                 vvinit(j) = vvinit(j) + sqrt(dble(iph))*state_cvec(i)
              endif
           enddo
-          !
-          ! norm2=dot_product(vvinit,vvinit)
-          ! vvinit=vvinit/sqrt(norm2)
        else
           allocate(vvinit(1));vvinit=0.d0
        endif
        !
-       !        nlanc=min(idim,lanc_nGFiter)
-       !        allocate(alfa_(nlanc),beta_(nlanc));alfa_=0d0;beta_=0d0
-       !        !
-       !        call build_Hv_sector(isector)
-       ! #ifdef _MPI
-       !        if(MpiStatus)then
-       !           call Bcast_MPI(MpiComm,norm2)
-       !           vecDim = vecDim_Hv_sector(isector)
-       !           allocate(vvloc(vecDim))
-       !           call scatter_vector_MPI(MpiComm,vvinit,vvloc)
-       !           call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alfa_,beta_)
-       !        else
-       !           call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-       !        endif
-       ! #else
-       !        call sp_lanc_tridiag(spHtimesV_p,vvinit,alfa_,beta_)
-       ! #endif
-       allocate(alfa_(min(idim,lanc_nGFiter)),beta_(min(idim,lanc_nGFiter)))
        call tridiag_Hv_sector(isector,vvinit,alfa_,beta_,norm2)
        call add_to_lanczos_phonon(norm2,state_e,alfa_,beta_)
-       ! call delete_Hv_sector()
        deallocate(alfa_,beta_)
        if(allocated(vvinit))deallocate(vvinit)
-       ! if(allocated(vvloc))deallocate(vvloc)
 #ifdef _MPI
        if(MpiStatus)then
           if(associated(state_cvec))deallocate(state_cvec)

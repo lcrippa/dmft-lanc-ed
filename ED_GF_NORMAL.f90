@@ -153,7 +153,7 @@ contains
 #endif
        !
        if(MpiMaster)then
-          call build_sector_(isector,sectorI)
+          call build_sector(isector,sectorI)
           if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                'From sector  :',isector,sectorI%Nups,sectorI%Ndws
        endif
@@ -162,7 +162,7 @@ contains
        jsector = getCDGsector(ialfa,ispin,isector)
        if(jsector/=0)then 
           if(MpiMaster)then
-             call build_sector_(jsector,sectorJ)
+             call build_sector(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                   ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
              allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
@@ -171,12 +171,11 @@ contains
                 if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = sgn*state_cvec(i)
              enddo
-             call delete_sector_(jsector,sectorJ)
+             call delete_sector(sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
           call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,iorb,ispin)
           deallocate(alfa_,beta_)
@@ -187,7 +186,7 @@ contains
        jsector = getCsector(ialfa,ispin,isector)
        if(jsector/=0)then
           if(MpiMaster)then
-             call build_sector_(jsector,sectorJ)
+             call build_sector(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                   ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
              allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
@@ -196,19 +195,18 @@ contains
                 if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = sgn*state_cvec(i)
              enddo
-             call delete_sector_(jsector,sectorJ)
+             call delete_sector(sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
           call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,iorb,ispin)
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)
        endif
        !
-       if(MpiMaster)call delete_sector_(isector,sectorI)
+       if(MpiMaster)call delete_sector(sectorI)
 #ifdef _MPI
        if(MpiStatus)then
           if(associated(state_cvec))deallocate(state_cvec)
@@ -261,7 +259,7 @@ contains
 #endif
        !
        if(MpiMaster)then
-          call build_sector_(isector,sectorI)
+          call build_sector(isector,sectorI)
           if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                'From sector  :',isector,sectorI%Nups,sectorI%Ndws
        endif
@@ -270,7 +268,7 @@ contains
        jsector = getCDGsector(ialfa,ispin,isector)
        if(jsector/=0)then
           if(MpiMaster)then
-             call build_sector_(jsector,sectorJ)
+             call build_sector(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                   ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
              allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
@@ -286,12 +284,11 @@ contains
                 if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
-             call delete_sector_(jsector,sectorJ)
+             call delete_sector(sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
           call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,1,iorb,jorb,ispin)
           deallocate(alfa_,beta_)
@@ -302,7 +299,7 @@ contains
        jsector = getCsector(ialfa,ispin,isector)
        if(jsector/=0)then
           if(MpiMaster)then
-             call build_sector_(jsector,sectorJ)
+             call build_sector(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                   ' add particle:',jsector,sectorJ%Nups,sectorJ%Ndws
              allocate(vvinit(sectorJ%Dim)) ; vvinit=zero
@@ -318,19 +315,18 @@ contains
                 if(sgn==0d0.OR.j==0)cycle
                 vvinit(j) = vvinit(j) + sgn*state_cvec(i)
              enddo
-             call delete_sector_(jsector,sectorJ)
+             call delete_sector(sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
           call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_gf_normal(one*norm2,state_e,alfa_,beta_,-1,iorb,jorb,ispin)
           deallocate(alfa_,beta_)
           if(allocated(vvinit))deallocate(vvinit)          
        endif
        !
-       if(MpiMaster)call delete_sector_(isector,sectorI)
+       if(MpiMaster)call delete_sector(sectorI)
 #ifdef _MPI
        if(MpiStatus)then
           if(associated(state_cvec))deallocate(state_cvec)
@@ -383,7 +379,7 @@ contains
     !if(finiteT)pesoBZ = vnorm2*exp(-beta*(Ei-Egs))/zeta_function
     !
     !Only the nodes in Mpi_Comm_Group did get the alanc,blanc.
-    !However after delete_sector_Hv MpiComm returns to be the global one
+    !However after delete_sectorHv MpiComm returns to be the global one
     !so we can safely Bcast the alanc,blanc (known only to the operative group)
     !to every nodes. The master is in charge of this (as a
     !participant of the operative group)
@@ -452,8 +448,8 @@ contains
        jsector=getCDGsector(ialfa,ispin,isector)
        if(jsector==0)cycle
        !
-       call build_sector_(isector,sectorI)
-       call build_sector_(jsector,sectorJ)
+       call build_sector(isector,sectorI)
+       call build_sector(jsector,sectorJ)
        !
        do i=1,sectorI%Dim          !loop over the states in the i-th sect.
           do j=1,sectorJ%Dim       !loop over the states in the j-th sect.
@@ -495,8 +491,8 @@ contains
              !
           enddo
        enddo
-       call delete_sector_(isector,sectorI)
-       call delete_sector_(jsector,sectorJ)
+       call delete_sector(sectorI)
+       call delete_sector(sectorJ)
     enddo
   end subroutine full_build_gf_normal_diag
 
@@ -529,8 +525,8 @@ contains
        jsector=getCDGsector(ialfa,ispin,isector)
        if(jsector==0)cycle
        !
-       call build_sector_(isector,sectorI)
-       call build_sector_(jsector,sectorJ)
+       call build_sector(isector,sectorI)
+       call build_sector(jsector,sectorJ)
        !
        !
        do i=1,sectorI%Dim          !loop over the states in the i-th sect.
@@ -573,8 +569,8 @@ contains
              !
           enddo
        enddo
-       call delete_sector_(isector,sectorI)
-       call delete_sector_(jsector,sectorJ)
+       call delete_sector(sectorI)
+       call delete_sector(sectorJ)
     enddo
   end subroutine full_build_gf_normal_mix
 

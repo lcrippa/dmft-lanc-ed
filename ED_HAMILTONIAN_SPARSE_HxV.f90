@@ -22,9 +22,9 @@ MODULE ED_HAMILTONIAN_SPARSE_HxV
 contains
 
 
-  subroutine ed_buildh_main(isector,Hmat)
-    integer                                        :: isector   
+  subroutine ed_buildh_main(Hmat)
     real(8),dimension(:,:),optional                :: Hmat
+    integer                                        :: isector   
     real(8),dimension(:,:),allocatable             :: Htmp_up,Htmp_dw,Hrdx,Hmat_tmp
     real(8),dimension(:,:),allocatable             :: Htmp_ph,Htmp_eph_e,Htmp_eph_ph
     integer,dimension(2*Ns_Ud)                     :: Indices    ![2-2*Norb]
@@ -36,8 +36,8 @@ contains
     if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
 #endif
     !
-    if(.not.Hstatus)stop "ed_buildh_main ERROR: Hsector NOT set"
-    isector=Hsector
+    if(.not.Hsector%status)stop "ed_buildh_main ERROR: Hsector NOT allocated"
+    isector=Hsector%index
     !
     if(present(Hmat))&
          call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_main","Hmat")
@@ -203,10 +203,10 @@ contains
 
 
 
-  subroutine ed_buildh_orbs(isector,Hmat)
+  subroutine ed_buildh_orbs(Hmat)
+    real(8),dimension(:,:),optional                :: Hmat
     integer                                        :: isector
     integer                                        :: mDimUp,mDimDw
-    real(8),dimension(:,:),optional                :: Hmat
     real(8),dimension(:,:),allocatable             :: Hmat_tmp,Htmp_ph,Htmp_eph_e,Htmp_eph_ph 
     integer,dimension(2*Ns_Ud)                     :: Indices,Jndices
     integer,dimension(Ns_Ud,Ns_Orb)                :: Nups,Ndws  ![1,Ns]-[Norb,1+Nbath]
@@ -219,8 +219,8 @@ contains
     if(Mpistatus .AND. MpiComm == MPI_COMM_NULL)return
 #endif
     !
-    if(.not.Hstatus)stop "ed_buildh_main ERROR: Hsector NOT set"
-    isector=Hsector
+    if(.not.Hsector%status)stop "ed_buildh_main ERROR: Hsector NOT set"
+    isector=Hsector%index
     !
     if(present(Hmat))&
          call assert_shape(Hmat,[getdim(isector), getdim(isector)],"ed_buildh_main","Hmat")
@@ -353,8 +353,8 @@ contains
           call sp_dump_matrix(spH0ph_eph,Htmp_eph_ph)
           !
           Hmat = kronecker_product(eye(Dimph),Hmat_tmp) +     &
-                 kronecker_product(Htmp_ph,eye(DimUp*DimDw)) +&
-                 kronecker_product(Htmp_eph_ph,Htmp_eph_e)
+               kronecker_product(Htmp_ph,eye(DimUp*DimDw)) +&
+               kronecker_product(Htmp_eph_ph,Htmp_eph_e)
           !
           deallocate(Htmp_ph,Htmp_eph_e,Htmp_eph_ph)
        else

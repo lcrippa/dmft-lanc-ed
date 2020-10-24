@@ -50,20 +50,21 @@ contains
     integer                         :: i,iup,idw
     integer                         :: j,jup,jdw
     !
-    Hsector=isector
-    Hstatus=.true.
+    call build_sector(isector,Hsector)
     !
-    allocate(Hs(2*Ns_Ud))
+    !This is not really needed but it eases the writing:
     allocate(DimUps(Ns_Ud))
     allocate(DimDws(Ns_Ud))
-    call build_sector(isector,Hs)
+    Dim    = Hsector%Dim
+    DimUp  = Hsector%DimUp
+    DimDw  = Hsector%DimDw
+    DimUps = Hsector%DimUps
+    DimDws = Hsector%DimDws
     !
-    call get_DimUp(isector,DimUps)
-    call get_DimDw(isector,DimDws)
-    DimUp = product(DimUps)
-    DimDw = product(DimDws)
-    Dim   = getDim(isector)
     !
+    !#################################
+    !          MPI SETUP
+    !#################################
     mpiAllThreads=.true.
     !>PREAMBLE: check that split of the DW is performed with the minimum #cpu: no idle cpus allowed (with zero elements)
 #ifdef _MPI
@@ -128,13 +129,16 @@ contains
 #endif
     !
     !
+    !#################################
+    !          HxV SETUP
+    !#################################
     if(present(Hmat))then
        if(ed_total_ud)then
           spHtimesV_p => null()
-          call ed_buildh_main(isector,Hmat)          
+          call ed_buildh_main(Hmat)          
        else
           spHtimesV_p => null()
-          call ed_buildh_orbs(isector,Hmat)
+          call ed_buildh_orbs(Hmat)
        end if
        return
     endif
@@ -146,13 +150,13 @@ contains
 #ifdef _MPI
           if(MpiStatus)spHtimesV_p => spMatVec_MPI_main
 #endif
-          call ed_buildh_main(isector)
+          call ed_buildh_main()
        else
           spHtimesV_p => spMatVec_orbs
 #ifdef _MPI
           if(MpiStatus)spHtimesV_p => spMatVec_MPI_orbs
 #endif
-          call ed_buildh_orbs(isector)
+          call ed_buildh_orbs()
        endif
     case (.false.)
        if(ed_total_ud)then
@@ -176,12 +180,12 @@ contains
 
   subroutine delete_Hv_sector()
     integer :: iud,ierr,i
-    call delete_sector(Hsector,Hs)
-    deallocate(Hs)
+    call delete_sector(Hsector)
     deallocate(DimUps)
-    deallocate(DimDws)    
-    Hsector=0
-    Hstatus=.false.
+    deallocate(DimDws)
+    Dim    = 0
+    DimUp  = 0
+    DimDw  = 0
     !
     !There is no difference here between Mpi and serial version, as Local part was removed.
 #ifdef _MPI
@@ -269,11 +273,10 @@ contains
 
 
 
-  subroutine tridiag_Hv_sector(jsector,vvinit,alanc,blanc,norm2)
-    integer,intent(in)                 :: jsector
+  subroutine tridiag_Hv_sector(isector,vvinit,alanc,blanc,norm2)
+    integer                            :: isector
     real(8),dimension(:)               :: vvinit
-    real(8),dimension(:)               :: alanc
-    real(8),dimension(:)               :: blanc
+    real(8),dimension(:),allocatable   :: alanc,blanc
     real(8)                            :: norm2
     !
     real(8),dimension(:),allocatable   :: vvloc
@@ -283,11 +286,12 @@ contains
        norm2=dot_product(vvinit,vvinit)
        vvinit=vvinit/sqrt(norm2)
     endif
-    call build_Hv_sector(jsector)
+    call build_Hv_sector(isector)
+    allocate(alanc(Hsector%Nlanc),blanc(Hsector%Nlanc))
 #ifdef _MPI
     if(MpiStatus)then
        call bcast_MPI(MpiComm,norm2)
-       vecDim = vecDim_Hv_sector(jsector)
+       vecDim = vecDim_Hv_sector(isector)
        allocate(vvloc(vecDim))
        call scatter_vector_MPI(MpiComm,vvinit,vvloc)
        call sp_lanc_tridiag(MpiComm,spHtimesV_p,vvloc,alanc,blanc)

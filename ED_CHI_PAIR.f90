@@ -126,9 +126,9 @@ contains
        if(jsector/=0.AND.ksector/=0)then
           !
           if(MpiMaster)then
-             call build_sector_(isector,sectorI)
-             call build_sector_(ksector,sectorK)
-             call build_sector_(jsector,sectorJ)
+             call build_sector(isector,sectorI)
+             call build_sector(ksector,sectorK)
+             call build_sector(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                   'Apply Cup*Cdw  :',isector,sectorI%Nups,sectorI%Ndws
 
@@ -147,14 +147,13 @@ contains
                 vvinit(j) = sgn*vvinit_tmp(k)
              enddo
              deallocate(vvinit_tmp)
-             call delete_sector_(isector,sectorI)
-             call delete_sector_(ksector,sectorK)
-             call delete_sector_(jsector,sectorJ)
+             call delete_sector(sectorI)
+             call delete_sector(sectorK)
+             call delete_sector(sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
           call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_pairChi(norm2,state_e,alfa_,beta_,iorb,iorb)
           deallocate(alfa_,beta_)
@@ -220,9 +219,9 @@ contains
        if(jsector/=0.AND.ksector/=0)then
           !
           if(MpiMaster)then
-             call build_sector_(isector,sectorI)
-             call build_sector_(ksector,sectorK)
-             call build_sector_(jsector,sectorJ)
+             call build_sector(isector,sectorI)
+             call build_sector(ksector,sectorK)
+             call build_sector(jsector,sectorJ)
              if(ed_verbose>=3)write(LOGfile,"(A,I6,20I4)")&
                   'Apply C_bup*C_bdw + C_aup*C_adw  :',isector,sectorI%Nups,sectorI%Ndws
              allocate(vvinit_tmp(sectorK%Dim)) ;  vvinit_tmp=0d0
@@ -256,14 +255,13 @@ contains
                 vvinit(j) = sgn*vvinit_tmp(k)
              enddo
              deallocate(vvinit_tmp)
-             call delete_sector_(isector,sectorI)
-             call delete_sector_(ksector,sectorK)
-             call delete_sector_(jsector,sectorJ)
+             call delete_sector(sectorI)
+             call delete_sector(sectorK)
+             call delete_sector(sectorJ)
           else
              allocate(vvinit(1));vvinit=0.d0
           endif
           !
-          allocate(alfa_(sectorJ%Nlanc),beta_(sectorJ%Nlanc))
           call tridiag_Hv_sector(jsector,vvinit,alfa_,beta_,norm2)
           call add_to_lanczos_pairChi(norm2,state_e,alfa_,beta_,iorb,jorb)
           deallocate(alfa_,beta_)

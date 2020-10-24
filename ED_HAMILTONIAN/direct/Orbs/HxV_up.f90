@@ -6,7 +6,7 @@
      !
      !>H_hyb: hopping terms for a given spin (imp <--> bath)
      do iorb=1,Ns_Ud
-        mup = Hs(iorb)%map(Jndices(iorb))
+        mup = Hsector%H(iorb)%map(Jndices(iorb))
         Nups(iorb,:) = Bdecomp(mup,Ns_Orb)
         !
         do kp=1,Nbath
@@ -16,7 +16,7 @@
               call c(1,mup,k1,sg1)
               call cdg(ialfa,k1,k2,sg2)
               Indices       = Jndices
-              Indices(iorb) = binary_search(Hs(iorb)%map,k2)
+              Indices(iorb) = binary_search(Hsector%H(iorb)%map,k2)
               call indices2state(Indices,[DimUps,DimDws],i)
               htmp  = diag_hybr(1,iorb,kp)*sg1*sg2
               !
@@ -30,7 +30,7 @@
               call c(ialfa,mup,k1,sg1)
               call cdg(1,k1,k2,sg2)
               Indices       = Jndices
-              Indices(iorb) = binary_search(Hs(iorb)%map,k2)
+              Indices(iorb) = binary_search(Hsector%H(iorb)%map,k2)
               call indices2state(Indices,[DimUps,DimDws],i)
               htmp  = diag_hybr(1,iorb,kp)*sg1*sg2
               !

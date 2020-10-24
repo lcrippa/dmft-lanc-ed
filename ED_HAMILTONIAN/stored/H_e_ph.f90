@@ -1,10 +1,10 @@
-!We build the electronic part of the electron-phonon interaction: Sum_iorb g_iorb n_iorb
+  !We build the electronic part of the electron-phonon interaction: Sum_iorb g_iorb n_iorb
   do i=MpiIstart,MpiIend
      iup = iup_index(i,DimUp)
      idw = idw_index(i,DimUp)
      !
-     mup = Hs(1)%map(iup)
-     mdw = Hs(2)%map(idw)
+     mup = Hsector%H(1)%map(iup)
+     mdw = Hsector%H(2)%map(idw)
      !
      nup = bdecomp(mup,Ns)
      ndw = bdecomp(mdw,Ns)
@@ -23,7 +23,8 @@
      !
   enddo
 
-!Here we build the phononc part of the electron-phonon interaction: (b^+ + b)
+
+  !Here we build the phononc part of the electron-phonon interaction: (b^+ + b)
   htmp = zero
   do iph=1,DimPh
      i = iph + 1	!destruction operator: from the col to the row state
